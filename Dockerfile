@@ -57,7 +57,9 @@ COPY --from=build /build/extracted/ ./
 # loaded and linked, so later starts skip that work. spring.context.exit=onRefresh stops the app
 # once its beans exist, before the web server starts. The host's build has no database, so the run
 # points at a closed local port and turns off what would connect or wait: Flyway, Hibernate's
-# schema check and metadata lookup, and the pool's fail-fast check.
+# schema check and metadata lookup, and the pool's fail-fast check. Two log levels hide the expected
+# warnings this causes: Spring failing to read the database name, and Hibernate saying the dialect
+# setting isn't needed, which it is here, because the run never reads the database's metadata.
 # The cache only works with this same JVM, classpath and jar timestamps, so it's made here, in the
 # runtime image, with the same JVM options as the start command. If a start can't use the cache,
 # Java warns and starts without it.
@@ -75,6 +77,8 @@ RUN java -XX:AOTCacheOutput=app.aot -XX:MaxRAM=512m -XX:MaxRAMPercentage=55 -XX:
       -Dspring.jpa.hibernate.ddl-auto=none \
       -Dspring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect \
       -Dspring.jpa.properties.hibernate.boot.allow_jdbc_metadata_access=false \
+      -Dlogging.level.org.springframework.jdbc.support.SQLErrorCodesFactory=ERROR \
+      -Dlogging.level.org.hibernate.orm.deprecation=ERROR \
       -jar app.jar \
  && java -XX:AOTCache=app.aot -XX:AOTMode=on -XX:MaxRAM=512m -XX:MaxRAMPercentage=55 -XX:+UseSerialGC \
       -cp app.jar -version
