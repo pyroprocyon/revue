@@ -10,10 +10,13 @@ import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 /**
  * Web security configuration.
  *
- * <p>Only the health check is open, so Docker Compose, the host and an uptime monitor can check
- * the app without signing in. Every other request needs a signed-in user. A signed-out request
- * gets a plain 401 instead of a redirect to a login page, because the React app calls the API
- * with fetch.
+ * <p>The API and Actuator need a signed-in user, except the health check, which Docker Compose,
+ * the host and an uptime monitor call without signing in. A signed-out API request gets a plain
+ * 401 instead of a redirect to a login page, because the React app calls the API with fetch.
+ *
+ * <p>Everything outside {@code /api} and {@code /actuator} is the public React build: index.html
+ * for every browser route, and the built assets. The React app then asks the API what the visitor
+ * may see. Keep every server route under {@code /api}, because anything outside it is public.
  *
  * <p>Email sign-in, sessions and CSRF protection are added here with the sign-in work.
  */
@@ -26,7 +29,8 @@ public class SecurityConfig {
 			.authorizeHttpRequests(requests -> requests
 				// Any method, because some uptime monitors send HEAD instead of GET.
 				.requestMatchers("/actuator/health").permitAll()
-				.anyRequest().authenticated())
+				.requestMatchers("/api/**", "/actuator/**").authenticated()
+				.anyRequest().permitAll())
 			.exceptionHandling(exceptions -> exceptions
 				.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
 			// By default Spring Security saves each rejected request in a new session, to redirect

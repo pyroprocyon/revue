@@ -1,0 +1,188 @@
+package com.revue;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
+import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Import;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.web.servlet.MockMvc;
+
+/**
+ * Spring Boot serves the React production build at the same address as the API (plan sections 3
+ * and 13). These tests run a real server, because forwards, error pages and compressed files only
+ * behave as deployed in a real servlet container. They serve a small stand-in build from
+ * src/test/resources/static; {@code make smoke} checks the real build inside the Docker image.
+ *
+ * <p>A plain {@link HttpClient} sends the requests, so nothing decodes a compressed body or
+ * follows a redirect on the test's behalf.
+ */
+@SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
+@AutoConfigureMockMvc
+@Import(TestcontainersConfiguration.class)
+class StaticServingTests {
+
+	private static final String ASSET = "/assets/app-test1234.js";
+
+	private final HttpClient http = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build();
+
+	@LocalServerPort
+	private int port;
+
+	@Autowired
+	private MockMvc mvc;
+
+	@Autowired
+	private JdbcTemplate jdbc;
+
+	@Test
+	void reloadingABrowserRouteServesTheAppKeptOutOfSearch() {
+		HttpResponse<String> response = send("GET", "/review/42");
+
+		assertThat(response.statusCode()).isEqualTo(200);
+		assertThat(response.body()).isEqualTo(fixture("static/index.html"));
+		assertThat(header(response, "Content-Type")).startsWith("text/html");
+		assertThat(header(response, "X-Robots-Tag")).isEqualTo("noindex");
+		// index.html names the current asset files, so browsers must fetch it again on each visit.
+		assertThat(header(response, "Cache-Control")).isEqualTo("no-cache");
+		assertThat(response.headers().firstValue("Last-Modified")).isEmpty();
+	}
+
+	@Test
+	void browserRoutesAnswerHeadRequests() {
+		HttpResponse<String> response = send("HEAD", "/review/42");
+
+		assertThat(response.statusCode()).isEqualTo(200);
+		assertThat(response.body()).isEmpty();
+		assertThat(header(response, "X-Robots-Tag")).isEqualTo("noindex");
+	}
+
+	@Test
+	void onlyTheHomePageAndStarterPreviewCanBeIndexed() {
+		for (String path : new String[] { "/", "/starter-set" }) {
+			HttpResponse<String> response = send("GET", path);
+
+			assertThat(response.statusCode()).as(path).isEqualTo(200);
+			assertThat(response.body()).as(path).isEqualTo(fixture("static/index.html"));
+			assertThat(response.headers().firstValue("X-Robots-Tag")).as(path).isEmpty();
+		}
+	}
+
+	@Test
+	void hashedAssetsAreCachedForAYearAndServedPrecompressed() {
+		HttpResponse<byte[]> brotli = sendBytes(ASSET, "br");
+		assertThat(brotli.statusCode()).isEqualTo(200);
+		assertThat(header(brotli, "Content-Encoding")).isEqualTo("br");
+		assertThat(brotli.body()).isEqualTo(fixtureBytes("static" + ASSET + ".br"));
+		assertThat(header(brotli, "Vary")).contains("Accept-Encoding");
+		assertThat(header(brotli, "Cache-Control")).contains("max-age=31536000", "public", "immutable");
+
+		HttpResponse<byte[]> gzip = sendBytes(ASSET, "gzip");
+		assertThat(header(gzip, "Content-Encoding")).isEqualTo("gzip");
+		assertThat(gzip.body()).isEqualTo(fixtureBytes("static" + ASSET + ".gz"));
+
+		HttpResponse<byte[]> plain = sendBytes(ASSET, null);
+		assertThat(plain.headers().firstValue("Content-Encoding")).isEmpty();
+		assertThat(plain.body()).isEqualTo(fixtureBytes("static" + ASSET));
+	}
+
+	@Test
+	void aMissingFileGets404InsteadOfThePage() {
+		// A tab left open across a deploy asks for an asset the new build doesn't have.
+		for (String path : new String[] { "/assets/app-gone5678.js", "/wp-login.php" }) {
+			HttpResponse<String> response = send("GET", path);
+
+			assertThat(response.statusCode()).as(path).isEqualTo(404);
+			assertThat(response.body()).as(path).doesNotContain("id=\"root\"");
+		}
+	}
+
+	@Test
+	void apiRoutesNeverFallBackToThePage() throws Exception {
+		assertThat(send("GET", "/api/v1/unknown").statusCode()).isEqualTo(401);
+		assertThat(send("GET", "/api/unknown").statusCode()).isEqualTo(401);
+		// Signed in, an unknown API route is a plain 404, not the React page.
+		mvc.perform(get("/api/v1/unknown").with(user("student"))).andExpect(status().isNotFound());
+	}
+
+	@Test
+	void servingTheAppCreatesNoSession() {
+		int sessionsBefore = countSessions();
+
+		for (String path : new String[] { "/", "/review/42", ASSET }) {
+			assertThat(send("GET", path).headers().firstValue("Set-Cookie")).as(path).isEmpty();
+		}
+		assertThat(countSessions()).isEqualTo(sessionsBefore);
+	}
+
+	private HttpResponse<String> send(String method, String path) {
+		HttpRequest request = HttpRequest.newBuilder(uri(path))
+			.method(method, HttpRequest.BodyPublishers.noBody())
+			.build();
+		return exchange(request, HttpResponse.BodyHandlers.ofString());
+	}
+
+	private HttpResponse<byte[]> sendBytes(String path, String acceptEncoding) {
+		HttpRequest.Builder request = HttpRequest.newBuilder(uri(path)).GET();
+		if (acceptEncoding != null) {
+			request.header("Accept-Encoding", acceptEncoding);
+		}
+		return exchange(request.build(), HttpResponse.BodyHandlers.ofByteArray());
+	}
+
+	private <T> HttpResponse<T> exchange(HttpRequest request, HttpResponse.BodyHandler<T> body) {
+		try {
+			return http.send(request, body);
+		}
+		catch (IOException ex) {
+			throw new UncheckedIOException(ex);
+		}
+		catch (InterruptedException ex) {
+			Thread.currentThread().interrupt();
+			throw new IllegalStateException(ex);
+		}
+	}
+
+	private URI uri(String path) {
+		return URI.create("http://127.0.0.1:" + port + path);
+	}
+
+	private static String header(HttpResponse<?> response, String name) {
+		return response.headers().firstValue(name).orElse("(missing)");
+	}
+
+	private static String fixture(String path) {
+		return new String(fixtureBytes(path), StandardCharsets.UTF_8);
+	}
+
+	private static byte[] fixtureBytes(String path) {
+		try {
+			return new ClassPathResource(path).getContentAsByteArray();
+		}
+		catch (IOException ex) {
+			throw new UncheckedIOException(ex);
+		}
+	}
+
+	private int countSessions() {
+		Integer count = jdbc.queryForObject("SELECT count(*) FROM spring_session", Integer.class);
+		return count == null ? 0 : count;
+	}
+
+}

@@ -20,6 +20,8 @@ This is the same as `make start` or `make up`. It creates `.env` from `.env.exam
 
 Open [Revue](http://127.0.0.1:5173). Vite forwards `/api` and `/actuator` to the backend. [Backend health](http://127.0.0.1:5173/actuator/health) should return `{"status":"UP"}`. Protected API requests require authentication.
 
+The backend at [127.0.0.1:8080](http://127.0.0.1:8080) serves the React production build, as the deployed site does. It reflects the frontend as of the last `make`, without live reload.
+
 - React source changes reload live. The development container uses file polling for Docker Desktop compatibility and keeps its dependencies separate from host `node_modules`.
 - After changing backend code, frontend dependencies or Docker configuration, run `make` again. It rebuilds changed images while preserving the database. Backend live reload is not configured; use the IDE workflow below for debugging.
 - `make stop` stops and removes the containers, keeping database data. `make start` starts the stack again. `make up` and `make down` remain available.
@@ -31,7 +33,7 @@ Open [Revue](http://127.0.0.1:5173). Vite forwards `/api` and `/actuator` to the
 
 ### Checks
 
-`make smoke` starts the stack and uses host `curl` to check the React entry, backend health and a protected API request through Vite. It saves no application data.
+`make smoke` starts the stack and uses host `curl` to check the React entry, backend health and a protected API request through Vite. It then checks the production build served by the backend: the page, a browser route reload, a compressed hashed asset and a missing asset's 404. It saves no application data.
 
 To run tests on the host, also install Temurin Java 25, Node 26.13.0 and `unzip` (needed by the Maven Wrapper). Docker must be running for Testcontainers. Node can be installed with nvm; Make selects the pinned installed version for its frontend commands.
 
@@ -60,13 +62,13 @@ SPRING_DATASOURCE_PASSWORD=local-dev-only
 - `compose.yaml`, `Dockerfile` and `frontend/Dockerfile.dev`: the local stack that `make` runs.
 - `scripts/`: the pinned-Node runner and the local HTTP smoke check.
 
-The root Dockerfile packages the backend. The Vite container is for local development; a combined production frontend/backend image is not configured yet.
+The root Dockerfile builds one image: Spring Boot serving the API and the React production build at one address. The Vite container is for local development only.
 
 ## Continuous integration
 
 The GitHub Actions workflow is configured to run `make check` and `make smoke` on pushes and pull requests. This covers the backend tests against PostgreSQL 18.6, frontend tests and type checking, the production frontend build, container builds and HTTP connectivity. The workflow uses the pinned Java and Node versions and requires no deployment credentials.
 
-Continuous deployment is not connected yet. The production image currently contains only the backend; the development Vite container is not a production frontend server.
+Continuous deployment is not connected yet. The image turns on the production profile (`application-prod.properties`); Docker Compose turns it off for local development.
 
 ## License
 

@@ -34,6 +34,9 @@ services:
       db:
         condition: service_healthy
     environment:
+      # The image defaults to the production profile. Local development runs over plain HTTP,
+      # so it must not mark the session cookie Secure or trust X-Forwarded headers.
+      SPRING_PROFILES_ACTIVE: local
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}

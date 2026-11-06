@@ -90,8 +90,9 @@ build: frontend-install ## Type-check and build the frontend for production
 
 check: test build ## Run tests, type checking and the frontend production build
 
-smoke: up ## Check the running frontend and its connection to the backend
-	@address=$$($(COMPOSE) port frontend 5173); bash scripts/check-local.sh "http://$$address"
+smoke: up ## Check Vite and its proxy, and the production build served by the backend
+	@frontend=$$($(COMPOSE) port frontend 5173); backend=$$($(COMPOSE) port backend 8080); \
+	  bash scripts/check-local.sh "http://$$frontend" "http://$$backend"
 
 # Create .env from the example only when .env is missing. An existing .env is never overwritten.
 .env:

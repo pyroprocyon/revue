@@ -15,8 +15,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
- * A signed-out request gets a plain 401 and leaves nothing behind. Bots send many such requests,
- * so a request must not create a session row in PostgreSQL or set a session cookie.
+ * A signed-out API request gets a plain 401, and no signed-out request leaves anything behind.
+ * Bots send many such requests, so a request must not create a session row in PostgreSQL or set a
+ * session cookie.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -39,9 +40,9 @@ class SignedOutRequestTests {
 	void signedOutRequestsCreateNoSession() throws Exception {
 		int sessionsBefore = countSessions();
 
-		// A browser-style request, like a bot or a person opening a link.
+		// A bot probing for a file. Files outside /api are public, so a missing one is a plain 404.
 		mvc.perform(get("/wp-login.php").header(HttpHeaders.ACCEPT, "text/html"))
-			.andExpect(status().isUnauthorized())
+			.andExpect(status().isNotFound())
 			.andExpect(header().doesNotExist(HttpHeaders.SET_COOKIE));
 		mvc.perform(get("/api/v1/me"))
 			.andExpect(status().isUnauthorized())
