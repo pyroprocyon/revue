@@ -61,7 +61,12 @@ COPY --from=build /build/extracted/ ./
 # The cache only works with this same JVM, classpath and jar timestamps, so it's made here, in the
 # runtime image, with the same JVM options as the start command. If a start can't use the cache,
 # Java warns and starts without it.
-RUN java -XX:AOTCacheOutput=app.aot -XX:MaxRAMPercentage=55 -XX:+UseSerialGC \
+# -XX:MaxRAM=512m sizes the training JVM like the free instance, whatever the build machine has.
+# The heap decides how Java stores object references: above 32 GB, compressed references are off.
+# Without this flag, a build machine with 58 GB or more makes a cache the 512 MB instance rejects,
+# as Render's first deploy with the cache showed.
+# The last command checks that a 512 MB start can use the cache, and fails the build if not.
+RUN java -XX:AOTCacheOutput=app.aot -XX:MaxRAM=512m -XX:MaxRAMPercentage=55 -XX:+UseSerialGC \
       -Dspring.context.exit=onRefresh \
       -Dspring.datasource.url=jdbc:postgresql://127.0.0.1:1/aot-training \
       -Dspring.datasource.hikari.initialization-fail-timeout=-1 \
@@ -70,7 +75,9 @@ RUN java -XX:AOTCacheOutput=app.aot -XX:MaxRAMPercentage=55 -XX:+UseSerialGC \
       -Dspring.jpa.hibernate.ddl-auto=none \
       -Dspring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect \
       -Dspring.jpa.properties.hibernate.boot.allow_jdbc_metadata_access=false \
-      -jar app.jar
+      -jar app.jar \
+ && java -XX:AOTCache=app.aot -XX:AOTMode=on -XX:MaxRAM=512m -XX:MaxRAMPercentage=55 -XX:+UseSerialGC \
+      -cp app.jar -version
 
 USER revue
 # 8080 by default. The production profile listens on PORT instead when the host sets it.
