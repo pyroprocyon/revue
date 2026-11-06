@@ -12,3 +12,6 @@
 *.jpg binary
 *.ico binary
 *.woff2 binary
+# Precompressed test fixtures
+*.br binary
+*.gz binary

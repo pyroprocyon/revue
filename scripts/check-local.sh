@@ -1,15 +1,54 @@
 #!/usr/bin/env bash
-# Exercise the actual development server and proxy, not just container health.
+# Exercise the running stack over HTTP, not just container health:
+# the Vite development server and its proxy, then the React production build served by the backend.
 set -euo pipefail
-base_url="${1:?Pass the frontend URL}"
-html=$(curl --fail --silent --show-error --max-time 10 "$base_url/")
-[[ "$html" == *'id="root"'* && "$html" == *'/src/main.tsx'* ]] || {
-  echo 'The frontend did not return the React entry page.' >&2; exit 1;
+frontend_url="${1:?Pass the frontend URL}"
+backend_url="${2:?Pass the backend URL}"
+
+fail() { echo "$1" >&2; exit 1; }
+# Response headers only, lowercased and without carriage returns, for simple matching.
+headers() {
+  curl --fail --silent --show-error --max-time 10 --output /dev/null --dump-header - "$@" \
+    | tr -d '\r' | tr '[:upper:]' '[:lower:]'
 }
-entry=$(curl --fail --silent --show-error --max-time 10 "$base_url/src/main.tsx")
-[[ "$entry" == *'createRoot'* ]] || { echo 'The frontend entry module did not load.' >&2; exit 1; }
-health=$(curl --fail --silent --show-error --max-time 10 "$base_url/actuator/health")
-[[ "$health" == '{"status":"UP"}' ]] || { echo 'Backend health failed through the frontend proxy.' >&2; exit 1; }
-status=$(curl --silent --show-error --max-time 10 --output /dev/null --write-out '%{http_code}' "$base_url/api/v1/me")
-[[ "$status" == 401 ]] || { echo "Protected API returned $status instead of 401 through the proxy." >&2; exit 1; }
-echo 'Local smoke check passed: React entry, backend health and protected API proxy.'
+status_of() {
+  curl --silent --show-error --max-time 10 --output /dev/null --write-out '%{http_code}' "$1"
+}
+
+# Vite development server and its proxy.
+html=$(curl --fail --silent --show-error --max-time 10 "$frontend_url/")
+[[ "$html" == *'id="root"'* && "$html" == *'/src/main.tsx'* ]] \
+  || fail 'The frontend did not return the React entry page.'
+entry=$(curl --fail --silent --show-error --max-time 10 "$frontend_url/src/main.tsx")
+[[ "$entry" == *'createRoot'* ]] || fail 'The frontend entry module did not load.'
+health=$(curl --fail --silent --show-error --max-time 10 "$frontend_url/actuator/health")
+[[ "$health" == '{"status":"UP"}' ]] || fail 'Backend health failed through the frontend proxy.'
+status=$(status_of "$frontend_url/api/v1/me")
+[[ "$status" == 401 ]] || fail "Protected API returned $status instead of 401 through the proxy."
+
+# The production build, served by the backend itself, as the deployed site serves it.
+page=$(curl --fail --silent --show-error --max-time 10 "$backend_url/")
+[[ "$page" == *'id="root"'* && "$page" != *'/src/main.tsx'* ]] \
+  || fail 'The backend did not return the React production build.'
+script_pattern='/assets/[^"]+\.js'
+[[ "$page" =~ $script_pattern ]] || fail 'The production page names no built script.'
+asset=${BASH_REMATCH[0]}
+# Assign before testing, so a failed request stops the script instead of matching nothing.
+home_headers=$(headers "$backend_url/")
+[[ "$home_headers" != *'x-robots-tag'* ]] || fail 'The home page must stay indexable.'
+
+# Reloading a browser route loads the same page, kept out of search results.
+route_page=$(curl --fail --silent --show-error --max-time 10 "$backend_url/review/smoke-check")
+[[ "$route_page" == "$page" ]] || fail 'A browser route did not return the React page.'
+route_headers=$(headers "$backend_url/review/smoke-check")
+[[ "$route_headers" == *'x-robots-tag: noindex'* ]] \
+  || fail 'A browser route is missing X-Robots-Tag: noindex.'
+
+# A built asset is cached for a year and served precompressed.
+asset_headers=$(headers --header 'Accept-Encoding: br' "$backend_url$asset")
+[[ "$asset_headers" == *'content-encoding: br'* ]] || fail "$asset was not served precompressed."
+[[ "$asset_headers" == *'immutable'* ]] || fail "$asset is missing its long cache lifetime."
+status=$(status_of "$backend_url/assets/missing-smoke-check.js")
+[[ "$status" == 404 ]] || fail "A missing asset returned $status instead of 404."
+
+echo 'Local smoke check passed: Vite and its proxy, and the production build served by the backend.'

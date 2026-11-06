@@ -1,4 +1,4 @@
-# Local development only. Deployment will serve the built frontend from Spring Boot.
+# Local development only. The root Dockerfile builds the frontend for deployment, served by Spring Boot.
 FROM node:26.13.0-bookworm-slim
 WORKDIR /app
 RUN chown node:node /app
