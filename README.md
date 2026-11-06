@@ -2,7 +2,7 @@
 
 Revue is a spaced-repetition review app for Philippine students. A student tries to recall an answer, compares it with the reference, and reviews the card again when Revue schedules it.
 
-The app is under development. The current build provides a React application shell, a Spring Boot backend, PostgreSQL, session storage and health checks. Sign-in and review features are not implemented yet.
+The app is under development. The current build provides a React application shell, a Spring Boot backend, PostgreSQL, session storage and health checks. The backend includes a daily scheduler using FSRS-6 (Java library 1.0.0) with a 90% desired retention target. It uses the student’s local calendar date and returns the next review date and state. Account sign-in and saving reviews are still in development.
 
 ## Local development
 
