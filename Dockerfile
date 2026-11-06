@@ -49,6 +49,7 @@ ENV SPRING_PROFILES_ACTIVE=prod
 WORKDIR /app
 COPY --from=build /build/app.jar app.jar
 USER revue
+# 8080 by default. The production profile listens on PORT instead when the host sets it.
 EXPOSE 8080
 # The free host has 512 MB of memory and 0.1 CPU. Cap the heap at 55% of the container's memory,
 # leaving room for class metadata and thread stacks. The Serial collector needs the least memory
