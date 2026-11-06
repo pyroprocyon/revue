@@ -103,6 +103,28 @@ class StaticServingTests {
 	}
 
 	@Test
+	void aFormatTheClientRejectsIsNeverServed() {
+		// A weight of zero rejects a format (RFC 9110, section 12.5.3).
+		for (String path : new String[] { "/", "/review/42", ASSET }) {
+			byte[] plain = fixtureBytes(path.equals(ASSET) ? "static" + ASSET : "static/index.html");
+			// Fill Spring's resource cache with compressed answers first, because its cache key
+			// ignores weights and could hand them to a later request.
+			assertThat(header(sendBytes(path, "gzip"), "Content-Encoding")).as(path).isEqualTo("gzip");
+			assertThat(header(sendBytes(path, "br"), "Content-Encoding")).as(path).isEqualTo("br");
+
+			HttpResponse<byte[]> gzipRejected = sendBytes(path, "gzip;q=0, identity");
+			assertThat(gzipRejected.headers().firstValue("Content-Encoding")).as(path).isEmpty();
+			assertThat(gzipRejected.body()).as(path).isEqualTo(plain);
+
+			assertThat(header(sendBytes(path, "br;q=0, gzip"), "Content-Encoding")).as(path).isEqualTo("gzip");
+
+			HttpResponse<byte[]> bothRejected = sendBytes(path, "br;q=0, gzip;q=0");
+			assertThat(bothRejected.headers().firstValue("Content-Encoding")).as(path).isEmpty();
+			assertThat(bothRejected.body()).as(path).isEqualTo(plain);
+		}
+	}
+
+	@Test
 	void aMissingFileGets404InsteadOfThePage() {
 		// A tab left open across a deploy asks for an asset the new build doesn't have.
 		for (String path : new String[] { "/assets/app-gone5678.js", "/wp-login.php" }) {

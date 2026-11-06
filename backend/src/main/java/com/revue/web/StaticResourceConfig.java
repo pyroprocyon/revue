@@ -20,6 +20,8 @@ import org.springframework.web.servlet.resource.EncodedResourceResolver;
  *
  * <p>The frontend build writes .br and .gz copies next to each text file. When the browser accepts
  * one, Spring serves the copy, so the small server CPU never compresses a file on each request.
+ * {@link AcceptEncodingFilter} first removes the formats a client rejected, because Spring's
+ * resolver ignores quality values such as {@code gzip;q=0}.
  *
  * <p>{@code spring.web.resources.add-mappings=false} turns off Spring Boot's own static file
  * handler, because its settings give every file the same cache rule.
