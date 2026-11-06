@@ -1,0 +1,23 @@
+# Local settings and secrets. Only the example file is committed.
+.env
+.env.*
+!.env.example
+
+# Backend build output
+backend/target/
+
+# Frontend dependencies and build output
+node_modules/
+frontend/dist/
+frontend/coverage/
+
+# Editors and operating systems
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*

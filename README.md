@@ -1,0 +1,73 @@
+# Revue
+
+Revue is a spaced-repetition review app for Philippine students. A student tries to recall an answer, compares it with the reference, and reviews the card again when Revue schedules it.
+
+The app is under development. The current build provides a React application shell, a Spring Boot backend, PostgreSQL, session storage and health checks. Sign-in and review features are not implemented yet.
+
+## Local development
+
+Use WSL, Linux or macOS. On WSL, keep the checkout in the Linux filesystem for faster builds and file access.
+
+To start the app, you need Docker running with Compose v2.20.2 or newer, GNU Make and Bash. In WSL, enable Docker Desktop's integration for your distro. Java, Node and frontend dependencies run inside the containers.
+
+From the repo root:
+
+```bash
+make
+```
+
+This is the same as `make start` or `make up`. It creates `.env` from `.env.example` only if missing, builds changed images, starts PostgreSQL, Spring Boot and Vite, then waits for all three to become healthy. The first run downloads images and dependencies, so it needs internet access and takes longer.
+
+Open [Revue](http://127.0.0.1:5173). Vite forwards `/api` and `/actuator` to the backend. [Backend health](http://127.0.0.1:5173/actuator/health) should return `{"status":"UP"}`. Protected API requests require authentication.
+
+- React source changes reload live. The development container uses file polling for Docker Desktop compatibility and keeps its dependencies separate from host `node_modules`.
+- After changing backend code, frontend dependencies or Docker configuration, run `make` again. It rebuilds changed images while preserving the database. Backend live reload is not configured; use the IDE workflow below for debugging.
+- `make stop` stops and removes the containers, keeping database data. `make start` starts the stack again. `make up` and `make down` remain available.
+- `make rebuild` rebuilds changed images and restarts changed containers. `make rebuild-clean` rebuilds without cache.
+- `make logs SERVICE=frontend` or `make logs SERVICE=backend` shows logs. `make ps` shows status. `make help` lists commands.
+- All published ports bind to localhost: frontend 5173, backend 8080, database 5433. If a port is occupied, change `FRONTEND_PORT`, `BACKEND_PORT` or `DB_PORT` in `.env` and run `make` again. The printed frontend URL uses the actual port.
+- Database credentials initialize a new volume only. Editing them in `.env` does not change an existing database's credentials. Keep the original values unless you deliberately change the database user too.
+- `make reset` deletes the local database only after confirmation. It is not needed for normal startup or rebuilds.
+
+### Checks
+
+`make smoke` starts the stack and uses host `curl` to check the React entry, backend health and a protected API request through Vite. It saves no application data.
+
+To run tests on the host, also install Temurin Java 25, Node 26.13.0 and `unzip` (needed by the Maven Wrapper). Docker must be running for Testcontainers. Node can be installed with nvm; Make selects the pinned installed version for its frontend commands.
+
+```bash
+make check
+```
+
+This installs frontend packages from the lockfile with `npm ci`, runs `./mvnw verify` and Vitest, then type-checks and builds the frontend for production. Backend tests use a separate PostgreSQL 18.6 container, not the development database. `make test` runs just the tests; `make build` installs, type-checks and builds the frontend. Make's host checks need network access on the first run for dependencies.
+
+For editor support, `make frontend-install` installs host packages without starting services. To run Vite on the host instead, stop the container frontend with `docker compose stop frontend`, then run `npm run dev` in `frontend/` using Node 26.13.0. If the backend uses a nondefault port, set `API_PROXY_TARGET=http://127.0.0.1:<port>` for that command.
+
+### Running the backend from an IDE
+
+If the full stack is running, use `make stop` first to free the backend port. Start only the database with `make db`. Then run `RevueApplication` with these environment variables, using the database port, user and password from your `.env`:
+
+```
+SPRING_DATASOURCE_URL=jdbc:postgresql://127.0.0.1:5433/revue
+SPRING_DATASOURCE_USERNAME=revue
+SPRING_DATASOURCE_PASSWORD=local-dev-only
+```
+
+## Layout
+
+- `backend/`: Spring Boot 4.1 on Java 25, built with the Maven Wrapper. Flyway migrations live in `src/main/resources/db/migration`.
+- `frontend/`: React 19, TypeScript 7 and Vite 8, tested with Vitest.
+- `compose.yaml`, `Dockerfile` and `frontend/Dockerfile.dev`: the local stack that `make` runs.
+- `scripts/`: the pinned-Node runner and the local HTTP smoke check.
+
+The root Dockerfile packages the backend. The Vite container is for local development; a combined production frontend/backend image is not configured yet.
+
+## Continuous integration
+
+The GitHub Actions workflow is configured to run `make check` and `make smoke` on pushes and pull requests. This covers the backend tests against PostgreSQL 18.6, frontend tests and type checking, the production frontend build, container builds and HTTP connectivity. The workflow uses the pinned Java and Node versions and requires no deployment credentials.
+
+Continuous deployment is not connected yet. The production image currently contains only the backend; the development Vite container is not a production frontend server.
+
+## License
+
+All rights reserved. This repository has no open-source license.

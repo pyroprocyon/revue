@@ -1,0 +1,10 @@
+# Local development only. Deployment will serve the built frontend from Spring Boot.
+FROM node:26.13.0-bookworm-slim
+WORKDIR /app
+RUN chown node:node /app
+USER node
+COPY --chown=node:node package.json package-lock.json .npmrc ./
+RUN npm ci
+COPY --chown=node:node . .
+EXPOSE 5173
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]

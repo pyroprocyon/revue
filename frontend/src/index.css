@@ -1,0 +1,14 @@
+/* Base page styles. */
+body {
+  margin: 0;
+  padding: 16px;
+  font-family: system-ui, sans-serif;
+  line-height: 1.5;
+  color: #1a1a1a;
+  background: #ffffff;
+}
+
+main {
+  max-width: 40rem;
+  margin: 0 auto;
+}
