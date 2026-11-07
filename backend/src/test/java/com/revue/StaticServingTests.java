@@ -125,6 +125,17 @@ class StaticServingTests {
 	}
 
 	@Test
+	void aMalformedAcceptEncodingIsIgnored() {
+		// An entry of only semicolons used to make the filter fail with a 500, health check included.
+		for (String path : new String[] { "/actuator/health", "/", ASSET }) {
+			HttpResponse<byte[]> response = sendBytes(path, ";");
+
+			assertThat(response.statusCode()).as(path).isEqualTo(200);
+			assertThat(response.headers().firstValue("Content-Encoding")).as(path).isEmpty();
+		}
+	}
+
+	@Test
 	void aMissingFileGets404InsteadOfThePage() {
 		// A tab left open across a deploy asks for an asset the new build doesn't have.
 		for (String path : new String[] { "/assets/app-gone5678.js", "/wp-login.php" }) {
