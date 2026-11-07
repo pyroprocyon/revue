@@ -7,7 +7,8 @@ import org.junit.jupiter.params.provider.CsvSource;
 
 /**
  * Which compression formats a client's Accept-Encoding header accepts (RFC 9110, section 12.5.3).
- * A weight of zero rejects a format. The HTTP behavior is tested in StaticServingTests.
+ * A weight of zero rejects a format, and {@code *} covers the formats the header doesn't name. The
+ * HTTP behavior is tested in StaticServingTests.
  */
 class AcceptEncodingFilterTests {
 
@@ -23,7 +24,12 @@ class AcceptEncodingFilterTests {
 			x-gzip                    | gzip
 			gzip;q=not-a-number       | none
 			identity                  | none
-			*                         | none
+			*                         | br, gzip
+			*;q=1, identity;q=0       | br, gzip
+			gzip;q=0, *               | br
+			gzip, *;q=0.5             | gzip, br
+			*;q=0, br                 | br
+			identity;q=0, *;q=0       | none
 			;                         | none
 			gzip,;                    | gzip
 			''                        | none

@@ -121,6 +121,10 @@ class StaticServingTests {
 			HttpResponse<byte[]> bothRejected = sendBytes(path, "br;q=0, gzip;q=0");
 			assertThat(bothRejected.headers().firstValue("Content-Encoding")).as(path).isEmpty();
 			assertThat(bothRejected.body()).as(path).isEqualTo(plain);
+
+			// "*" accepts every format the header doesn't name, so refusing the plain file gets a copy.
+			HttpResponse<byte[]> plainRejected = sendBytes(path, "*;q=1, identity;q=0");
+			assertThat(header(plainRejected, "Content-Encoding")).as(path).isIn("br", "gzip");
 		}
 	}
 
