@@ -1,0 +1,91 @@
+# The Human Body & Brain starter set, published by Revue.
+#
+# Each card keeps a stable key. Never change or reuse a key once a set is live: the loader finds
+# cards by key, and students' schedules follow the card. Fixing a card's text reaches every
+# student who saved the set. Removing a card from this file retires it; putting its key back
+# restores it.
+#
+# Cards start from moments Filipino students know, use simple English, and keep answers short.
+# Facts come from OpenStax Anatomy and Physiology 2e. The wording is Revue's own, so no text is
+# copied. A person reads every card before it is published.
+set_key: human-body-brain
+title: Human Body & Brain
+description: Why does your body do that? Quick questions about everyday moments, from sinigang to videoke.
+publisher: Revue
+subject: Science
+cards:
+  - key: sticky-on-a-humid-day
+    question: Why do you feel sticky and hot on a humid day, even when you're sweating a lot?
+    answer: Sweat cools you only when it dries off your skin. Humid air is already full of water, so sweat dries slowly.
+    key_ideas:
+      - Sweat cools you when it evaporates
+      - Humid air slows evaporation
+    explanation: >-
+      Drying sweat carries heat away from your skin. The more water the air already holds, the
+      less sweat can dry, so on a humid afternoon more sweat stays on you and you cool down slowly.
+    source: >-
+      OpenStax, Anatomy and Physiology 2e, section 24.6 Energy and Heat Balance:
+      https://openstax.org/books/anatomy-and-physiology-2e/pages/24-6-energy-and-heat-balance
+
+  - key: sour-taste-of-sinigang
+    question: Sinigang tastes sour from sampalok. What is your tongue sensing when food tastes sour?
+    answer: Acid. A sour taste is your tongue sensing acid in the food.
+    key_ideas:
+      - Acid in the food
+    explanation: >-
+      Sour is one of the five basic tastes, with sweet, salty, bitter and umami. Sampalok and
+      calamansi taste sour because they're acidic.
+    source: >-
+      OpenStax, Anatomy and Physiology 2e, section 14.1 Sensory Perception:
+      https://openstax.org/books/anatomy-and-physiology-2e/pages/14-1-sensory-perception
+
+  - key: savory-taste-of-patis
+    question: Patis and bagoong taste rich and savory. What is that taste called?
+    answer: Umami, the savory taste.
+    key_ideas:
+      - Umami
+    explanation: >-
+      Umami is the fifth basic taste, and the word is Japanese for "delicious taste". Your tongue
+      senses it from glutamate, an amino acid.
+    source: >-
+      OpenStax, Anatomy and Physiology 2e, section 14.1 Sensory Perception:
+      https://openstax.org/books/anatomy-and-physiology-2e/pages/14-1-sensory-perception
+
+  - key: big-breath-before-videoke
+    question: You take a big breath before singing at the videoke. Which muscle pulls down to let the air in?
+    answer: The diaphragm. It moves down to make more room in your chest, so air flows into your lungs.
+    key_ideas:
+      - The diaphragm
+      - It moves down to make room for air
+    explanation: >-
+      The diaphragm sits under your lungs. When it tightens, it moves down, your chest gets more
+      space, and air flows in to fill it.
+    source: >-
+      OpenStax, Anatomy and Physiology 2e, section 22.3 The Process of Breathing:
+      https://openstax.org/books/anatomy-and-physiology-2e/pages/22-3-the-process-of-breathing
+
+  - key: goose-bumps-in-a-scary-movie
+    question: You get goose bumps during a scary movie. What makes the bumps on your skin?
+    answer: Tiny muscles at the roots of your hairs tighten and pull the hairs up.
+    key_ideas:
+      - Tiny muscles at the hair roots tighten
+      - The hairs stand up
+    explanation: >-
+      Your nervous system tells these tiny muscles to tighten. A frightened cat puffing up its fur
+      is the same reflex. In furry animals, raised hair also traps a layer of warm air.
+    source: >-
+      OpenStax, Anatomy and Physiology 2e, section 5.2 Accessory Structures of the Skin:
+      https://openstax.org/books/anatomy-and-physiology-2e/pages/5-2-accessory-structures-of-the-skin
+
+  - key: balance-in-a-bumpy-jeep
+    question: Standing in a bumpy jeep, which part of your brain keeps you steady?
+    answer: The cerebellum. It checks how your body is moving and sends quick corrections.
+    key_ideas:
+      - The cerebellum
+      - It sends quick corrections to keep you steady
+    explanation: >-
+      The cerebellum, at the back of your brain, compares what your body is doing with what your
+      brain planned. When the jeep jolts, it sends corrections to your muscles.
+    source: >-
+      OpenStax, Anatomy and Physiology 2e, section 13.2 The Central Nervous System:
+      https://openstax.org/books/anatomy-and-physiology-2e/pages/13-2-the-central-nervous-system
