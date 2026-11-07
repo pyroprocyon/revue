@@ -51,12 +51,17 @@ class AcceptEncodingFilter extends OncePerRequestFilter {
 	/**
 	 * Returns the served codings the header accepts, such as {@code "br, gzip"}, or null for none.
 	 * A coding is accepted when it has no weight or a weight above zero. A weight that doesn't
-	 * parse counts as a rejection, because the plain file is always safe to send.
+	 * parse counts as a rejection, and an empty entry is skipped, because the plain file is always
+	 * safe to send.
 	 */
 	static @Nullable String acceptedCodings(String header) {
 		Set<String> accepted = new LinkedHashSet<>();
 		for (String item : header.split(",")) {
 			String[] parts = item.split(";");
+			if (parts.length == 0) {
+				// An entry of only semicolons, such as ";", splits into nothing.
+				continue;
+			}
 			String coding = parts[0].trim().toLowerCase(Locale.ROOT);
 			if (coding.equals("x-gzip")) {
 				coding = "gzip";

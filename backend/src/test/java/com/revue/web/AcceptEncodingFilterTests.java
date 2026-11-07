@@ -24,6 +24,8 @@ class AcceptEncodingFilterTests {
 			gzip;q=not-a-number       | none
 			identity                  | none
 			*                         | none
+			;                         | none
+			gzip,;                    | gzip
 			''                        | none
 			""")
 	void acceptsOnlyServedFormatsWithAPositiveWeight(String header, String expected) {
