@@ -12,6 +12,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -62,6 +63,8 @@ class StaticServingTests {
 		// index.html names the current asset files, so browsers must fetch it again on each visit.
 		assertThat(header(response, "Cache-Control")).isEqualTo("no-cache");
 		assertThat(response.headers().firstValue("Last-Modified")).isEmpty();
+		// The page also comes compressed, so caches must keep the plain and compressed answers apart.
+		assertThat(vary(response)).containsExactly("Accept-Encoding");
 	}
 
 	@Test
@@ -90,16 +93,33 @@ class StaticServingTests {
 		assertThat(brotli.statusCode()).isEqualTo(200);
 		assertThat(header(brotli, "Content-Encoding")).isEqualTo("br");
 		assertThat(brotli.body()).isEqualTo(fixtureBytes("static" + ASSET + ".br"));
-		assertThat(header(brotli, "Vary")).contains("Accept-Encoding");
+		assertThat(vary(brotli)).containsExactly("Accept-Encoding");
 		assertThat(header(brotli, "Cache-Control")).contains("max-age=31536000", "public", "immutable");
 
 		HttpResponse<byte[]> gzip = sendBytes(ASSET, "gzip");
 		assertThat(header(gzip, "Content-Encoding")).isEqualTo("gzip");
 		assertThat(gzip.body()).isEqualTo(fixtureBytes("static" + ASSET + ".gz"));
 
+		// A shared cache that stores the plain file must not hand it to clients that accept a copy.
 		HttpResponse<byte[]> plain = sendBytes(ASSET, null);
 		assertThat(plain.headers().firstValue("Content-Encoding")).isEmpty();
 		assertThat(plain.body()).isEqualTo(fixtureBytes("static" + ASSET));
+		assertThat(vary(plain)).containsExactly("Accept-Encoding");
+		assertThat(header(plain, "Cache-Control")).contains("max-age=31536000", "public", "immutable");
+	}
+
+	@Test
+	void aNotModifiedAnswerStillVariesByAcceptEncoding() {
+		// Spring answers 304 before it adds a compressed copy's headers, so this checks that the
+		// Vary header comes from somewhere that runs first.
+		for (String acceptEncoding : new String[] { "br", null }) {
+			String lastModified = header(sendBytes(ASSET, acceptEncoding), "Last-Modified");
+
+			HttpResponse<byte[]> notModified = sendBytes(ASSET, acceptEncoding, "If-Modified-Since", lastModified);
+
+			assertThat(notModified.statusCode()).as(acceptEncoding).isEqualTo(304);
+			assertThat(vary(notModified)).as(acceptEncoding).containsExactly("Accept-Encoding");
+		}
 	}
 
 	@Test
@@ -175,10 +195,13 @@ class StaticServingTests {
 		return exchange(request, HttpResponse.BodyHandlers.ofString());
 	}
 
-	private HttpResponse<byte[]> sendBytes(String path, String acceptEncoding) {
+	private HttpResponse<byte[]> sendBytes(String path, String acceptEncoding, String... headers) {
 		HttpRequest.Builder request = HttpRequest.newBuilder(uri(path)).GET();
 		if (acceptEncoding != null) {
 			request.header("Accept-Encoding", acceptEncoding);
+		}
+		if (headers.length > 0) {
+			request.headers(headers);
 		}
 		return exchange(request.build(), HttpResponse.BodyHandlers.ofByteArray());
 	}
@@ -202,6 +225,11 @@ class StaticServingTests {
 
 	private static String header(HttpResponse<?> response, String name) {
 		return response.headers().firstValue(name).orElse("(missing)");
+	}
+
+	/** Every Vary value, so a header sent twice fails the check too. */
+	private static List<String> vary(HttpResponse<?> response) {
+		return response.headers().allValues("Vary");
 	}
 
 	private static String fixture(String path) {
