@@ -3,6 +3,7 @@ package com.revue.web;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Enumeration;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -28,9 +29,12 @@ import org.springframework.web.filter.OncePerRequestFilter;
  *
  * <p>Spring's {@code EncodedResourceResolver} only checks whether the header mentions "br" or
  * "gzip", and its resource cache key drops quality values too. So {@code gzip;q=0}, which rejects
- * gzip (RFC 9110, section 12.5.3), would still get the .gz copy. This filter shows Spring a header
- * that lists only the formats the build provides, br and gzip, each only when the client accepts
- * it. With neither left, the request has no Accept-Encoding header and gets the plain file.
+ * gzip (RFC 9110, section 12.5.3), would still get the .gz copy. And {@code *;q=1, identity;q=0},
+ * which accepts every format it doesn't name but refuses the plain file, would get the plain file.
+ * This filter shows Spring a header that lists only the formats the build provides, br and gzip,
+ * each only when the client accepts it. With neither left, the request has no Accept-Encoding
+ * header and gets the plain file. That includes a client that refuses the plain file too, because
+ * the RFC lets a server send its default response instead of a 406.
  *
  * <p>It runs before {@link BrowserRouteFilter}, so a browser route forwarded to index.html keeps
  * the cleaned header.
@@ -50,12 +54,14 @@ class AcceptEncodingFilter extends OncePerRequestFilter {
 
 	/**
 	 * Returns the served codings the header accepts, such as {@code "br, gzip"}, or null for none.
-	 * A coding is accepted when it has no weight or a weight above zero. A weight that doesn't
-	 * parse counts as a rejection, and an empty entry is skipped, because the plain file is always
-	 * safe to send.
+	 * A coding the header names is accepted when it has no weight or a weight above zero. A coding
+	 * it doesn't name is accepted when {@code *} is. A weight that doesn't parse counts as a
+	 * rejection, and an empty entry is skipped, because the plain file is the safe fallback.
 	 */
 	static @Nullable String acceptedCodings(String header) {
+		Set<String> named = new HashSet<>();
 		Set<String> accepted = new LinkedHashSet<>();
+		boolean wildcardAccepted = false;
 		for (String item : header.split(",")) {
 			String[] parts = item.split(";");
 			if (parts.length == 0) {
@@ -66,8 +72,21 @@ class AcceptEncodingFilter extends OncePerRequestFilter {
 			if (coding.equals("x-gzip")) {
 				coding = "gzip";
 			}
-			if (SERVED_CODINGS.contains(coding) && hasPositiveWeight(parts)) {
-				accepted.add(coding);
+			if (coding.equals("*")) {
+				wildcardAccepted |= hasPositiveWeight(parts);
+			}
+			else if (SERVED_CODINGS.contains(coding)) {
+				named.add(coding);
+				if (hasPositiveWeight(parts)) {
+					accepted.add(coding);
+				}
+			}
+		}
+		if (wildcardAccepted) {
+			for (String coding : SERVED_CODINGS) {
+				if (!named.contains(coding)) {
+					accepted.add(coding);
+				}
 			}
 		}
 		return accepted.isEmpty() ? null : String.join(", ", accepted);
