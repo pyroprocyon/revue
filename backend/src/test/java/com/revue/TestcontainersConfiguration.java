@@ -12,7 +12,7 @@ import org.testcontainers.utility.DockerImageName;
  * development. Keep this image tag in step with compose.yaml.
  */
 @TestConfiguration(proxyBeanMethods = false)
-class TestcontainersConfiguration {
+public class TestcontainersConfiguration {
 
 	@Bean
 	@ServiceConnection
