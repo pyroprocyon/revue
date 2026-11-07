@@ -7,8 +7,14 @@ import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.function.UnaryOperator;
+import java.util.stream.Stream;
 
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
@@ -86,6 +92,63 @@ class ContentLoaderTests {
 		assertThat(cardRow("wording-b").get("explanation")).isEqualTo("A clearer explanation.");
 		assertThat(cardRow("wording-b").get("content_version")).isEqualTo(2);
 		assertThat(cardRow("wording-a").get("content_version")).isEqualTo(1);
+	}
+
+	/**
+	 * Every versioned field on its own: a correction that changes only that field is saved on the
+	 * same row and raises the content version exactly once. Otherwise a fix to one field, such as
+	 * the answer, could be skipped silently while students keep the old text.
+	 */
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("oneFieldCorrections")
+	void aCorrectionToAnyOneFieldIsSavedAndRaisesTheVersionOnce(String field, @Nullable String startingHook,
+			UnaryOperator<CardFile> correct, String column, Object expected) {
+		String key = "fix-" + field.replace(' ', '-');
+		CardFile original = withHook(card(key, "Question for " + key + "?"), startingHook);
+		loader.load(List.of(set(key + "-set", "Fix", original)));
+		long idBefore = cardId(key);
+
+		ContentLoader.Result result = loader.load(List.of(set(key + "-set", "Fix", correct.apply(original))));
+
+		assertThat(result.cardsChanged()).isEqualTo(1);
+		assertThat(cardId(key)).isEqualTo(idBefore);
+		assertThat(cardRow(key).get("content_version")).isEqualTo(2);
+		Object saved = column.equals("key_ideas") ? keyIdeas(key) : cardRow(key).get(column);
+		assertThat(saved).isEqualTo(expected);
+	}
+
+	static Stream<Arguments> oneFieldCorrections() {
+		return Stream.of(
+				correction("question", null, c -> edit(c, "A clearer question?", c.answer(), c.keyIdeas(),
+						c.explanation(), c.memoryHook(), c.source()), "question", "A clearer question?"),
+				correction("answer", null, c -> edit(c, c.question(), "A corrected answer.", c.keyIdeas(),
+						c.explanation(), c.memoryHook(), c.source()), "answer", "A corrected answer."),
+				correction("explanation", null, c -> edit(c, c.question(), c.answer(), c.keyIdeas(),
+						"A clearer explanation.", c.memoryHook(), c.source()), "explanation", "A clearer explanation."),
+				correction("source", null, c -> edit(c, c.question(), c.answer(), c.keyIdeas(), c.explanation(),
+						c.memoryHook(), "A better source."), "source", "A better source."),
+				correction("memory hook added", null, c -> edit(c, c.question(), c.answer(), c.keyIdeas(),
+						c.explanation(), "A new hook.", c.source()), "memory_hook", "A new hook."),
+				correction("memory hook changed", "An old hook.", c -> edit(c, c.question(), c.answer(),
+						c.keyIdeas(), c.explanation(), "A better hook.", c.source()), "memory_hook", "A better hook."),
+				correction("key idea reworded", null, c -> edit(c, c.question(), c.answer(),
+						List.of("First idea", "A clearer second idea"), c.explanation(), c.memoryHook(), c.source()),
+						"key_ideas", List.of("First idea", "A clearer second idea")),
+				// Key ideas are ordered, because the review step refers to them by position.
+				correction("key ideas reordered", null, c -> edit(c, c.question(), c.answer(),
+						List.of("Second idea", "First idea"), c.explanation(), c.memoryHook(), c.source()),
+						"key_ideas", List.of("Second idea", "First idea")));
+	}
+
+	@Test
+	void removingAMemoryHookIsSavedAndRaisesTheVersionOnce() {
+		CardFile original = withHook(card("fix-hook-removed", "Question for the hook?"), "A hook to remove.");
+		loader.load(List.of(set("fix-hook-removed-set", "Fix", original)));
+
+		loader.load(List.of(set("fix-hook-removed-set", "Fix", withHook(original, null))));
+
+		assertThat(cardRow("fix-hook-removed").get("memory_hook")).isNull();
+		assertThat(cardRow("fix-hook-removed").get("content_version")).isEqualTo(2);
 	}
 
 	@Test
@@ -204,6 +267,21 @@ class ContentLoaderTests {
 	private static CardFile card(String key, String question) {
 		return new CardFile(key, question, "Answer for " + key + ".", List.of("First idea", "Second idea"),
 				"Explanation for " + key + ".", null, "Source for " + key + ".");
+	}
+
+	private static Arguments correction(String field, @Nullable String startingHook, UnaryOperator<CardFile> correct,
+			String column, Object expected) {
+		return Arguments.of(field, startingHook, correct, column, expected);
+	}
+
+	private static CardFile edit(CardFile card, String question, String answer, List<String> keyIdeas,
+			String explanation, @Nullable String memoryHook, String source) {
+		return new CardFile(card.key(), question, answer, keyIdeas, explanation, memoryHook, source);
+	}
+
+	private static CardFile withHook(CardFile card, @Nullable String memoryHook) {
+		return edit(card, card.question(), card.answer(), card.keyIdeas(), card.explanation(), memoryHook,
+				card.source());
 	}
 
 	private Map<String, Object> setRow(String setKey) {
