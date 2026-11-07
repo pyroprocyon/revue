@@ -48,8 +48,21 @@ class AcceptEncodingFilter extends OncePerRequestFilter {
 	@Override
 	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
 			FilterChain chain) throws ServletException, IOException {
-		String header = request.getHeader(HttpHeaders.ACCEPT_ENCODING);
+		String header = combinedHeader(request);
 		chain.doFilter(header == null ? request : new CleanedRequest(request, acceptedCodings(header)), response);
+	}
+
+	/**
+	 * Joins every Accept-Encoding line with commas, or returns null when the request has none.
+	 * HTTP treats repeated lines as one list (RFC 9110, section 5.2), but {@code getHeader} returns
+	 * only the first line, so a refusal on a later line would be lost.
+	 */
+	private static @Nullable String combinedHeader(HttpServletRequest request) {
+		Enumeration<String> lines = request.getHeaders(HttpHeaders.ACCEPT_ENCODING);
+		if (lines == null || !lines.hasMoreElements()) {
+			return null;
+		}
+		return String.join(", ", Collections.list(lines));
 	}
 
 	/**

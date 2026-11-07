@@ -145,6 +145,12 @@ class StaticServingTests {
 			// "*" accepts every format the header doesn't name, so refusing the plain file gets a copy.
 			HttpResponse<byte[]> plainRejected = sendBytes(path, "*;q=1, identity;q=0");
 			assertThat(header(plainRejected, "Content-Encoding")).as(path).isIn("br", "gzip");
+
+			// Repeated header lines form one list (RFC 9110, section 5.2), so a refusal on the second
+			// line still overrides the "*" on the first.
+			HttpResponse<byte[]> splitHeader = sendBytes(path, "*", "Accept-Encoding", "br;q=0, gzip;q=0, identity");
+			assertThat(splitHeader.headers().firstValue("Content-Encoding")).as(path).isEmpty();
+			assertThat(splitHeader.body()).as(path).isEqualTo(plain);
 		}
 	}
 
