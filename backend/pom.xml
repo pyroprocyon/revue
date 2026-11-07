@@ -64,6 +64,11 @@
 			<groupId>org.flywaydb</groupId>
 			<artifactId>flyway-database-postgresql</artifactId>
 		</dependency>
+		<!-- Reads the shared set files in content/public. Spring Boot manages the version. -->
+		<dependency>
+			<groupId>org.yaml</groupId>
+			<artifactId>snakeyaml</artifactId>
+		</dependency>
 
 		<dependency>
 			<groupId>org.postgresql</groupId>
@@ -128,6 +133,21 @@
 	</dependencies>
 
 	<build>
+		<!--
+			The public set files live at the repo root in content/public, outside this module, so
+			the backend and future tools share one copy. The build packages them into the jar as
+			content/public/**, where the content loader reads them. The Docker build copies them to
+			/content, which is ../content from its /build folder.
+		-->
+		<resources>
+			<resource>
+				<directory>src/main/resources</directory>
+			</resource>
+			<resource>
+				<directory>${project.basedir}/../content/public</directory>
+				<targetPath>content/public</targetPath>
+			</resource>
+		</resources>
 		<plugins>
 			<plugin>
 				<groupId>org.springframework.boot</groupId>

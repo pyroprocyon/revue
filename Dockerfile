@@ -27,6 +27,9 @@ RUN apt-get update \
 
 WORKDIR /build
 COPY backend/ ./
+# The shared set files. pom.xml packages ../content/public into the jar, and ../content from
+# /build is /content.
+COPY content/public/ /content/public/
 # Spring Boot serves the files under static/ in the jar. The backend tests use their own small
 # copy in src/test/resources instead, so they don't need a frontend build.
 COPY --from=frontend /frontend/dist/ ./src/main/resources/static/
@@ -57,7 +60,7 @@ COPY --from=build /build/extracted/ ./
 # loaded and linked, so later starts skip that work. spring.context.exit=onRefresh stops the app
 # once its beans exist, before the web server starts. The host's build has no database, so the run
 # points at a closed local port and turns off what would connect or wait: Flyway, Hibernate's
-# schema check and metadata lookup, and the pool's fail-fast check. Two log levels hide the expected
+# schema check and metadata lookup, the pool's fail-fast check and the content loader. Two log levels hide the expected
 # warnings this causes: Spring failing to read the database name, and Hibernate saying the dialect
 # setting isn't needed, which it is here, because the run never reads the database's metadata.
 # The cache only works with this same JVM, classpath and jar timestamps, so it's made here, in the
@@ -68,19 +71,20 @@ COPY --from=build /build/extracted/ ./
 # Without this flag, a build machine with 58 GB or more makes a cache the 512 MB instance rejects,
 # as Render's first deploy with the cache showed.
 # The last command checks that a 512 MB start can use the cache, and fails the build if not.
-RUN java -XX:AOTCacheOutput=app.aot -XX:MaxRAM=512m -XX:MaxRAMPercentage=55 -XX:+UseSerialGC \
+RUN java -XX:AOTCacheOutput=app.aot -XX:MaxRAM=512m -Xms64m -XX:MaxRAMPercentage=55 -XX:+UseSerialGC \
       -Dspring.context.exit=onRefresh \
       -Dspring.datasource.url=jdbc:postgresql://127.0.0.1:1/aot-training \
       -Dspring.datasource.hikari.initialization-fail-timeout=-1 \
       -Dspring.datasource.hikari.connection-timeout=250 \
       -Dspring.flyway.enabled=false \
+      -Drevue.content.load-on-startup=false \
       -Dspring.jpa.hibernate.ddl-auto=none \
       -Dspring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect \
       -Dspring.jpa.properties.hibernate.boot.allow_jdbc_metadata_access=false \
       -Dlogging.level.org.springframework.jdbc.support.SQLErrorCodesFactory=ERROR \
       -Dlogging.level.org.hibernate.orm.deprecation=ERROR \
       -jar app.jar \
- && java -XX:AOTCache=app.aot -XX:AOTMode=on -XX:MaxRAM=512m -XX:MaxRAMPercentage=55 -XX:+UseSerialGC \
+ && java -XX:AOTCache=app.aot -XX:AOTMode=on -XX:MaxRAM=512m -Xms64m -XX:MaxRAMPercentage=55 -XX:+UseSerialGC \
       -cp app.jar -version
 
 USER revue
@@ -89,4 +93,9 @@ EXPOSE 8080
 # The free host has 512 MB of memory and 0.1 CPU. Cap the heap at 55% of the container's memory,
 # leaving room for class metadata and thread stacks. The Serial collector needs the least memory
 # and suits a single slow CPU. Starting values; measure memory and adjust.
-ENTRYPOINT ["java", "-XX:AOTCache=app.aot", "-XX:MaxRAMPercentage=55", "-XX:+UseSerialGC", "-jar", "app.jar"]
+# -Xms64m starts the heap at 64 MB instead of about 8 MB (1/64 of 512 MB). The Serial collector
+# copies the AOT cache's stored heap objects into the heap at startup, and they no longer fit in
+# 8 MB once the app loads its JPA repositories: the check above then fails with "archived heap
+# objects cannot be loaded". On 2026-11-07 the cache needed 12 MB, so 64 MB leaves room to grow,
+# and Spring's startup grows the heap past 64 MB anyway.
+ENTRYPOINT ["java", "-XX:AOTCache=app.aot", "-Xms64m", "-XX:MaxRAMPercentage=55", "-XX:+UseSerialGC", "-jar", "app.jar"]
