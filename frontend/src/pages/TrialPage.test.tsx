@@ -1,7 +1,8 @@
-import { fireEvent, screen, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
+import { demoCardsQuery } from '../api/publicContent';
 import { historyCards, historySet } from '../test/fixtures';
-import { renderApp, stubApi, stubFetch } from '../test/renderApp';
+import { jsonResponse, renderApp, stubApi, stubFetch } from '../test/renderApp';
 
 function click(name: string) {
   fireEvent.click(screen.getByRole('button', { name }));
@@ -126,6 +127,53 @@ describe('Five-card trial', () => {
     expect(screen.queryByText('Answer 2.')).toBeNull();
     expect(screen.getByText('Try answering in your head before you check.')).toBeDefined();
     expect(screen.getByRole('button', { name: 'Check answer' })).toBeDefined();
+  });
+
+  it('keeps the current answer and earlier ratings when a background refresh fails and recovers', async () => {
+    const fetchMock = stubFetch(200, historyCards);
+    const { queryClient } = renderApp('/sets/philippine-history/try');
+    const queryKey = demoCardsQuery('philippine-history').queryKey;
+    await screen.findByRole('heading', { name: 'Question 1?' });
+    showAnswerAndRate('Missed');
+    click('Check answer');
+
+    fetchMock.mockResolvedValue(jsonResponse(503));
+    act(() => {
+      void queryClient.refetchQueries({ queryKey });
+    });
+    await waitFor(() => expect(queryClient.getQueryState(queryKey)?.status).toBe('error'));
+
+    expect(screen.getByText('Card 2 of 5')).toBeDefined();
+    expect(screen.getByRole('heading', { name: 'Answer 2.' })).toBeDefined();
+    expect(screen.queryByRole('heading', { name: "We couldn't load this page." })).toBeNull();
+
+    fetchMock.mockResolvedValue(jsonResponse(200, historyCards));
+    act(() => {
+      void queryClient.refetchQueries({ queryKey });
+    });
+    await waitFor(() => expect(queryClient.getQueryState(queryKey)?.status).toBe('success'));
+
+    expect(screen.getByText('Card 2 of 5')).toBeDefined();
+    expect(screen.getByRole('heading', { name: 'Answer 2.' })).toBeDefined();
+    rate('Easy');
+    for (let card = 3; card <= 5; card++) {
+      showAnswerAndRate('Good');
+    }
+    expect(screen.getByRole('heading', { name: 'You practiced 5 cards.' })).toBeDefined();
+    expect(within(screen.getByRole('list', { name: 'Tomorrow' })).getByText('Question 1?')).toBeDefined();
+    expect(within(screen.getByRole('list', { name: 'In a week or more' })).getByText('Question 2?')).toBeDefined();
+  });
+
+  it('offers a retry when the initial card load fails', async () => {
+    const fetchMock = stubFetch(503);
+    renderApp('/sets/philippine-history/try');
+    await screen.findByRole('heading', { name: "We couldn't load this page." });
+
+    fetchMock.mockResolvedValue(jsonResponse(200, historyCards));
+    click('Try again');
+
+    expect(await screen.findByRole('heading', { name: 'Question 1?' })).toBeDefined();
+    expect(screen.getByText('Card 1 of 5')).toBeDefined();
   });
 
   it('goes back to the set it came from', async () => {
