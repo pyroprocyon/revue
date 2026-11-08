@@ -45,6 +45,12 @@ This installs frontend packages from the lockfile with `npm ci`, runs `./mvnw ve
 
 For editor support, `make frontend-install` installs host packages without starting services. To run Vite on the host instead, stop the container frontend with `docker compose stop frontend`, then run `npm run dev` in `frontend/` using Node 26.13.0. If the backend uses a nondefault port, set `API_PROXY_TARGET=http://127.0.0.1:<port>` for that command.
 
+### Measuring page performance
+
+Run `make` to rebuild the latest app, then run Lighthouse against [the production build at 127.0.0.1:8080](http://127.0.0.1:8080). Use the configured backend port if you changed `BACKEND_PORT`.
+
+Port 5173 serves Vite's development modules, React debugging code and live-reload tools. Its Lighthouse score does not measure the production build. Keep the same Lighthouse device and throttling settings when comparing results. Local measurements also exclude the deployed host's network latency and cold starts.
+
 ### Running the backend from an IDE
 
 If the full stack is running, use `make stop` first to free the backend port. Start only the database with `make db`. Then run `RevueApplication` with these environment variables, using the database port, user and password from your `.env`:

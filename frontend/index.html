@@ -2,8 +2,26 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Revue</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
+    <!--
+      Every browser route is served this same page, so the title and link preview are site-wide.
+      Keep them generic and non-personal (plan section 4). Messaging apps read them without JavaScript.
+    -->
+    <title>Revue: Review before it's due.</title>
+    <meta
+      name="description"
+      content="Practice a question, check your answer, and let Revue decide when you see each card again."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Revue" />
+    <meta property="og:title" content="Revue: Review before it's due." />
+    <meta
+      property="og:description"
+      content="Practice a question, check your answer, and let Revue decide when you see each card again."
+    />
+    <meta name="theme-color" content="#faf9f6" />
+    <link rel="icon" href="/favicon.ico" sizes="16x16 32x32" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" sizes="any" />
   </head>
   <body>
     <div id="root"></div>
