@@ -1,27 +1,22 @@
+import { rateTrial, startTrial, trialSummary } from '../domain/trialSession';
 import { useQuery } from '@tanstack/react-query';
 import { Check } from 'lucide-react';
 import { useId, useState } from 'react';
 import { Link, useParams } from 'react-router';
-import { demoCardsQuery, type DemoCard, type DemoCards } from '../api/publicContent';
-import { primaryButton, secondaryButton } from '../components/buttonStyles';
-import { BackButton } from '../components/HeaderLinks';
-import { LoadFailed } from '../components/LoadFailed';
-import { LoadingScreen, MessageScreen } from '../components/MessageScreen';
-import { ActionRow, Screen } from '../components/Screen';
-import { SETS_PATH, setPath } from '../paths';
-import { FlashCard } from '../trial/FlashCard';
-import { RATINGS, RecallMeter, type Rating } from '../trial/ratings';
-
-// When a signed-in account would show a new card again after each rating. The trial saves nothing
-// and only describes it; later gaps depend on the student's own history.
-const REVIEW_WINDOWS: { when: string; ratings: Rating[] }[] = [
-  { when: 'Tomorrow', ratings: ['again', 'hard'] },
-  { when: 'In a few days', ratings: ['good'] },
-  { when: 'In a week or more', ratings: ['easy'] },
-];
+import type { DemoCard, DemoCards } from '../../catalog/application/publicContent';
+import { usePublicContentQueries } from '../../catalog/presentation/PublicContentProvider';
+import { primaryButton, secondaryButton } from '../../../shared/ui/buttonStyles';
+import { BackButton } from '../../../shared/ui/HeaderLinks';
+import { LoadFailed } from '../../../shared/ui/LoadFailed';
+import { LoadingScreen, MessageScreen } from '../../../shared/ui/MessageScreen';
+import { ActionRow, Screen } from '../../../shared/ui/Screen';
+import { SETS_PATH, setPath } from '../../../shared/navigation/paths';
+import { FlashCard } from './FlashCard';
+import { RATINGS, RecallMeter, type Rating } from './ratings';
 
 /** "Try 5 cards": a set's first five cards, practiced in the browser and never saved. */
 export function TrialPage() {
+  const { demoCardsQuery } = usePublicContentQueries();
   const { setKey = '' } = useParams();
   const demoCards = useQuery(demoCardsQuery(setKey));
 
@@ -46,7 +41,8 @@ export function TrialPage() {
 
 function Trial({ setKey, demoCards }: { setKey: string; demoCards: DemoCards }) {
   // One rating per card practiced so far, so the next card is the one at that position.
-  const [ratings, setRatings] = useState<Rating[]>([]);
+  const [session, setSession] = useState(() => startTrial(demoCards.cards.length));
+  const { ratings } = session;
   const cardCount = demoCards.cards.length;
   const cardIndex = ratings.length;
 
@@ -56,7 +52,7 @@ function Trial({ setKey, demoCards }: { setKey: string; demoCards: DemoCards }) 
   const card = demoCards.cards[cardIndex];
 
   function rate(rating: Rating) {
-    setRatings([...ratings, rating]);
+    setSession(rateTrial(session, rating));
   }
 
   const top = (
@@ -91,16 +87,12 @@ function TrialProgress({ position, cardCount }: { position: number; cardCount: n
 type TrialFinishedProps = {
   setKey: string;
   cards: DemoCard[];
-  ratings: Rating[];
+  ratings: readonly Rating[];
 };
 
 /** The end of the trial: each card with its rating and when an account would show it again. */
 function TrialFinished({ setKey, cards, ratings }: TrialFinishedProps) {
-  const reviewedCards = cards.map((card, index) => ({ card, rating: ratings[index] }));
-  const groups = REVIEW_WINDOWS.map((timing) => ({
-    when: timing.when,
-    cards: reviewedCards.filter(({ rating }) => timing.ratings.includes(rating)),
-  })).filter((group) => group.cards.length > 0);
+  const groups = trialSummary(cards, ratings);
   const finishedIcon = (
     <span className="mb-3 grid size-10 place-items-center rounded-full bg-accent-soft text-accent-strong">
       <Check aria-hidden="true" size={22} strokeWidth={2.5} />

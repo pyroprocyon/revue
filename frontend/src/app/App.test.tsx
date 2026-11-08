@@ -1,7 +1,7 @@
 import { screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { historySet, natureSet } from './test/fixtures';
-import { renderApp, stubFetch } from './test/renderApp';
+import { historySet, natureSet } from '../test/fixtures';
+import { renderApp, stubFetch } from '../test/renderApp';
 
 describe('App', () => {
   it('leads the home page with the headline and the way into the sets', () => {

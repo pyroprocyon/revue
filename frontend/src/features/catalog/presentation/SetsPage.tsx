@@ -1,15 +1,17 @@
 import { useQuery } from '@tanstack/react-query';
 import { ChevronRight } from 'lucide-react';
 import { Link } from 'react-router';
-import { publicSetsQuery, type PublicSet } from '../api/publicContent';
-import { HomeLink } from '../components/HeaderLinks';
-import { LoadFailed } from '../components/LoadFailed';
-import { LoadingScreen, MessageScreen } from '../components/MessageScreen';
-import { Screen } from '../components/Screen';
-import { setPath } from '../paths';
+import type { PublicSet } from '../application/publicContent';
+import { usePublicContentQueries } from './PublicContentProvider';
+import { HomeLink } from '../../../shared/ui/HeaderLinks';
+import { LoadFailed } from '../../../shared/ui/LoadFailed';
+import { LoadingScreen, MessageScreen } from '../../../shared/ui/MessageScreen';
+import { Screen } from '../../../shared/ui/Screen';
+import { setPath } from '../../../shared/navigation/paths';
 
 /** "Browse sets" opens this list. Each set opens its preview, where the trial starts. */
 export function SetsPage() {
+  const { publicSetsQuery } = usePublicContentQueries();
   const publicSets = useQuery(publicSetsQuery);
 
   if (publicSets.isPending) {

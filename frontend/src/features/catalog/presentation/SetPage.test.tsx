@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { historySet, natureSet } from '../test/fixtures';
-import { jsonResponse, renderApp, stubFetch } from '../test/renderApp';
+import { historySet, natureSet } from '../../../test/fixtures';
+import { jsonResponse, renderApp, stubFetch } from '../../../test/renderApp';
 
 const SET_PAGE = '/sets/philippine-history';
 const SET_API = '/api/v1/public-sets/philippine-history';

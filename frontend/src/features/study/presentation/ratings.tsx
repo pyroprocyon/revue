@@ -1,7 +1,8 @@
 // The four recall ratings, shared by the trial's rating buttons and the landing page's sample.
 // They are the grades the scheduler uses, from weakest to strongest recall; "Again" shows as Missed.
 
-export type Rating = 'again' | 'hard' | 'good' | 'easy';
+import { RATING_MEANINGS, type Rating } from '../domain/ratings';
+export type { Rating } from '../domain/ratings';
 
 type RatingDetails = {
   label: string;
@@ -15,10 +16,10 @@ type RatingDetails = {
 
 // The level shows three ways: the label, the meter and the color.
 export const RATINGS: Record<Rating, RatingDetails> = {
-  again: { label: 'Missed', meaning: 'Wrong or a guess', level: 1, tint: 'bg-missed-soft', meter: 'fill-missed' },
-  hard: { label: 'Hard', meaning: 'Right, with effort', level: 2, tint: 'bg-hard-soft', meter: 'fill-hard' },
-  good: { label: 'Good', meaning: 'Right, with a pause', level: 3, tint: 'bg-good-soft', meter: 'fill-good' },
-  easy: { label: 'Easy', meaning: 'Right, instantly', level: 4, tint: 'bg-easy-soft', meter: 'fill-easy' },
+  again: { ...RATING_MEANINGS.again, tint: 'bg-missed-soft', meter: 'fill-missed' },
+  hard: { ...RATING_MEANINGS.hard, tint: 'bg-hard-soft', meter: 'fill-hard' },
+  good: { ...RATING_MEANINGS.good, tint: 'bg-good-soft', meter: 'fill-good' },
+  easy: { ...RATING_MEANINGS.easy, tint: 'bg-easy-soft', meter: 'fill-easy' },
 };
 
 export const RATINGS_IN_ORDER: Rating[] = ['again', 'hard', 'good', 'easy'];

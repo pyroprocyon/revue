@@ -1,6 +1,6 @@
 import { ChevronLeft } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router';
-import { HOME_PATH, SETS_PATH } from '../paths';
+import { HOME_PATH, SETS_PATH } from '../navigation/paths';
 import { BrandMark } from './BrandMark';
 
 /** The logo and wordmark, linking home, at the same size on every page. */

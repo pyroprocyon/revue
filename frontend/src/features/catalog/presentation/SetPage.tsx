@@ -2,18 +2,20 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowRight } from 'lucide-react';
 import { useEffect } from 'react';
 import { Link, useParams } from 'react-router';
-import { demoCardsQuery, publicSetQuery, publicSetsQuery, type PublicSet } from '../api/publicContent';
-import { chip, primaryButton, secondaryButton } from '../components/buttonStyles';
-import { FactLine } from '../components/FactLine';
-import { AllSetsLink, HomeLink } from '../components/HeaderLinks';
-import { LoadFailed } from '../components/LoadFailed';
-import { LoadingScreen, MessageScreen } from '../components/MessageScreen';
-import { ActionRow, Screen } from '../components/Screen';
-import { ShareLinks } from '../components/ShareLinks';
-import { SETS_PATH, setPath, trialPath } from '../paths';
+import type { PublicSet } from '../application/publicContent';
+import { usePublicContentQueries } from './PublicContentProvider';
+import { chip, primaryButton, secondaryButton } from '../../../shared/ui/buttonStyles';
+import { FactLine } from '../../../shared/ui/FactLine';
+import { AllSetsLink, HomeLink } from '../../../shared/ui/HeaderLinks';
+import { LoadFailed } from '../../../shared/ui/LoadFailed';
+import { LoadingScreen, MessageScreen } from '../../../shared/ui/MessageScreen';
+import { ActionRow, Screen } from '../../../shared/ui/Screen';
+import { ShareLinks } from '../../../shared/ui/ShareLinks';
+import { SETS_PATH, setPath, trialPath } from '../../../shared/navigation/paths';
 
 /** One set's preview at /sets/:setKey, the page a classmate's shared link opens. */
 export function SetPage() {
+  const { publicSetQuery, publicSetsQuery } = usePublicContentQueries();
   const { setKey = '' } = useParams();
   const queryClient = useQueryClient();
   const publicSet = useQuery({
@@ -46,6 +48,7 @@ export function SetPage() {
 }
 
 function SetDetails({ publicSet }: { publicSet: PublicSet }) {
+  const { demoCardsQuery } = usePublicContentQueries();
   const queryClient = useQueryClient();
 
   // Visitors usually try the cards next, so load them now and the trial opens without waiting.
@@ -53,7 +56,7 @@ function SetDetails({ publicSet }: { publicSet: PublicSet }) {
     if (publicSet.trialAvailable) {
       void queryClient.prefetchQuery(demoCardsQuery(publicSet.setKey));
     }
-  }, [queryClient, publicSet.setKey, publicSet.trialAvailable]);
+  }, [queryClient, publicSet.setKey, publicSet.trialAvailable, demoCardsQuery]);
 
   const actions = (
     <div className="grid gap-3">

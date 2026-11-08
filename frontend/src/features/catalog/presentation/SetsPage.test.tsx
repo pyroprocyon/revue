@@ -1,7 +1,7 @@
 import { screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { historySet, natureSet } from '../test/fixtures';
-import { renderApp, stubFetch } from '../test/renderApp';
+import { historySet, natureSet } from '../../../test/fixtures';
+import { renderApp, stubFetch } from '../../../test/renderApp';
 
 describe('Set list', () => {
   it('lists every public set, each opening its own preview', async () => {
