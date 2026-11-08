@@ -1,0 +1,45 @@
+# The Weather & Disasters set, published by Revue.
+#
+# Each card keeps a stable key. Never change or reuse a key once a set is live: the loader finds
+# cards by key, and students' schedules follow the card. Fixing a card's text reaches every
+# student who saved the set. Removing a card from this file retires it; putting its key back
+# restores it.
+#
+# Keep questions and answers short. Explanations are optional. Every shared card must name its
+# source so students can inspect the reference. Publisher credit identifies who maintains the
+# set; neither a source nor publisher credit is a checked approval.
+#
+set_key: weather-and-disasters
+title: Weather & Disasters
+description: What PAGASA and the news mean when the weather turns, from habagat to Signal No. 5.
+publisher: Revue
+subject: Earth Science
+cards:
+  - key: habagat-rainy-season
+    question: What's the local name for the southwest monsoon?
+    answer: Habagat
+    source: "PAGASA: https://www.pagasa.dost.gov.ph/press-release/188"
+    explanation: It brings the rainy season to western Luzon and the Visayas.
+
+  - key: amihan-after-habagat
+    question: What's the local name for the northeast monsoon?
+    answer: Amihan
+    source: "PAGASA: https://www.pagasa.dost.gov.ph/press-release/188"
+    explanation: It comes after the habagat season ends.
+
+  - key: signal-number-5
+    question: What is PAGASA's highest wind signal?
+    answer: Signal No. 5
+    source: "PAGASA: https://www.pagasa.dost.gov.ph/learning-tools/tropical-cyclone-wind-signal"
+    explanation: Winds of 185 km/h or more.
+
+  - key: ring-of-fire
+    question: The Philippines is part of which belt of volcanoes and earthquakes around the Pacific?
+    answer: The Pacific Ring of Fire
+    source: "National Geographic Education: https://education.nationalgeographic.org/resource/ring-fire/"
+
+  - key: par-local-names
+    question: A storm gets a local name once it enters which area?
+    answer: The Philippine Area of Responsibility (PAR)
+    source: "PAGASA: https://pagasa.dost.gov.ph/learning-tools/northwest-pacific-basin-names"
+    explanation: That's why one storm can have two names.

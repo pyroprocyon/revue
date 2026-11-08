@@ -14,9 +14,9 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 /**
- * The publishing rules for set files (plan section 5): every shared card has an explanation and a
- * source and one or two distinct key ideas, keys are unique across all files, and a set doesn't
- * ask the same question twice. Each case breaks exactly one rule of an otherwise valid file.
+ * Publishing rules for shared sets: a question, answer and source are required. Explanations and
+ * up to two distinct key ideas are optional but follow the rules when written. Keys are unique
+ * across files, and a set cannot repeat a question. Each case breaks one rule of a valid file.
  */
 class ContentRulesTests {
 
@@ -30,10 +30,7 @@ class ContentRulesTests {
 			  - key: card-one
 			    question: What is one?
 			    answer: One.
-			    key_ideas:
-			      - The number one
-			    explanation: Because one comes first.
-			    source: A source.
+			    source: A plain source.
 			  - key: card-two
 			    question: What is two?
 			    answer: Two.
@@ -55,7 +52,11 @@ class ContentRulesTests {
 		assertThat(problems).isEmpty();
 		assertThat(set.setKey()).isEqualTo("test-set");
 		assertThat(set.cards()).extracting(CardFile::key).containsExactly("card-one", "card-two");
-		assertThat(set.cards().get(0).memoryHook()).isNull();
+		CardFile plain = set.cards().get(0);
+		assertThat(plain.explanation()).isNull();
+		assertThat(plain.source()).isEqualTo("A plain source.");
+		assertThat(plain.memoryHook()).isNull();
+		assertThat(plain.keyIdeas()).isEmpty();
 		assertThat(set.cards().get(1).keyIdeas()).containsExactly("The number two", "Comes after one");
 	}
 
@@ -67,21 +68,24 @@ class ContentRulesTests {
 
 	static Stream<Arguments> brokenFiles() {
 		return Stream.of(
-				broken("missing explanation", "    explanation: Because one comes first.\n", "",
-						"card card-one: explanation is missing"),
-				broken("missing source", "    source: A source.\n  - key: card-two", "  - key: card-two",
-						"card card-one: source is missing"),
+				broken("missing answer", "    answer: One.\n", "", "card card-one: answer is missing"),
+				broken("missing source", "    source: A plain source.\n", "", "source is missing"),
+				broken("null source", "    source: A plain source.", "    source: null", "source is missing"),
+				broken("source given as a number", "    source: A plain source.", "    source: 12", "source must be text"),
+				broken("source too long", "    source: A plain source.", "    source: " + "x".repeat(501),
+						"source is longer than 500 characters"),
 				broken("missing subject", "subject: Science\n", "", "subject is missing"),
 				broken("blank question", "question: What is one?", "question: ' '", "question must not be blank"),
-				broken("no key ideas", "    key_ideas:\n      - The number one\n", "    key_ideas: []\n",
-						"key_ideas must list one or two ideas"),
+				broken("blank explanation", "    explanation: Because two comes second.", "    explanation: ' '",
+						"explanation must not be blank"),
+				broken("blank source", "    source: A source.", "    source: ' '", "source must not be blank"),
 				broken("three key ideas", "      - Comes after one\n", "      - Comes after one\n      - Is even\n",
-						"key_ideas must list one or two ideas"),
+						"key_ideas may list at most two ideas"),
 				broken("repeated key idea", "      - Comes after one", "      - The number two",
 						"key_ideas must be different from each other"),
-				broken("blank key idea", "      - The number one", "      - ' '", "key idea must not be blank"),
+				broken("blank key idea", "      - The number two", "      - ' '", "key idea must not be blank"),
 				broken("same question twice", "What is two?", "What is one?", "asks the same question"),
-				broken("misspelled field", "    explanation: Because one", "    explaination: Because one",
+				broken("misspelled field", "    explanation: Because two", "    explaination: Because two",
 						"unknown field explaination"),
 				broken("unquoted yes as an answer", "    answer: One.", "    answer: yes", "answer must be text"),
 				broken("key with spaces", "key: card-one", "key: Card One", "lowercase letters and digits"),

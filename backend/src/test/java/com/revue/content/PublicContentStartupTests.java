@@ -13,8 +13,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import com.revue.TestcontainersConfiguration;
 
 /**
- * Starting the app loads the public set files into the database, so the starter set exists
- * without any manual step after a deploy.
+ * Starting the app loads every public set file into the database, so the sets exist without any
+ * manual step after a deploy.
  */
 @SpringBootTest
 @Import(TestcontainersConfiguration.class)
@@ -24,22 +24,16 @@ class PublicContentStartupTests {
 	private JdbcTemplate jdbc;
 
 	@Test
-	void startupLoadsTheStarterSetWithItsCardsInFileOrder() {
-		List<String> expectedKeys = PublicContent.readAndCheck()
-			.stream()
-			.filter(set -> set.setKey().equals("human-body-brain"))
-			.findFirst()
-			.orElseThrow()
-			.cards()
-			.stream()
-			.map(CardFile::key)
-			.toList();
+	void startupLoadsEveryPublicSetWithItsCardsInFileOrder() {
+		List<SetFile> setFiles = PublicContent.readAndCheck();
 
-		List<String> loadedKeys = jdbc.queryForList("SELECT c.content_key FROM cards c JOIN sets s ON s.id = c.set_id"
-				+ " WHERE s.set_key = 'human-body-brain' AND s.retired_at IS NULL AND c.retired_at IS NULL"
-				+ " ORDER BY c.position, c.id", String.class);
-
-		assertThat(loadedKeys).isEqualTo(expectedKeys);
+		for (SetFile setFile : setFiles) {
+			List<String> expectedKeys = setFile.cards().stream().map(CardFile::key).toList();
+			List<String> loadedKeys = jdbc.queryForList("SELECT c.content_key FROM cards c JOIN sets s ON s.id = c.set_id"
+					+ " WHERE s.set_key = ? AND s.retired_at IS NULL AND c.retired_at IS NULL"
+					+ " ORDER BY c.position, c.id", String.class, setFile.setKey());
+			assertThat(loadedKeys).as(setFile.setKey()).isEqualTo(expectedKeys);
+		}
 	}
 
 }

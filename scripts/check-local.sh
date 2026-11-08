@@ -25,6 +25,19 @@ health=$(curl --fail --silent --show-error --max-time 10 "$frontend_url/actuator
 [[ "$health" == '{"status":"UP"}' ]] || fail 'Backend health failed through the frontend proxy.'
 status=$(status_of "$frontend_url/api/v1/me")
 [[ "$status" == 401 ]] || fail "Protected API returned $status instead of 401 through the proxy."
+# The public sets work signed out, and there is more than one with a five-card trial. The app
+# loads the set files just after it reports healthy, so a fresh database may need a moment.
+for attempt in 1 2 3 4 5 6; do
+  # A failed request or a list without trial sets is retried, so neither may stop the script here.
+  sets=$(curl --fail --silent --show-error --max-time 10 "$frontend_url/api/v1/public-sets" || true)
+  trial_sets=$(grep -o '"trialAvailable":true' <<< "$sets" | wc -l || true)
+  (( trial_sets >= 2 )) && break
+  sleep 1
+done
+(( trial_sets >= 2 )) || fail "Expected at least 2 public sets with the trial; found $trial_sets."
+first_set=$(grep -o '"setKey":"[a-z0-9-]*"' <<< "$sets" | head -n 1 | cut -d '"' -f 4)
+status=$(status_of "$frontend_url/api/v1/public-sets/$first_set/demo-cards")
+[[ "$status" == 200 ]] || fail "The trial cards for $first_set returned $status instead of 200."
 
 # The production build, served by the backend itself, as the deployed site serves it.
 page=$(curl --fail --silent --show-error --max-time 10 "$backend_url/")

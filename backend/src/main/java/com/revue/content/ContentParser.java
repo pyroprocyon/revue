@@ -80,8 +80,8 @@ final class ContentParser {
 			String key = text(cardMap, "key", label, problems);
 			String question = text(cardMap, "question", label, problems);
 			String answer = text(cardMap, "answer", label, problems);
-			List<String> keyIdeas = textList(cardMap, "key_ideas", label, problems);
-			String explanation = text(cardMap, "explanation", label, problems);
+			List<String> keyIdeas = optionalTextList(cardMap, "key_ideas", label, problems);
+			String explanation = optionalText(cardMap, "explanation", label, problems);
 			String memoryHook = optionalText(cardMap, "memory_hook", label, problems);
 			String source = text(cardMap, "source", label, problems);
 			if (problems.size() == problemsBefore) {
@@ -108,8 +108,11 @@ final class ContentParser {
 		return map.get(field) == null ? null : text(map, field, label, problems);
 	}
 
-	private static List<String> textList(Map<?, ?> map, String field, String label, List<String> problems) {
+	private static List<String> optionalTextList(Map<?, ?> map, String field, String label, List<String> problems) {
 		Object value = map.get(field);
+		if (value == null) {
+			return List.of();
+		}
 		if (!(value instanceof List<?> list)) {
 			problems.add(label + ": " + field + " must be a list");
 			return List.of();

@@ -134,10 +134,31 @@ class ContentLoaderTests {
 				correction("key idea reworded", null, c -> edit(c, c.question(), c.answer(),
 						List.of("First idea", "A clearer second idea"), c.explanation(), c.memoryHook(), c.source()),
 						"key_ideas", List.of("First idea", "A clearer second idea")),
-				// Key ideas are ordered, because the review step refers to them by position.
+				// Key ideas keep their file order, so reordering them is a change.
 				correction("key ideas reordered", null, c -> edit(c, c.question(), c.answer(),
 						List.of("Second idea", "First idea"), c.explanation(), c.memoryHook(), c.source()),
 						"key_ideas", List.of("Second idea", "First idea")));
+	}
+
+	@Test
+	void aSourcedCardWithoutAnExplanationIsSavedAndAddingOrRemovingANoteRaisesItsVersion() {
+		CardFile plain = new CardFile("plain-card", "A plain question?", "A plain answer.", List.of(), null, null,
+				"Class notes, page 1.");
+		loader.load(List.of(set("plain-card-set", "Plain", plain)));
+
+		Map<String, Object> saved = cardRow("plain-card");
+		assertThat(saved.get("explanation")).isNull();
+		assertThat(saved.get("source")).isEqualTo("Class notes, page 1.");
+		assertThat(keyIdeas("plain-card")).isEmpty();
+
+		CardFile withNote = edit(plain, plain.question(), plain.answer(), List.of(), "A short note.", null, plain.source());
+		loader.load(List.of(set("plain-card-set", "Plain", withNote)));
+		assertThat(cardRow("plain-card").get("explanation")).isEqualTo("A short note.");
+		assertThat(cardRow("plain-card").get("content_version")).isEqualTo(2);
+
+		loader.load(List.of(set("plain-card-set", "Plain", plain)));
+		assertThat(cardRow("plain-card").get("explanation")).isNull();
+		assertThat(cardRow("plain-card").get("content_version")).isEqualTo(3);
 	}
 
 	@Test
@@ -247,6 +268,23 @@ class ContentLoaderTests {
 	}
 
 	@Test
+	void aSharedCardWithoutASourceCannotReplacePublishedContent() {
+		CardFile original = card("source-required", "An existing question?");
+		loader.load(List.of(set("source-required-set", "Existing Set", original)));
+		CardFile unsourced = edit(original, original.question(), "A changed answer.", List.of(), null, null, null);
+
+		assertThatExceptionOfType(InvalidContentException.class)
+			.isThrownBy(() -> loader.load(List.of(set("source-required-set", "Changed Set", unsourced))))
+			.satisfies(ex -> assertThat(ex.problems())
+				.anySatisfy(problem -> assertThat(problem).contains("source is missing")));
+
+		assertThat(cardRow(original.key()).get("answer")).isEqualTo(original.answer());
+		assertThat(cardRow(original.key()).get("source")).isEqualTo(original.source());
+		assertThat(cardRow(original.key()).get("content_version")).isEqualTo(1);
+		assertThat(setRow("source-required-set").get("title")).isEqualTo("Existing Set");
+	}
+
+	@Test
 	void sharedSetsAndCardsCanNeverBeDeleted() {
 		loader.load(List.of(set("guarded", "Guarded", card("guarded-a", "Question A?"))));
 		long cardId = cardId("guarded-a");
@@ -275,7 +313,7 @@ class ContentLoaderTests {
 	}
 
 	private static CardFile edit(CardFile card, String question, String answer, List<String> keyIdeas,
-			String explanation, @Nullable String memoryHook, String source) {
+			@Nullable String explanation, @Nullable String memoryHook, @Nullable String source) {
 		return new CardFile(card.key(), question, answer, keyIdeas, explanation, memoryHook, source);
 	}
 

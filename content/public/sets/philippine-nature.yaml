@@ -1,0 +1,44 @@
+# The Philippine Nature set, published by Revue.
+#
+# Each card keeps a stable key. Never change or reuse a key once a set is live: the loader finds
+# cards by key, and students' schedules follow the card. Fixing a card's text reaches every
+# student who saved the set. Removing a card from this file retires it; putting its key back
+# restores it.
+#
+# Keep questions and answers short. Explanations are optional. Every shared card must name its
+# source so students can inspect the reference. Publisher credit identifies who maintains the
+# set; neither a source nor publisher credit is a checked approval.
+#
+set_key: philippine-nature
+title: Philippine Nature
+description: Five wonders of Philippine nature, from the top of Mount Apo to the middle of the Sulu Sea.
+publisher: Revue
+subject: Geography
+cards:
+  - key: mount-apo-highest
+    question: What is the highest mountain in the Philippines?
+    answer: Mount Apo
+    source: "ASEAN Centre for Biodiversity: https://www.aseanbiodiversity.org/asean-heritage-parks/mt-apo-natural-park/"
+    explanation: It's a dormant volcano in Mindanao.
+
+  - key: tubbataha-sulu-sea
+    question: In which sea are the Tubbataha Reefs?
+    answer: The Sulu Sea
+    source: "ASEAN Centre for Biodiversity: https://www.aseanbiodiversity.org/asean-heritage-parks/tubbataha-reefs-natural-park/"
+
+  - key: tamaraw-mindoro
+    question: Which island has the biggest remaining population of tamaraw?
+    answer: Mindoro
+    source: "ASEAN Centre for Biodiversity: https://www.aseanbiodiversity.org/asean-heritage-parks/mts-iglit-baco-national-park/"
+    explanation: Its scientific name, Bubalus mindorensis, comes from the island.
+
+  - key: philippine-eagle-kitanglad
+    question: Which famous bird still lives in the rainforest of Mt. Kitanglad, Bukidnon?
+    answer: The Philippine Eagle
+    source: "ASEAN Centre for Biodiversity: https://www.aseanbiodiversity.org/asean-heritage-parks/mt-kitanglad-range-naturai-park/"
+
+  - key: hamiguitan-bonsai-forest
+    question: Which mountain range in Davao Oriental has a "bonsai forest" of century-old pygmy trees?
+    answer: Mount Hamiguitan
+    source: "ASEAN Centre for Biodiversity: https://www.aseanbiodiversity.org/asean-heritage-parks/mt-hamiguitan-range-wildlife-sanctuary/"
+    explanation: It's a World Heritage site.

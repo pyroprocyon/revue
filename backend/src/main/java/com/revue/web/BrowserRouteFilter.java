@@ -2,6 +2,7 @@ package com.revue.web;
 
 import java.io.IOException;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -21,9 +22,10 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * for a file, such as a missing asset, passes through and gets 404, so a tab left open across a
  * deploy fails clearly instead of loading HTML as JavaScript.
  *
- * <p>Only the home page and the starter preview may appear in search results. Every browser route
- * shares one index.html, so a noindex tag inside it would hide the home page too. This filter
- * sends an {@code X-Robots-Tag: noindex} header on the other routes instead.
+ * <p>Only the home page, the list of sets and each set's preview, such as {@code /sets/philippine-history},
+ * may appear in search results. Every browser route shares one index.html, so a noindex tag inside
+ * it would hide the home page too. This filter sends an {@code X-Robots-Tag: noindex} header on
+ * the other routes instead, including each set's trial.
  *
  * <p>The filter runs after Spring Security, whose firewall has already rejected malformed paths,
  * such as encoded slashes or {@code ..} segments.
@@ -33,7 +35,10 @@ class BrowserRouteFilter extends OncePerRequestFilter {
 
 	private static final String INDEX_PAGE = "/index.html";
 
-	private static final Set<String> INDEXABLE_ROUTES = Set.of("/", "/starter-set");
+	private static final Set<String> INDEXABLE_ROUTES = Set.of("/", "/sets");
+
+	// A set preview: /sets/ followed by one set key, which content rules limit to these characters.
+	private static final Pattern SET_PREVIEW = Pattern.compile("/sets/[a-z0-9]+(-[a-z0-9]+)*");
 
 	@Override
 	protected boolean shouldNotFilter(HttpServletRequest request) {
@@ -43,7 +48,7 @@ class BrowserRouteFilter extends OncePerRequestFilter {
 	@Override
 	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
 			FilterChain chain) throws ServletException, IOException {
-		if (!INDEXABLE_ROUTES.contains(pathOf(request))) {
+		if (!isIndexable(pathOf(request))) {
 			response.setHeader("X-Robots-Tag", "noindex");
 		}
 		request.getRequestDispatcher(INDEX_PAGE).forward(request, response);
@@ -58,6 +63,10 @@ class BrowserRouteFilter extends OncePerRequestFilter {
 		}
 		String lastSegment = path.substring(path.lastIndexOf('/') + 1);
 		return lastSegment.indexOf('.') < 0;
+	}
+
+	private static boolean isIndexable(String path) {
+		return INDEXABLE_ROUTES.contains(path) || SET_PREVIEW.matcher(path).matches();
 	}
 
 	private static boolean isUnder(String path, String prefix) {
