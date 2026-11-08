@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import type { DemoCard } from '../api/publicContent';
-import { primaryButton } from '../components/buttonStyles';
-import { CardSource } from '../components/CardSource';
+import type { DemoCard } from '../../catalog/application/publicContent';
+import { primaryButton } from '../../../shared/ui/buttonStyles';
+import { CardSource } from '../../../shared/ui/CardSource';
 import { RATINGS, RATINGS_IN_ORDER, RecallMeter, type Rating } from './ratings';
 
 // A two-sided card, like a paper flashcard: the question on the front, the answer on the back.

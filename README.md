@@ -76,6 +76,10 @@ The GitHub Actions workflow is configured to run `make check` and `make smoke` o
 
 Continuous deployment is not connected yet. The image turns on the production profile (`application-prod.properties`); Docker Compose turns it off for local development.
 
+## Architecture
+
+See [the architecture guide](docs/architecture.md) for the publishing aggregate, scheduling boundary, frontend feature structure and enforced dependency rules.
+
 ## License
 
 All rights reserved. This repository has no open-source license.

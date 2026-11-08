@@ -2,14 +2,14 @@ import { useQueryClient } from '@tanstack/react-query';
 import { ArrowRight } from 'lucide-react';
 import { useEffect, useId } from 'react';
 import { Link } from 'react-router';
-import { publicSetsQuery } from '../api/publicContent';
-import { chip, primaryButton, textLink } from '../components/buttonStyles';
-import { HomeLink } from '../components/HeaderLinks';
-import { NextReviewPanel } from '../components/NextReviewPanel';
-import { ReviewSteps } from '../components/ReviewSteps';
-import { Screen } from '../components/Screen';
-import { SETS_PATH } from '../paths';
-import { RatingTag } from '../trial/ratings';
+import { usePublicContentQueries } from '../../features/catalog/presentation/PublicContentProvider';
+import { chip, primaryButton, textLink } from '../../shared/ui/buttonStyles';
+import { HomeLink } from '../../shared/ui/HeaderLinks';
+import { NextReviewPanel } from '../../features/study/presentation/NextReviewPanel';
+import { ReviewSteps } from '../../features/study/presentation/ReviewSteps';
+import { Screen } from '../../shared/ui/Screen';
+import { SETS_PATH } from '../../shared/navigation/paths';
+import { RatingTag } from '../../features/study/presentation/ratings';
 
 // The landing page follows the November 7 concept: the hero, a sample review, then the three
 // steps. On phones the page scrolls and "Browse sets" stays pinned at the bottom, like every
@@ -20,12 +20,13 @@ const HOW_IT_WORKS_SECTION = 'how-it-works';
 const NO_ACCOUNT_NOTE = 'No account needed. Practice isn’t saved.';
 
 export function LandingPage() {
+  const { publicSetsQuery } = usePublicContentQueries();
   const queryClient = useQueryClient();
 
   // Most visitors tap "Browse sets" next, so the list of sets loads now and opens at once.
   useEffect(() => {
     void queryClient.prefetchQuery(publicSetsQuery);
-  }, [queryClient]);
+  }, [queryClient, publicSetsQuery]);
 
   const phoneActions = (
     <div>

@@ -1,8 +1,8 @@
 import { Link } from 'react-router';
-import { secondaryButton } from '../components/buttonStyles';
-import { MessageScreen } from '../components/MessageScreen';
-import { ActionRow } from '../components/Screen';
-import { HOME_PATH } from '../paths';
+import { secondaryButton } from '../../shared/ui/buttonStyles';
+import { MessageScreen } from '../../shared/ui/MessageScreen';
+import { ActionRow } from '../../shared/ui/Screen';
+import { HOME_PATH } from '../../shared/navigation/paths';
 
 export function NotFoundPage() {
   const homeButton = (

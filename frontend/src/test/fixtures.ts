@@ -1,4 +1,4 @@
-import type { DemoCard, DemoCards, PublicSet } from '../api/publicContent';
+import type { DemoCard, DemoCards, PublicSet } from '../features/catalog/application/publicContent';
 
 export const historySet: PublicSet = {
   setKey: 'philippine-history',

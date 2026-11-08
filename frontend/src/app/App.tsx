@@ -1,16 +1,18 @@
+import { httpPublicContent } from '../features/catalog/infrastructure/httpPublicContent';
+import { PublicContentProvider } from '../features/catalog/presentation/PublicContentProvider';
 import { useEffect } from 'react';
 import { Route, Routes, useLocation } from 'react-router';
 import { LandingPage } from './pages/LandingPage';
 import { NotFoundPage } from './pages/NotFoundPage';
-import { SetPage } from './pages/SetPage';
-import { SetsPage } from './pages/SetsPage';
-import { TrialPage } from './pages/TrialPage';
-import { HOME_PATH, SETS_PATH, SET_ROUTE, TRIAL_ROUTE } from './paths';
+import { SetPage } from '../features/catalog/presentation/SetPage';
+import { SetsPage } from '../features/catalog/presentation/SetsPage';
+import { TrialPage } from '../features/study/presentation/TrialPage';
+import { HOME_PATH, SETS_PATH, SET_ROUTE, TRIAL_ROUTE } from '../shared/navigation/paths';
 
 /** Each page draws its own phone-height screen (components/Screen), so the routes are flat. */
 export function App() {
   return (
-    <>
+    <PublicContentProvider reader={httpPublicContent}>
       <ScrollToTopOnNewPage />
       <Routes>
         <Route path={HOME_PATH} element={<LandingPage />} />
@@ -19,7 +21,7 @@ export function App() {
         <Route path={TRIAL_ROUTE} element={<TrialPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
-    </>
+    </PublicContentProvider>
   );
 }
 

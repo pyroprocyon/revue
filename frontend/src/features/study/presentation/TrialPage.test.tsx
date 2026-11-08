@@ -1,8 +1,8 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { demoCardsQuery } from '../api/publicContent';
-import { historyCards, historySet } from '../test/fixtures';
-import { jsonResponse, renderApp, stubApi, stubFetch } from '../test/renderApp';
+import { publicContentKeys } from '../../catalog/application/publicContentQueries';
+import { historyCards, historySet } from '../../../test/fixtures';
+import { jsonResponse, renderApp, stubApi, stubFetch } from '../../../test/renderApp';
 
 function click(name: string) {
   fireEvent.click(screen.getByRole('button', { name }));
@@ -132,7 +132,7 @@ describe('Five-card trial', () => {
   it('keeps the current answer and earlier ratings when a background refresh fails and recovers', async () => {
     const fetchMock = stubFetch(200, historyCards);
     const { queryClient } = renderApp('/sets/philippine-history/try');
-    const queryKey = demoCardsQuery('philippine-history').queryKey;
+    const queryKey = publicContentKeys.trial('philippine-history');
     await screen.findByRole('heading', { name: 'Question 1?' });
     showAnswerAndRate('Missed');
     click('Check answer');

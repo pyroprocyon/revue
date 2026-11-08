@@ -1,0 +1,20 @@
+import { queryOptions } from '@tanstack/react-query';
+import type { PublicContentReader } from './publicContent';
+
+export const publicContentKeys = {
+  sets: ['public-sets'] as const,
+  set: (key: string) => ['public-sets', key] as const,
+  trial: (key: string) => ['public-sets', key, 'demo-cards'] as const,
+};
+
+export function publicContentQueries(reader: PublicContentReader) {
+  return {
+    publicSetsQuery: queryOptions({ queryKey: publicContentKeys.sets, queryFn: () => reader.list() }),
+    publicSetQuery: (key: string) => queryOptions({
+      queryKey: publicContentKeys.set(key), queryFn: () => reader.summary(key),
+    }),
+    demoCardsQuery: (key: string) => queryOptions({
+      queryKey: publicContentKeys.trial(key), queryFn: () => reader.demoCards(key),
+    }),
+  };
+}
