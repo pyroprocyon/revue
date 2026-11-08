@@ -28,7 +28,7 @@ export function TrialPage() {
   if (demoCards.isPending) {
     return <LoadingScreen text="Loading the cards…" />;
   }
-  if (demoCards.isError) {
+  if (demoCards.isLoadingError) {
     return <LoadFailed onRetry={() => void demoCards.refetch()} retrying={demoCards.isFetching} />;
   }
   if (demoCards.data === null) {

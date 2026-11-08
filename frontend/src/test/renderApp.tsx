@@ -11,13 +11,14 @@ import { App } from '../App';
 export function renderApp(paths: string | string[]) {
   const history = typeof paths === 'string' ? [paths] : paths;
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
+  const view = render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={history} initialIndex={history.length - 1}>
         <App />
       </MemoryRouter>
     </QueryClientProvider>,
   );
+  return { ...view, queryClient };
 }
 
 /** Replaces fetch so every request gets this status and JSON body. Returns the mock to inspect calls. */
