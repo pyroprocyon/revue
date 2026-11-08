@@ -1,14 +1,210 @@
-/* Base page styles. */
-body {
-  margin: 0;
-  padding: 16px;
-  font-family: system-ui, sans-serif;
-  line-height: 1.5;
-  color: #1a1a1a;
-  background: #ffffff;
+@import 'tailwindcss';
+
+/* A keyboard or landscape viewport must not trap reading content between fixed bars. */
+@media (max-height: 32rem) {
+  .app-screen {
+    height: auto;
+    min-height: 100dvh;
+  }
+
+  .app-screen > main {
+    flex: none;
+    overflow: visible;
+  }
 }
 
-main {
-  max-width: 40rem;
-  margin: 0 auto;
+/*
+ * Revue's design tokens (plan section 12), named by role so a dark theme later only needs new
+ * values. Surfaces and soft shadows separate components; focus outlines remain explicit.
+ * The coral highlight is decoration only; its softer tint supports dark text.
+ */
+@theme {
+  /* Self-hosted Inter Variable (imported in main.tsx) with its optical-size axis, which gives large
+     headings Inter's broader display letterforms. The system fonts show until it loads.
+     License: public/fonts/inter-LICENSE.txt, served at /fonts/inter-LICENSE.txt. */
+  --font-sans: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  /* Five type roles, in rem so the browser's text size setting still works. The landing page adds
+     a hero headline and a lead line, each with a larger size for wide screens. */
+  --text-hero: 3.75rem;
+  --text-hero--line-height: 0.85;
+  --text-hero-lg: 6.75rem;
+  --text-hero-lg--line-height: 0.84;
+  --text-lead: 1.375rem;
+  --text-lead--line-height: 1.2;
+  --text-lead-lg: 1.75rem;
+  --text-lead-lg--line-height: 1.15;
+  --text-title-lg: 2.75rem;
+  --text-title-lg--line-height: 1.1;
+  --text-title: 1.75rem;
+  --text-title--line-height: 1.2;
+  --text-section: 1.25rem;
+  --text-section--line-height: 1.35;
+  --text-body: 1.0625rem;
+  --text-body--line-height: 1.55;
+  --text-label: 0.9375rem;
+  --text-label--line-height: 1.4;
+  --text-support: 0.9375rem;
+  --text-support--line-height: 1.45;
+
+  /* Warm ivory page, white cards, deep indigo for actions and emphasis, coral highlights as decoration. */
+  --color-page: #faf9f6;
+  --color-surface: #ffffff;
+  --color-subtle: #f1efea;
+  --color-line: #e4e2dc;
+  --color-ink: #18201e;
+  --color-muted: #545b58;
+  --color-accent: #3730a3;
+  --color-accent-soft: #ecebf9;
+  --color-accent-strong: #2f2a8a;
+  --color-on-accent: #ffffff;
+  --color-highlight: #ff7676;
+  --color-highlight-soft: #ffe6e2;
+  /* The answer field and the typed answer: near-white with a soft indigo edge that passes 3:1. */
+  --color-field: #fcfbff;
+  --color-field-edge: #8984c4;
+  /* Ratings retain their labels and meters, so their meaning never depends on color alone. */
+  --color-missed: #c2413b;
+  --color-missed-soft: #ffd8d4;
+  --color-hard: #b05e00;
+  --color-hard-soft: #ffe2ad;
+  --color-good: #557a00;
+  --color-good-soft: #dcf29c;
+  --color-easy: #1d7a47;
+  --color-easy-soft: #b9edcf;
+
+  /* Reading pages (preview, trial) use one 600-pixel column; the landing page uses the wide one. */
+  --container-page: 37.5rem;
+  --container-wide: 64rem;
+
+  --radius-card: 1.5rem;
+  --radius-control: 1rem;
+  --radius-inset: 0.625rem;
+
+  /* One soft elevation family, without a hard outline or spread ring. */
+  --shadow-card: 0 4px 24px oklch(25% 0.02 255 / 0.07);
+  --shadow-control: 0 2px 8px oklch(25% 0.02 255 / 0.09);
+  --shadow-actions: 0 -4px 20px oklch(25% 0.02 255 / 0.04);
+
+  /* Material's standard and emphasized-decelerate curves. */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-enter: cubic-bezier(0.05, 0.7, 0.1, 1);
+
+  --animate-reveal: reveal 200ms var(--ease-enter);
+  --animate-fade-in: fade-in 200ms var(--ease-standard);
+  --animate-flip-to-back: flip-to-back 350ms var(--ease-standard);
+  --animate-flip-to-front: flip-to-front 350ms var(--ease-standard);
+
+  @keyframes reveal {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+
+  /*
+   * A flashcard turning over. It shrinks a little halfway, like a card lifted off the table, so the
+   * edge turning toward the viewer stays inside the screen instead of briefly adding a scrollbar.
+   */
+  @keyframes flip-to-back {
+    from {
+      transform: rotateY(0deg);
+    }
+    50% {
+      transform: rotateY(90deg) scale(0.82);
+    }
+    to {
+      transform: rotateY(180deg);
+    }
+  }
+
+  @keyframes flip-to-front {
+    from {
+      transform: rotateY(180deg);
+    }
+    50% {
+      transform: rotateY(90deg) scale(0.82);
+    }
+    to {
+      transform: rotateY(0deg);
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* "How it works" on the landing page glides to its section, unless reduced motion is on. */
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
+
+  body {
+    @apply bg-page font-sans text-body text-ink antialiased;
+    /* A long word or address wraps instead of pushing the page sideways at large text sizes. */
+    overflow-wrap: break-word;
+  }
+}
+
+/*
+ * Hover, focus and pressed states for buttons and button-like links: an overlay in the content
+ * color (8% hover, 10% focus and pressed) and a slight press. Tailwind's hover variant already
+ * skips touch screens; this utility does the same with @media (hover: hover).
+ */
+@utility pressable {
+  position: relative;
+  isolation: isolate;
+  transition: transform 100ms var(--ease-standard);
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: currentColor;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 100ms var(--ease-standard);
+  }
+
+  @media (hover: hover) {
+    &:hover:not(:disabled)::after {
+      opacity: 0.08;
+    }
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+
+  &:focus-visible::after,
+  &:active:not(:disabled)::after {
+    opacity: 0.1;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    &:active:not(:disabled) {
+      transform: scale(0.97);
+    }
+  }
 }
