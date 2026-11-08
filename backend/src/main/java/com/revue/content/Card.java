@@ -49,14 +49,12 @@ class Card {
 	@Column(nullable = false)
 	private String answer;
 
-	@Column(nullable = false)
-	private String explanation;
+	private @Nullable String explanation;
 
 	@Column(name = "memory_hook")
 	private @Nullable String memoryHook;
 
-	@Column(nullable = false)
-	private String source;
+	private @Nullable String source;
 
 	@JdbcTypeCode(SqlTypes.ARRAY)
 	@Column(name = "key_ideas", nullable = false)
@@ -80,8 +78,6 @@ class Card {
 		this.contentKey = "";
 		this.question = "";
 		this.answer = "";
-		this.explanation = "";
-		this.source = "";
 		this.keyIdeas = new ArrayList<>();
 		this.contentVersion = 1;
 	}
@@ -165,7 +161,7 @@ class Card {
 		return answer;
 	}
 
-	String explanation() {
+	@Nullable String explanation() {
 		return explanation;
 	}
 
@@ -173,7 +169,7 @@ class Card {
 		return memoryHook;
 	}
 
-	String source() {
+	@Nullable String source() {
 		return source;
 	}
 

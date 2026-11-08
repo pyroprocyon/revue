@@ -77,13 +77,19 @@ class StaticServingTests {
 	}
 
 	@Test
-	void onlyTheHomePageAndStarterPreviewCanBeIndexed() {
-		for (String path : new String[] { "/", "/starter-set" }) {
+	void onlyTheHomePageTheSetListAndSetPreviewsCanBeIndexed() {
+		for (String path : new String[] { "/", "/sets", "/sets/philippine-history" }) {
 			HttpResponse<String> response = send("GET", path);
 
 			assertThat(response.statusCode()).as(path).isEqualTo(200);
 			assertThat(response.body()).as(path).isEqualTo(fixture("static/index.html"));
 			assertThat(response.headers().firstValue("X-Robots-Tag")).as(path).isEmpty();
+		}
+		for (String path : new String[] { "/sets/philippine-history/try", "/sets/Not_A_Key" }) {
+			HttpResponse<String> response = send("GET", path);
+
+			assertThat(response.statusCode()).as(path).isEqualTo(200);
+			assertThat(header(response, "X-Robots-Tag")).as(path).isEqualTo("noindex");
 		}
 	}
 

@@ -7,6 +7,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
+import org.jspecify.annotations.Nullable;
+
 /**
  * The publishing rules for shared sets (plan section 5), checked across every set file together.
  * The loader runs them before it changes anything, and {@code PublicContentTests} runs them on the
@@ -27,6 +29,8 @@ final class ContentRules {
 	private static final int MAX_QUESTION = 500;
 
 	private static final int MAX_ANSWER = 1000;
+
+	private static final int MAX_KEY_IDEAS = 2;
 
 	private static final int MAX_KEY_IDEA = 200;
 
@@ -69,18 +73,16 @@ final class ContentRules {
 				}
 				checkText(card.answer(), MAX_ANSWER, label + ": answer", problems);
 				checkKeyIdeas(card.keyIdeas(), label, problems);
-				checkText(card.explanation(), MAX_EXPLANATION, label + ": explanation", problems);
-				if (card.memoryHook() != null) {
-					checkText(card.memoryHook(), MAX_MEMORY_HOOK, label + ": memory_hook", problems);
-				}
+				checkOptionalText(card.explanation(), MAX_EXPLANATION, label + ": explanation", problems);
+				checkOptionalText(card.memoryHook(), MAX_MEMORY_HOOK, label + ": memory_hook", problems);
 				checkText(card.source(), MAX_SOURCE, label + ": source", problems);
 			}
 		}
 	}
 
 	private static void checkKeyIdeas(List<String> keyIdeas, String label, List<String> problems) {
-		if (keyIdeas.isEmpty() || keyIdeas.size() > 2) {
-			problems.add(label + ": key_ideas must list one or two ideas");
+		if (keyIdeas.size() > MAX_KEY_IDEAS) {
+			problems.add(label + ": key_ideas may list at most two ideas");
 			return;
 		}
 		Set<String> distinct = new HashSet<>();
@@ -98,8 +100,18 @@ final class ContentRules {
 		}
 	}
 
-	private static void checkText(String text, int maxLength, String label, List<String> problems) {
-		if (text.isBlank()) {
+	/** An optional field may be left out, but when it is written it follows the same rules. */
+	private static void checkOptionalText(@Nullable String text, int maxLength, String label, List<String> problems) {
+		if (text != null) {
+			checkText(text, maxLength, label, problems);
+		}
+	}
+
+	private static void checkText(@Nullable String text, int maxLength, String label, List<String> problems) {
+		if (text == null) {
+			problems.add(label + " is missing");
+		}
+		else if (text.isBlank()) {
 			problems.add(label + " must not be blank");
 		}
 		else if (text.length() > maxLength) {

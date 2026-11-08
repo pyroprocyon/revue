@@ -21,18 +21,16 @@ class PublicContentTests {
 	}
 
 	@Test
-	void theStarterSetCanRunTheFiveCardTrial() {
-		// The public preview and the trial need the Human Body & Brain set with at least five cards
-		// (plan sections 4 and 14). Revue publishes it, and no checker has approved it yet.
-		SetFile starter = PublicContent.readAndCheck()
-			.stream()
-			.filter(set -> set.setKey().equals("human-body-brain"))
-			.findFirst()
-			.orElseThrow();
+	void thereIsMoreThanOneSetAndEveryOneCanRunTheFiveCardTrial() {
+		// Visitors choose among the public sets, and each one offers the five-card trial (plan
+		// sections 4 and 14). Revue publishes them, and no checker has approved them yet.
+		List<SetFile> sets = PublicContent.readAndCheck();
 
-		assertThat(starter.title()).isEqualTo("Human Body & Brain");
-		assertThat(starter.publisher()).isEqualTo("Revue");
-		assertThat(starter.cards()).hasSizeGreaterThanOrEqualTo(5);
+		assertThat(sets).hasSizeGreaterThan(1);
+		for (SetFile set : sets) {
+			assertThat(set.publisher()).as(set.setKey()).isEqualTo("Revue");
+			assertThat(set.cards()).as(set.setKey()).hasSizeGreaterThanOrEqualTo(5);
+		}
 	}
 
 	@Test

@@ -1,0 +1,44 @@
+# The Philippine History set, published by Revue.
+#
+# Each card keeps a stable key. Never change or reuse a key once a set is live: the loader finds
+# cards by key, and students' schedules follow the card. Fixing a card's text reaches every
+# student who saved the set. Removing a card from this file retires it; putting its key back
+# restores it.
+#
+# Keep questions and answers short. Explanations are optional. Every shared card must name its
+# source so students can inspect the reference. Publisher credit identifies who maintains the
+# set; neither a source nor publisher credit is a checked approval.
+#
+set_key: philippine-history
+title: Philippine History
+description: Five moments every Filipino student meets in class, from Mactan to Malolos.
+publisher: Revue
+subject: History
+cards:
+  - key: lapulapu-at-mactan
+    question: Who led the soldiers Magellan fought at Mactan in 1521?
+    answer: Lapulapu, the chief of Mactan
+    source: "NHCP historical marker: https://philhistoricsites.nhcp.gov.ph/registry_database/ferdinand-magellans-death/"
+    explanation: Magellan died of his wounds there on April 27, 1521.
+
+  - key: rizal-noli-me-tangere
+    question: Who wrote Noli Me Tangere?
+    answer: José Rizal
+    source: "NHCP historical marker: https://philhistoricsites.nhcp.gov.ph/registry_database/jose-rizal-1861-1896-7/"
+    explanation: It came out in 1887. El Filibusterismo followed in 1891.
+
+  - key: bonifacio-founds-katipunan
+    question: Who founded the Katipunan?
+    answer: Andrés Bonifacio
+    source: "NHCP historical marker: https://philhistoricsites.nhcp.gov.ph/registry_database/kataastaasan-kagalanggalang-na-katipunan-ng-mga-anak-ng-bayan-k-k-k-n-m-a-n-b/"
+    explanation: With five companions, in Tondo, Manila, on July 7, 1892.
+
+  - key: aguinaldo-first-republic
+    question: Who was president of the First Philippine Republic?
+    answer: Emilio Aguinaldo
+    source: "NHCP historical marker: https://philhistoricsites.nhcp.gov.ph/registry_database/philippine-republic-1898-1901/"
+
+  - key: independence-at-kawit
+    question: Where was Philippine independence proclaimed on June 12, 1898?
+    answer: Kawit, Cavite
+    source: "NHCP historical marker: https://philhistoricsites.nhcp.gov.ph/registry_database/emilio-aguinaldo-y-famy-1869-1964-kawit/"
