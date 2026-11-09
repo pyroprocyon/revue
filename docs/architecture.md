@@ -61,9 +61,19 @@ Social cohesion is a core product goal. The intended network effect is that usef
 
 A public link or signup invitation grants no access to another learner's progress and creates no implicit group membership. The pilot uses existing sharing channels and explicit saving when implemented. Add collaboration contracts only for concrete use cases; no group platform, public learner profile or additional permission system is required before account creation.
 
-## Planned account layers
+## Account foundation and remaining layers
 
-Account registration, verification/reset and deletion are not implemented yet. Their code belongs to the existing `identity` context. The planned dependency direction remains presentation -> application -> domain, with infrastructure implementing inward-owned ports.
+M2.1a implements the account foundation in the existing `identity` context. Pure domain values own canonical email, invitation validity, eligibility and deletion rules. `RegistrationCommit` saves a pending account, invite redemption and initial verification challenge in one transaction through the application-owned `RegistrationStore` port. It grants no learner session. Public signup, verification, sign-in, reset and deletion workflows remain unimplemented.
+
+The JPA adapter locks the invitation and uses PostgreSQL conflict handling for expected email/digest collisions. Email uniqueness is enforced by the database, so two different invitations cannot race past a preliminary lookup. A duplicate registration never overwrites credentials or consumes another invitation. The clock is read after acquiring the invite lock, and any failed save rolls back all three changes. No credential hashing, provider call or session effect occurs inside this transaction.
+
+V4 adds UUID account/invitation/challenge IDs, independent eligibility facts and all-or-none deletion fields. It preserves existing content and session data. Account erasure cascades to private challenges and clears the invitation's user link while retaining its redemption timestamp. The actual erasure use case, deletion journal, cleanup worker and restore procedure remain M2.3 work. Domain deletion cancellation requires the current request and credential version, advances that version and preserves every other restriction; its future application caller must authenticate the proof and hold the account lock.
+
+The pilot email key trims outer ASCII whitespace and lowercases ASCII dot-atom addresses with DNS domains. Dots and plus aliases remain significant; quoted local parts and internationalized addresses are not supported in this slice. Password encodings retain their algorithm prefix and are never normalized as email. Token digests are SHA-256 hex values; raw token generation and password encoding remain adapter work for M2.1b. Diagnostic strings redact email and credential/digest values.
+
+Deletion recovery lasts seven elapsed days. The foundation also uses the plan's proposed seven-day unverified-registration lifetime, measured from creation; no cleanup runs yet. A pending deletion window takes precedence over unverified cleanup. Verification challenge expiry is supplied by trusted preparation and rechecked at commit; its delivery policy belongs to M2.1b.
+
+The dependency direction remains presentation -> application -> domain, with infrastructure implementing inward-owned ports. Responsibilities across the account slices are:
 
 | Layer | Account responsibility |
 |---|---|
@@ -84,7 +94,7 @@ Account purge uses narrow application ports implemented by the data-owning conte
 
 Frontend account presentation uses injected application contracts; HTTP/CSRF details remain in infrastructure. The app wires adapters, shared UI remains independent, and the backend owns permission and lifecycle decisions. Add pure client-domain modules only when real behavior needs them.
 
-Java architecture tests discover every implemented context's domain and application packages, including future identity layers. Test-only identity fixtures prove that legitimate inward dependencies pass and framework, adapter and foreign-context dependencies fail. There are no cross-context erasure exceptions yet; add only the exact implemented seams when needed. These dependency checks do not certify unbuilt account behavior, transaction handling or authorization.
+Java architecture tests discover every implemented context's domain and application packages, including future identity layers. Test-only identity fixtures prove that legitimate inward dependencies pass and framework, adapter and foreign-context dependencies fail. There are no cross-context erasure exceptions yet; add only the exact implemented seams when needed. These dependency checks supplement domain and PostgreSQL registration tests; they do not certify unbuilt authentication or authorization.
 
 ## Enforced boundaries and compatibility
 
@@ -98,4 +108,4 @@ Behavioral tests remain authoritative for public JSON, ordering, missing/retired
 
 This refactor preserves the current daily-only scheduling profile, which disables short-term learning/relearning steps. It adds neither persisted review submission nor short-term relearning. Focus Practice remains a candidate; it must use its own practice flow without changing normal schedules or review history.
 
-The schema, published content, API URLs, browser URLs, UI and deployment settings are unchanged. New domain work should add only the models and ports its actual use cases require. Architecture checks enforce dependency rules; they do not replace review of domain meaning or behavior.
+M2.1a adds account tables only. Published content, API URLs, browser URLs, UI and deployment settings are unchanged. New domain work should add only the models and ports its actual use cases require. Architecture checks enforce dependency rules; they do not replace review of domain meaning or behavior.
