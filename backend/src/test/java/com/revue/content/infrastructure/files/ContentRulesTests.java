@@ -64,6 +64,14 @@ class ContentRulesTests {
 		assertThat(set.cards().get(1).keyIdeas()).containsExactly("The number two", "Comes after one");
 	}
 
+	@Test
+	void longKeysAreCheckedWithoutRecursiveBacktracking() {
+		String key = "a-".repeat(10_000) + "z";
+		assertThat(problemsFor(VALID.replace("test-set", key))).isEmpty();
+		assertThat(problemsFor(VALID.replace("test-set", key + "-")))
+			.anySatisfy(problem -> assertThat(problem).contains("must be lowercase letters and digits joined by hyphens"));
+	}
+
 	@ParameterizedTest(name = "{0}")
 	@MethodSource("brokenFiles")
 	void aFileThatBreaksARuleIsReported(String rule, String yaml, String expectedProblem) {

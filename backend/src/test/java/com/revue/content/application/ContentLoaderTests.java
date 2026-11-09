@@ -3,7 +3,6 @@ package com.revue.content.application;
 import com.revue.content.domain.CardDefinition;
 import com.revue.content.domain.InvalidContentException;
 import com.revue.content.domain.SetDefinition;
-import com.revue.content.application.ContentLoader;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;

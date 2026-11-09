@@ -21,7 +21,7 @@ import org.jspecify.annotations.Nullable;
 public final class ContentRules {
 
 	/** Lowercase words joined by hyphens, so keys stay stable and safe to use in links. */
-	private static final Pattern KEY = Pattern.compile("[a-z0-9]+(-[a-z0-9]+)*");
+	private static final Pattern KEY = Pattern.compile("[a-z0-9]++(?:-[a-z0-9]++)*+");
 
 	private static final int MAX_TITLE = 100;
 

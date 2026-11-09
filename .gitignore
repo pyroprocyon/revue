@@ -21,3 +21,10 @@ Thumbs.db
 # Logs
 *.log
 npm-debug.log*
+
+# Python tooling bytecode
+__pycache__/
+
+# Sonar analyzer caches (reports are already under backend/target)
+.sonar/
+.scannerwork/
