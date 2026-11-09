@@ -21,40 +21,53 @@ class JpaPublishedSetRepository implements PublishedSetRepository {
 	}
 
 	@Override
-	public List<PublishedSet> findAll() {
-		Map<String, List<PublishedCard>> cardsBySet = new HashMap<>();
-		for (CardRow card : cards.findAllWithSet()) {
-			cardsBySet.computeIfAbsent(card.sharedSet().setKey(), key -> new ArrayList<>()).add(card.toDomain());
-		}
-		return sets.findAll().stream()
-			.map(set -> set.toDomain(cardsBySet.getOrDefault(set.setKey(), List.of()))).toList();
+	public Catalog loadCatalog() {
+		return new LoadedCatalog(sets.findAll(), cards.findAllWithSet());
 	}
 
-	@Override
-	public void saveAll(List<PublishedSet> publications) {
-		Map<String, SharedSetRow> setsByKey = new HashMap<>();
-		for (SharedSetRow set : sets.findAll()) {
-			setsByKey.put(set.setKey(), set);
-		}
-		Map<String, CardRow> cardsByKey = new HashMap<>();
-		for (CardRow card : cards.findAllWithSet()) {
-			cardsByKey.put(card.contentKey(), card);
-		}
-		for (PublishedSet publication : publications) {
-			SharedSetRow row = setsByKey.get(publication.key());
-			if (row == null) {
-				row = sets.save(new SharedSetRow(publication.key()));
+	private final class LoadedCatalog implements Catalog {
+		private final Map<String, SharedSetRow> setsByKey = new HashMap<>();
+		private final Map<String, CardRow> cardsByKey = new HashMap<>();
+		private final List<PublishedSet> existingSets;
+
+		private LoadedCatalog(List<SharedSetRow> setRows, List<CardRow> cardRows) {
+			Map<String, List<PublishedCard>> cardsBySet = new HashMap<>();
+			for (CardRow card : cardRows) {
+				cardsByKey.put(card.contentKey(), card);
+				cardsBySet.computeIfAbsent(card.sharedSet().setKey(), key -> new ArrayList<>()).add(card.toDomain());
 			}
-			row.updateFrom(publication);
-			for (PublishedCard card : publication.cards()) {
-				CardRow cardRow = cardsByKey.get(card.key());
-				if (cardRow == null) {
-					cardRow = new CardRow(row, card.key());
-					cardRow.updateFrom(card);
-					cards.save(cardRow);
+			for (SharedSetRow set : setRows) {
+				setsByKey.put(set.setKey(), set);
+			}
+			existingSets = setRows.stream()
+				.map(set -> set.toDomain(cardsBySet.getOrDefault(set.setKey(), List.of()))).toList();
+		}
+
+		@Override
+		public List<PublishedSet> existingSets() {
+			return existingSets;
+		}
+
+		@Override
+		public void saveAll(List<PublishedSet> publications) {
+			for (PublishedSet publication : publications) {
+				SharedSetRow row = setsByKey.get(publication.key());
+				if (row == null) {
+					row = sets.save(new SharedSetRow(publication.key()));
+					setsByKey.put(publication.key(), row);
 				}
-				else {
-					cardRow.updateFrom(card);
+				row.updateFrom(publication);
+				for (PublishedCard card : publication.cards()) {
+					CardRow cardRow = cardsByKey.get(card.key());
+					if (cardRow == null) {
+						cardRow = new CardRow(row, card.key());
+						cardRow.updateFrom(card);
+						cards.save(cardRow);
+						cardsByKey.put(card.key(), cardRow);
+					}
+					else {
+						cardRow.updateFrom(card);
+					}
 				}
 			}
 		}
