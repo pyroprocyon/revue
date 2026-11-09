@@ -33,6 +33,8 @@ Each domain lives under `com.revue.<context>.domain`. It imports only its own mo
 
 Application code coordinates use cases and defines read ports and response projections. It may use Spring service and transaction annotations. It cannot import infrastructure or presentation. This keeps transaction boundaries visible without adding decorators that only delegate.
 
+The application allowlist permits `@Service`, `@Transactional` and its `Propagation`/`Isolation` settings. It does not permit arbitrary Spring types. Security, session and mail integrations stay in infrastructure. Infrastructure cannot depend on presentation.
+
 Adapters live under `infrastructure`: JPA rows/repositories map domain state onto the existing schema, the files adapter parses YAML, and `FsrsMemoryModel` implements the memory-model port. The public controller lives under `presentation` and handles HTTP status and cache headers using application results. It never returns a JPA entity.
 
 Public browsing uses `PublicSetQueries` projections rather than loading whole aggregates. `PublicSetService` owns the five-card trial policy. Aggregate writes use `PublishedSetRepository`; its contract offers no shared-content deletion operation. The database deletion guard remains a second protection.
@@ -53,9 +55,44 @@ Contexts currently have no direct dependencies on each other. Add a narrow appli
 
 The composition root supplies the HTTP reader. Presentation code uses the provider and application queries, rather than importing the HTTP implementation. Semantic rating meanings belong to the domain; colors and meter rendering stay in presentation. Trial ratings remain browser-only practice and never become saved reviews.
 
+## Shared learning and private progress
+
+Social cohesion is a core product goal. The intended network effect is that useful participation improves the shared material or support available to other learners; this remains a hypothesis to validate. The architecture supports one maintained publication with independent learner state. Identity owns eligibility, content owns publication and attribution, and reviews owns individual schedules and history. Account-owned learning and report/correction use cases remain planned.
+
+A public link or signup invitation grants no access to another learner's progress and creates no implicit group membership. The pilot uses existing sharing channels and explicit saving when implemented. Add collaboration contracts only for concrete use cases; no group platform, public learner profile or additional permission system is required before account creation.
+
+## Planned account layers
+
+Account registration, verification/reset and deletion are not implemented yet. Their code belongs to the existing `identity` context. The planned dependency direction remains presentation -> application -> domain, with infrastructure implementing inward-owned ports.
+
+| Layer | Account responsibility |
+|---|---|
+| Domain | Account eligibility and lifecycle, invitation/challenge invariants, password policy and deletion deadlines; no framework or transport types |
+| Application | Registration, verification, authentication, recovery and deletion use cases; short atomic commits and outbound ports |
+| Infrastructure | JPA mapping, password/token tools, Spring Security sessions/CSRF/MFA, email execution/provider integration and scheduled triggers |
+| Presentation | Transport DTOs, bounded request parsing, calling application contracts and HTTP/error mapping |
+
+Keep hashing and email/provider work outside database transactions. Commit account/invite/challenge mutations through a real transactional application boundary, then request delivery/session effects. Recheck current status and credential version before accepting authentication, and check the session's credential version on private access so a reset does not rely solely on session eviction.
+
+Account eligibility is derived from separate verification/agreements, suspension and deletion facts. Cancelling deletion removes only that restriction. Increment the existing credential version for access-invalidating lifecycle changes so failed session eviction cannot revive an old session after cancellation. Restricted sessions retain their allowed purpose, and session completion carries the validated application result version, including the new committed version after an authorized cancellation. It never replaces a delayed result with the latest version.
+
+Pilot signup uses one persisted single-use invitation, redeemed in the same short transaction as the unique account and verification challenge. Retries cannot consume another invitation or overwrite credentials. Erasure removes identifying invitation links without making a consumed token reusable. These are planned domain/application invariants with database constraints and concurrency tests, not new middleware or a separate service.
+
+Keep the pilot implementation small: account foundation, signup/verification, login/recovery and explicit saving are separate review units. Administrative MFA/elevation belongs to admin writes, not routine learner signup or study.
+
+Account purge uses narrow application ports implemented by the data-owning contexts. All per-account erasure participants join the same database transaction and preserve shared publications. Identity does not import their persistence repositories. Add only the concrete cross-context port exceptions this workflow requires.
+
+Frontend account presentation uses injected application contracts; HTTP/CSRF details remain in infrastructure. The app wires adapters, shared UI remains independent, and the backend owns permission and lifecycle decisions. Add pure client-domain modules only when real behavior needs them.
+
+Java architecture tests discover every implemented context's domain and application packages, including future identity layers. Test-only identity fixtures prove that legitimate inward dependencies pass and framework, adapter and foreign-context dependencies fail. There are no cross-context erasure exceptions yet; add only the exact implemented seams when needed. These dependency checks do not certify unbuilt account behavior, transaction handling or authorization.
+
 ## Enforced boundaries and compatibility
 
-`ArchitectureTests` checks Java domain purity, application/adapter direction, framework placement and context independence using ArchUnit. `frontend/src/architecture.test.ts` parses production TypeScript imports, including type imports and literal dynamic imports, to enforce the frontend boundaries. Nonliteral dynamic imports require an explicit architecture decision. The separate `tsconfig.domain.json` also checks domain code without DOM or framework globals. These checks run through ordinary `make check`.
+`ArchitectureTests` checks Java domain purity, application/adapter direction, framework placement and context independence using ArchUnit. It discovers contexts from production classes and fails if no domain or application classes are checked. `ArchitectureGuardTests` runs the same rules against valid and invalid test-only examples.
+
+`frontend/src/architecture.test.ts` inspects every production `.ts`/`.tsx` file under `src`, excluding test files and test helpers. Production imports of those excluded files are forbidden. Files must live in `app`, a named feature layer or `shared`, with `main.tsx` as the browser entry point. Feature-layer rules apply only under `features/<name>/<layer>`; shared remains independent of features regardless of its subfolder names. It parses imports, re-exports, inline import types, import-equals declarations and literal dynamic imports. Feature layers and shared code cannot import the composition root; presentation and infrastructure cannot import each other. Nonliteral dynamic imports require an explicit architecture decision.
+
+Frontend domain modules use `.ts`; `.tsx` is forbidden there. The separate `tsconfig.domain.json` checks those modules without DOM or framework globals. These checks run through ordinary `make check`.
 
 Behavioral tests remain authoritative for public JSON, ordering, missing/retired content, mandatory sources, optional explanations, stable database IDs, content versions, no-op timestamps, transaction rollback and the unsaved trial. FSRS reference tests retain the same pinned library, configuration, state restoration and day-boundary examples.
 
