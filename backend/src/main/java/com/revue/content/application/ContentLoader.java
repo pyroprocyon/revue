@@ -40,7 +40,8 @@ public class ContentLoader {
 		if (!problems.isEmpty()) {
 			throw new InvalidContentException(problems);
 		}
-		List<PublishedSet> existing = sets.findAll();
+		PublishedSetRepository.Catalog catalog = sets.loadCatalog();
+		List<PublishedSet> existing = catalog.existingSets();
 		ContentRules.checkOwnership(files, existing);
 		Map<String, PublishedSet> byKey = new HashMap<>();
 		for (PublishedSet set : existing) {
@@ -82,7 +83,7 @@ public class ContentLoader {
 				setsRetired++;
 			}
 		}
-		sets.saveAll(publications);
+		catalog.saveAll(publications);
 		return new Result(setsAdded, setsRetired, setsRestored, cardsAdded, cardsChanged, cardsRetired, cardsRestored);
 	}
 

@@ -13,13 +13,18 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.UnaryOperator;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
+
+import jakarta.persistence.EntityManagerFactory;
+import org.hibernate.SessionFactory;
 
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
@@ -46,6 +51,9 @@ class ContentLoaderTests {
 
 	@Autowired
 	private JdbcTemplate jdbc;
+
+	@Autowired
+	private EntityManagerFactory entityManagerFactory;
 
 	@Test
 	void theFirstLoadAddsTheSetAndItsCardsInFileOrder() {
@@ -79,6 +87,31 @@ class ContentLoaderTests {
 		assertThat(setRow("same-twice").get("updated_at")).isEqualTo(setUpdated);
 		assertThat(cardRow("same-twice-a").get("updated_at")).isEqualTo(cardUpdated);
 		assertThat(cardRow("same-twice-a").get("content_version")).isEqualTo(1);
+	}
+
+	@ParameterizedTest
+	@ValueSource(ints = {1, 20})
+	void republishingReadsTheCatalogOnlyOnce(int cardsPerSet) {
+		List<SetDefinition> source = IntStream.range(0, 2).mapToObj(setIndex -> {
+			String key = "catalog-reads-" + cardsPerSet + "-" + setIndex;
+			CardDefinition[] cards = IntStream.range(0, cardsPerSet)
+				.mapToObj(cardIndex -> card(key + "-" + cardIndex, "Question " + cardIndex + "?"))
+				.toArray(CardDefinition[]::new);
+			return set(key, "Catalog reads", cards);
+		}).toList();
+		loader.load(source);
+		var statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
+		boolean statisticsWereEnabled = statistics.isStatisticsEnabled();
+		statistics.setStatisticsEnabled(true);
+		statistics.clear();
+		try {
+			ContentLoader.Result result = loader.load(source);
+			assertThat(result.changedNothing()).isTrue();
+			assertThat(statistics.getPrepareStatementCount()).as("one set read and one card read").isEqualTo(2);
+		}
+		finally {
+			statistics.setStatisticsEnabled(statisticsWereEnabled);
+		}
 	}
 
 	@Test

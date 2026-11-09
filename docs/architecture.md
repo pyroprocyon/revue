@@ -37,6 +37,8 @@ Adapters live under `infrastructure`: JPA rows/repositories map domain state ont
 
 Public browsing uses `PublicSetQueries` projections rather than loading whole aggregates. `PublicSetService` owns the five-card trial policy. Aggregate writes use `PublishedSetRepository`; its contract offers no shared-content deletion operation. The database deletion guard remains a second protection.
 
+Publication loads a catalog once per import transaction. Its adapter keeps the loaded rows in that catalog and reuses them when saving, so a repeat import needs only one set query and one card query. Catalog state belongs to that import, rather than the singleton repository.
+
 Contexts currently have no direct dependencies on each other. Add a narrow application contract when a real use case needs one. Keep another context's entities, persistence classes and third-party library types out of that contract.
 
 ## Frontend boundaries
