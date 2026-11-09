@@ -170,6 +170,7 @@
  * color (8% hover, 10% focus and pressed) and a slight press. Tailwind's hover variant already
  * skips touch screens; this utility does the same with @media (hover: hover).
  */
+/* stylelint-disable nesting-selector-no-missing-scoping-root -- Tailwind @utility supplies the selector root. */
 @utility pressable {
   position: relative;
   isolation: isolate;
@@ -208,3 +209,5 @@
     }
   }
 }
+
+/* stylelint-enable nesting-selector-no-missing-scoping-root */

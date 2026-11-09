@@ -41,11 +41,25 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
           package-manager-cache: false
 
-      - name: Run tests, type checking and frontend build
-        run: make check
+      - name: Run the pre-PR quality gate
+        run: make quality
 
       - name: Build containers and check the local app
         run: make smoke
+
+      - name: Save quality reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: quality-reports
+          path: |
+            backend/target/checkstyle-result.xml
+            backend/target/quality/sonar-issues.json
+            backend/target/quality/sonar-gate.json
+            backend/target/quality/sonar-scope.json
+            backend/target/quality/sonar-hotspots.json
+            backend/target/quality/sonar-scanner.log
+          retention-days: 7
 
       - name: Show container logs on failure
         if: failure()

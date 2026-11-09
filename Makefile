@@ -25,7 +25,7 @@ NODE_RUN := $(abspath scripts/with-node.sh)
 # Every Compose target needs a local .env file and a running Docker engine.
 PREREQS := .env check-docker
 
-.PHONY: help start stop up down restart rebuild rebuild-clean logs ps db db-shell reset test check build frontend-install check-docker check-java smoke
+.PHONY: lint install-hooks tooling-test quality sonar help start stop up down restart rebuild rebuild-clean logs ps db db-shell reset test check build frontend-install check-docker check-java smoke
 
 help: ## Show this list
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z_-]+:.*## / {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -88,7 +88,34 @@ frontend-install: ## Install frontend packages with the pinned Node version
 build: frontend-install ## Type-check and build the frontend for production
 	cd "$(FRONTEND_DIR)" && bash "$(NODE_RUN)" npm run build
 
-check: test build ## Run tests, type checking and the frontend production build
+check: lint test build tooling-test ## Run lint, tests, type checking and the frontend production build
+
+lint: frontend-install ## Lint frontend code and validate Python/shell tooling syntax
+	cd "$(FRONTEND_DIR)" && bash "$(NODE_RUN)" npm run lint
+	python3 -m py_compile scripts/*.py
+	@for script in scripts/*.sh .githooks/pre-push; do bash -n "$$script"; done
+
+install-hooks: ## Enable the local pre-push quality gate without replacing existing hooks
+	@existing=$$(git config --get core.hooksPath || true); \
+	  case "$$existing" in ""|.githooks) ;; *) echo "Existing hooksPath '$$existing' was preserved. Integrate the quality gate with it first."; exit 1;; esac; \
+	  if [ -z "$$existing" ]; then \
+	    for hook in "$$(git rev-parse --git-path hooks)"/*; do \
+	      case "$$hook" in *.sample) continue;; esac; \
+	      if [ -f "$$hook" ]; then \
+	        echo "Existing hook '$$hook' was preserved. Integrate the quality gate with it first."; exit 1; \
+	      fi; \
+	    done; \
+	  fi; \
+	  git config --local core.hooksPath .githooks
+
+tooling-test: ## Check that analysis cannot silently omit application code or tests
+	python3 -m unittest discover -s scripts -p 'test_*.py'
+
+quality: check ## Run all checks plus SonarQube for Java and TypeScript (requires Docker)
+	python3 scripts/check-sonar.py
+
+sonar: check-docker check-java ## Analyze already compiled Java and installed frontend sources
+	python3 scripts/check-sonar.py
 
 smoke: up ## Check Vite and its proxy, and the production build served by the backend
 	@frontend=$$($(COMPOSE) port frontend 5173); backend=$$($(COMPOSE) port backend 8080); \

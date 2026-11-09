@@ -38,7 +38,7 @@ class BrowserRouteFilter extends OncePerRequestFilter {
 	private static final Set<String> INDEXABLE_ROUTES = Set.of("/", "/sets");
 
 	// A set preview: /sets/ followed by one set key, which content rules limit to these characters.
-	private static final Pattern SET_PREVIEW = Pattern.compile("/sets/[a-z0-9]+(-[a-z0-9]+)*");
+	private static final Pattern SET_PREVIEW = Pattern.compile("/sets/[a-z0-9]++(?:-[a-z0-9]++)*+");
 
 	@Override
 	protected boolean shouldNotFilter(HttpServletRequest request) {
