@@ -15,6 +15,8 @@
 	<description>Revue backend</description>
 	<properties>
 		<java.version>25</java.version>
+		<google-java-format.version>1.37.0</google-java-format.version>
+		<java.format.mode>check</java.format.mode>
 	</properties>
 	<!--
 		Dependencies have no version numbers on purpose. The Spring Boot parent above
@@ -68,6 +70,13 @@
 		<dependency>
 			<groupId>org.yaml</groupId>
 			<artifactId>snakeyaml</artifactId>
+		</dependency>
+
+		<!-- Spring's Argon2id encoder requires Bouncy Castle. -->
+		<dependency>
+			<groupId>org.bouncycastle</groupId>
+			<artifactId>bcprov-jdk18on</artifactId>
+			<version>1.86</version>
 		</dependency>
 
 		<!-- Enforces the domain and adapter boundaries in ordinary JUnit tests. -->
@@ -169,7 +178,8 @@
 					</dependency>
 				</dependencies>
 				<configuration>
-					<configLocation>config/checkstyle.xml</configLocation>
+					<configLocation>config/google-checkstyle.xml</configLocation>
+					<propertyExpansion>org.checkstyle.google.severity=error</propertyExpansion>
 					<includeTestSourceDirectory>true</includeTestSourceDirectory>
 					<includeResources>false</includeResources>
 					<includeTestResources>false</includeTestResources>
@@ -181,6 +191,47 @@
 						<id>check-java-style</id>
 						<phase>validate</phase>
 						<goals><goal>check</goal></goals>
+					</execution>
+					<execution>
+						<id>check-project-java-rules</id>
+						<phase>validate</phase>
+						<goals><goal>check</goal></goals>
+						<configuration>
+							<configLocation>config/checkstyle.xml</configLocation>
+							<outputFile>${project.build.directory}/checkstyle-project-result.xml</outputFile>
+							<cacheFile>${project.build.directory}/checkstyle-project-cachefile</cacheFile>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+			<plugin>
+				<groupId>org.codehaus.mojo</groupId>
+				<artifactId>exec-maven-plugin</artifactId>
+				<version>3.6.4</version>
+				<dependencies>
+					<dependency>
+						<groupId>com.google.googlejavaformat</groupId>
+						<artifactId>google-java-format</artifactId>
+						<version>${google-java-format.version}</version>
+						<classifier>all-deps</classifier>
+						<exclusions>
+							<exclusion><groupId>*</groupId><artifactId>*</artifactId></exclusion>
+						</exclusions>
+					</dependency>
+				</dependencies>
+				<configuration>
+					<executable>bash</executable>
+					<arguments>
+						<argument>${project.basedir}/format-java.sh</argument>
+						<argument>${java.format.mode}</argument>
+						<argument>${settings.localRepository}/com/google/googlejavaformat/google-java-format/${google-java-format.version}/google-java-format-${google-java-format.version}-all-deps.jar</argument>
+					</arguments>
+				</configuration>
+				<executions>
+					<execution>
+						<id>check-java-format</id>
+						<phase>validate</phase>
+						<goals><goal>exec</goal></goals>
 					</execution>
 				</executions>
 			</plugin>

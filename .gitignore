@@ -28,3 +28,7 @@ __pycache__/
 # Sonar analyzer caches (reports are already under backend/target)
 .sonar/
 .scannerwork/
+
+# Generated browser-test reports
+frontend/playwright-report/
+frontend/test-results/

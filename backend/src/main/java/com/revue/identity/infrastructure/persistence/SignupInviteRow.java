@@ -13,35 +13,35 @@ import org.jspecify.annotations.Nullable;
 @Entity(name = "SignupInvite")
 @Table(name = "signup_invites")
 class SignupInviteRow {
-	@Id
-	private UUID id;
+    @Id private UUID id;
 
-	@Column(name = "token_hash", nullable = false, length = 64)
-	private String tokenHash;
+    @Column(name = "token_hash", nullable = false, length = 64)
+    private String tokenHash;
 
-	@Column(name = "created_at", nullable = false)
-	private Instant createdAt;
+    @Column(name = "created_at", nullable = false)
+    private Instant createdAt;
 
-	@Column(name = "expires_at", nullable = false)
-	private Instant expiresAt;
+    @Column(name = "expires_at", nullable = false)
+    private Instant expiresAt;
 
-	@Column(name = "revoked_at")
-	private @Nullable Instant revokedAt;
+    @Column(name = "revoked_at")
+    private @Nullable Instant revokedAt;
 
-	@Column(name = "redeemed_at")
-	private @Nullable Instant redeemedAt;
+    @Column(name = "redeemed_at")
+    private @Nullable Instant redeemedAt;
 
-	@Column(name = "redeemed_by_user_id")
-	private @Nullable UUID redeemedByUserId;
+    @Column(name = "redeemed_by_user_id")
+    private @Nullable UUID redeemedByUserId;
 
-	protected SignupInviteRow() { }
+    protected SignupInviteRow() {}
 
-	SignupInvite toDomain() {
-		return new SignupInvite(id, new TokenHash(tokenHash), createdAt, expiresAt, revokedAt, redeemedAt, redeemedByUserId);
-	}
+    SignupInvite toDomain() {
+        return new SignupInvite(
+                id, new TokenHash(tokenHash), createdAt, expiresAt, revokedAt, redeemedAt, redeemedByUserId);
+    }
 
-	void recordRedemption(SignupInvite invite) {
-		redeemedAt = invite.redeemedAt();
-		redeemedByUserId = invite.redeemedByUserId();
-	}
+    void recordRedemption(SignupInvite invite) {
+        redeemedAt = invite.redeemedAt();
+        redeemedByUserId = invite.redeemedByUserId();
+    }
 }

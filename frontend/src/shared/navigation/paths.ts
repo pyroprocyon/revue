@@ -12,3 +12,7 @@ export function setPath(setKey: string): string {
 export function trialPath(setKey: string): string {
   return `${setPath(setKey)}/try`;
 }
+
+export const SIGN_IN_PATH = '/sign-in';
+export const REGISTER_PATH = '/register';
+export const ACCOUNT_PATH = '/account';

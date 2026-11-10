@@ -5,31 +5,40 @@ import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/** Serves published set summaries and complete five-card trials to guests. */
 @Service
 @Transactional(readOnly = true)
 public class PublicSetService {
-	private static final int TRIAL_CARD_COUNT = 5;
-	private final PublicSetQueries queries;
+    private static final int TRIAL_CARD_COUNT = 5;
+    private final PublicSetQueries queries;
 
-	public PublicSetService(PublicSetQueries queries) {
-		this.queries = queries;
-	}
+    /** Creates the public catalog service with its query port. */
+    public PublicSetService(PublicSetQueries queries) {
+        this.queries = queries;
+    }
 
-	public List<PublicSetSummary> list() {
-		return queries.list().stream().map(PublicSetService::summaryOf).toList();
-	}
+    /** Lists the currently available published sets. */
+    public List<PublicSetSummary> list() {
+        return queries.list().stream().map(PublicSetService::summaryOf).toList();
+    }
 
-	public Optional<PublicSetSummary> summary(String setKey) {
-		return queries.summary(setKey).map(PublicSetService::summaryOf);
-	}
+    /** Finds a public summary for an available set key. */
+    public Optional<PublicSetSummary> summary(String setKey) {
+        return queries.summary(setKey).map(PublicSetService::summaryOf);
+    }
 
-	public Optional<DemoCards> demoCards(String setKey) {
-		return queries.demoCards(setKey, TRIAL_CARD_COUNT)
-			.filter(result -> result.cards().size() == TRIAL_CARD_COUNT);
-	}
+    /** Returns a trial only when the set has the full required number of cards. */
+    public Optional<DemoCards> demoCards(String setKey) {
+        return queries.demoCards(setKey, TRIAL_CARD_COUNT).filter(result -> result.cards().size() == TRIAL_CARD_COUNT);
+    }
 
-	private static PublicSetSummary summaryOf(PublicSetQueries.Overview set) {
-		return new PublicSetSummary(set.setKey(), set.title(), set.description(), set.publisherName(),
-			set.cardCount(), set.cardCount() >= TRIAL_CARD_COUNT);
-	}
+    private static PublicSetSummary summaryOf(PublicSetQueries.Overview set) {
+        return new PublicSetSummary(
+                set.setKey(),
+                set.title(),
+                set.description(),
+                set.publisherName(),
+                set.cardCount(),
+                set.cardCount() >= TRIAL_CARD_COUNT);
+    }
 }

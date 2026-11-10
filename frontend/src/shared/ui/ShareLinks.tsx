@@ -50,7 +50,7 @@ export function ShareLinks({ title, path }: ShareLinksProps) {
           Copy link
         </button>
       </div>
-      <p role="status" className="mt-2 text-support text-muted">
+      <p role="status" className="mt-2 wrap-anywhere text-support text-muted">
         {copyMessage(copyResult, link)}
       </p>
     </div>

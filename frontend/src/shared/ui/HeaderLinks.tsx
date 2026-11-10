@@ -1,6 +1,6 @@
 import { ChevronLeft } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router';
-import { HOME_PATH, SETS_PATH } from '../navigation/paths';
+import { HOME_PATH, SETS_PATH, SIGN_IN_PATH } from '../navigation/paths';
 import { BrandMark } from './BrandMark';
 
 /** The logo and wordmark, linking home, at the same size on every page. */
@@ -61,4 +61,10 @@ export function BackButton({ label, fallbackPath }: BackButtonProps) {
       {label}
     </button>
   );
+}
+
+export function SignInLink() {
+  const location = useLocation();
+  return <Link to={`${SIGN_IN_PATH}?returnTo=${encodeURIComponent(location.pathname)}`}
+    className="pressable -mr-2 ml-auto inline-flex min-h-12 items-center rounded-control px-2 text-label font-semibold text-accent">Sign in</Link>;
 }

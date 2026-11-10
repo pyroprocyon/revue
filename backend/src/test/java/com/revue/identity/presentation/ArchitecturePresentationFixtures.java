@@ -6,7 +6,9 @@ import org.springframework.security.core.Authentication;
 /** Test-only HTTP-boundary examples without controller registration. */
 public final class ArchitecturePresentationFixtures {
 
-	public record UsesApplication(OwnDomain application) { }
+    /** Presentation fixture whose application dependency is allowed by the architecture rules. */
+    public record UsesApplication(OwnDomain application) {}
 
-	public record SecurityLeak(Authentication authentication) { }
+    /** Presentation fixture with a forbidden security-framework dependency. */
+    public record SecurityLeak(Authentication authentication) {}
 }

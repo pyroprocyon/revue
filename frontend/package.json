@@ -9,10 +9,11 @@
   "scripts": {
     "dev": "vite",
     "build": "npm run typecheck && vite build && node scripts/precompress.mjs dist",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.domain.json",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.domain.json && tsc --noEmit -p tsconfig.e2e.json",
     "test": "vitest run",
     "preview": "vite preview",
-    "lint": "oxlint --deny-warnings ."
+    "lint": "oxlint --deny-warnings .",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@fontsource-variable/inter": "5.3.0",
@@ -23,9 +24,11 @@
     "react-router": "8.5.1"
   },
   "devDependencies": {
+    "@playwright/test": "1.65.0",
     "@tailwindcss/vite": "4.3.4",
     "@testing-library/dom": "10.4.2",
     "@testing-library/react": "16.3.3",
+    "@types/node": "26.6.6",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.2.1",

@@ -16,36 +16,33 @@ import org.springframework.test.json.JsonCompareMode;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
- * The health check is what Docker Compose, the host and an uptime monitor call. It must work
- * without signing in, reveal nothing beyond UP or DOWN, and never query the database.
+ * The health check is what Docker Compose, the host and an uptime monitor call. It must work without signing in, reveal
+ * nothing beyond UP or DOWN, and never query the database.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
 @Import(TestcontainersConfiguration.class)
 class HealthEndpointTests {
 
-	@Autowired
-	private MockMvc mvc;
+    @Autowired private MockMvc mvc;
 
-	@Autowired
-	private HealthContributorRegistry healthContributors;
+    @Autowired private HealthContributorRegistry healthContributors;
 
-	@Test
-	void healthIsOpenAndShowsOnlyTheStatus() throws Exception {
-		mvc.perform(get("/actuator/health"))
-			.andExpect(status().isOk())
-			.andExpect(content().json("{\"status\":\"UP\"}", JsonCompareMode.STRICT));
-	}
+    @Test
+    void healthIsOpenAndShowsOnlyTheStatus() throws Exception {
+        mvc.perform(get("/actuator/health"))
+                .andExpect(status().isOk())
+                .andExpect(content().json("{\"status\":\"UP\"}", JsonCompareMode.STRICT));
+    }
 
-	@Test
-	void healthAnswersHeadRequests() throws Exception {
-		// Some uptime monitors send HEAD instead of GET.
-		mvc.perform(head("/actuator/health")).andExpect(status().isOk());
-	}
+    @Test
+    void healthAnswersHeadRequests() throws Exception {
+        // Some uptime monitors send HEAD instead of GET.
+        mvc.perform(head("/actuator/health")).andExpect(status().isOk());
+    }
 
-	@Test
-	void healthHasNoDatabaseCheck() {
-		assertThat(healthContributors.getContributor("db")).isNull();
-	}
-
+    @Test
+    void healthHasNoDatabaseCheck() {
+        assertThat(healthContributors.getContributor("db")).isNull();
+    }
 }

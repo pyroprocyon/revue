@@ -19,6 +19,8 @@
   "ignorePatterns": [
     "node_modules/**",
     "dist/**",
-    "coverage/**"
+    "coverage/**",
+    "playwright-report/**",
+    "test-results/**"
   ]
 }

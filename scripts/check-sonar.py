@@ -115,7 +115,7 @@ class Sonar:
                     for path in (ROOT / source).rglob("*.java")}
         expected.update(str(path.relative_to(ROOT)) for path in (ROOT / "scripts").glob("*.py"))
         for directory, directories, files in os.walk(ROOT / "frontend"):
-            directories[:] = [name for name in directories if name not in {"node_modules", "dist", "coverage"}]
+            directories[:] = [name for name in directories if name not in {"node_modules", "dist", "coverage", "playwright-report", "test-results"}]
             for name in files:
                 path = Path(directory) / name
                 if path.suffix in {".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".css", ".html"} and not name.endswith(".d.ts"):
