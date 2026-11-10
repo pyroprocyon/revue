@@ -2,6 +2,7 @@ import type { DemoCards, PublicContentReader, PublicSet } from '../application/p
 
 export const httpPublicContent: PublicContentReader = {
   list: async () => (await getJsonOrNull<PublicSet[]>('/api/v1/public-sets')) ?? [],
+  sharedSummary: (code) => getJsonOrNull<PublicSet>(`/api/v1/public-sets/share/${encodeURIComponent(code)}/summary`),
   summary: (key) => getJsonOrNull<PublicSet>(`/api/v1/public-sets/${encodeURIComponent(key)}`),
   demoCards: (key) => getJsonOrNull<DemoCards>(`/api/v1/public-sets/${encodeURIComponent(key)}/demo-cards`),
 };

@@ -35,13 +35,13 @@ The backend at [127.0.0.1:8080](http://127.0.0.1:8080) serves the React producti
 
 ### Try a pilot account locally
 
-After `make` starts the stack, issue one invitation:
+After `make` starts the stack, create the shared pilot invitation:
 
 ```bash
 make invite
 ```
 
-Open the private link printed by the command. It creates a single-use invitation in the local Compose database, valid for seven days. The default link uses port 5173; for another frontend address run `python3 scripts/issue-pilot-invite.py --origin http://127.0.0.1:<port>`. Keep unused invitation links private. Reopen the original link if you refresh an unfinished registration.
+Share the one link printed by the command with all pilot testers. It uses `/i#<code>` and remains reusable for seven days. Running `make invite` again replaces the shared link and revokes the previous one. The database stores only its hash. Existing single-use invitations still work until redeemed or expired. The default link uses port 5173; for another frontend address run `python3 scripts/issue-pilot-invite.py --origin http://127.0.0.1:<port>`. Keep the shared invitation within the pilot group. Reopen the original link if you refresh an unfinished registration.
 
 Choose a username (3–32 letters, numbers, underscores or hyphens) and a password (6–64 characters; common passwords are rejected). Confirm the pilot privacy notice and that you are at least 18. No email account or email provider setup is needed. Sign in again at `/sign-in`; `/account` shows your username and sign-out control. Password recovery tooling, saving sets and personal review history come in later slices. Email verification and self-service email recovery remain on the roadmap.
 
@@ -58,7 +58,7 @@ WHERE primary_id IN (
 );
 ```
 
-The existing foreign key removes the related session attributes. This signs learners out and preserves accounts, credentials and learning content. Deploy the older release before reopening traffic. Keep V5 applied; no reverse migration or removal of username rows is needed. Username sign-in becomes available again when the newer release is restored. This is an operator procedure, not an automatic deployment action.
+The existing foreign key removes the related session attributes. This signs learners out and preserves accounts, credentials and learning content. Deploy the older release before reopening traffic. Keep V5 and V6 applied; no reverse migration or removal of username rows is needed. Shared invitations require the new release and are unavailable while running an older build. Username sign-in becomes available again when the newer release is restored. This is an operator procedure, not an automatic deployment action.
 
 ### Checks
 
@@ -80,7 +80,7 @@ For editor support, `make frontend-install` installs host packages without start
 make e2e
 ```
 
-This installs the pinned Playwright browser and runs eight Chromium journeys against the real production image and a fresh PostgreSQL database. Tests cover invited signup with a six-character password, policy links, session persistence, logout/sign-in, rejected credentials, shared-set return navigation, separate browser accounts, invitation reuse rules, public support links at phone/desktop widths, keyboard access to a scrolling privacy notice, invitation recovery on an already-open form, and offline sign-in retry. These tests do not mock the account API or add test-only application endpoints.
+This installs the pinned Playwright browser and runs ten Chromium journeys against the real production image and a fresh PostgreSQL database. Tests cover invited signup with a six-character password, policy links, session persistence, logout/sign-in, rejected credentials, shared-set return navigation, separate browser accounts, shared and legacy invitation rules, short public set links, public support links at phone/desktop widths, keyboard access to a scrolling privacy notice, invitation recovery on an already-open form, and offline sign-in retry. These tests do not mock the account API or add test-only application endpoints.
 
 Each worker owns a separate Compose project with a random database password, an unexposed database and a random loopback app port. It removes its containers, database volume and image tag on teardown, including ordinary test/setup failures. It does not use the development `.env` database, fixed development ports or existing users. Chromium uses the same local HTTP profile as the development stack; the backend production-profile tests cover secure cookies and forwarded HTTPS.
 
@@ -107,6 +107,8 @@ cd backend && ./mvnw validate
 ```
 
 `make format-java` applies pinned Google Java Format 1.37.0 through Maven. The shared `backend/format-java.sh` wrapper keeps Google import ordering and uses the formatter's four-space AOSP layout with a 120-column limit. Maven `validate` runs the same formatter in read-only check mode; documentation and naming findings still need meaningful edits. The CLI avoids a library-adapter compatibility issue and requires only the Bash/JDK tools already used by this project. Checkstyle covers the machine-checkable parts of the guide; it does not replace code review or behavioral tests.
+
+Public set Share and Copy link actions use `/s/<code>` on the same domain. The code is the existing public set ID encoded in base 36; it exposes no learner data and always resolves the current active set. The original `/sets/<set-key>` URLs remain supported. Signup invitations use a separate cryptographically random eight-character pilot code in the fragment. Previously issued 22-character shared codes and legacy `/register#invite=...` links with 43-character codes remain supported. There is no external shortening service or referral tracking.
 
 Before opening or updating a PR, use the full `make quality` gate. Enable its local push enforcement once per clone:
 

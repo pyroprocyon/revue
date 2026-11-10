@@ -57,7 +57,7 @@ public class JpaAccountQueries implements AccountQueries {
                 .createQuery(
                         """
                         select i.id from SignupInvite i where i.tokenHash = :hash and i.revokedAt is null
-                        \tand i.redeemedAt is null and i.createdAt <= :now and i.expiresAt > :now
+                        \tand (i.reusable = true or i.redeemedAt is null) and i.createdAt <= :now and i.expiresAt > :now
                         """,
                         UUID.class)
                 .setParameter("hash", hash.value())

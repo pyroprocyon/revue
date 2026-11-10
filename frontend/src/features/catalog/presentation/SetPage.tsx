@@ -11,17 +11,17 @@ import { LoadFailed } from '../../../shared/ui/LoadFailed';
 import { LoadingScreen, MessageScreen } from '../../../shared/ui/MessageScreen';
 import { ActionRow, Screen } from '../../../shared/ui/Screen';
 import { ShareLinks } from '../../../shared/ui/ShareLinks';
-import { SETS_PATH, setPath, trialPath } from '../../../shared/navigation/paths';
+import { SETS_PATH, setSharePath, trialPath } from '../../../shared/navigation/paths';
 
 /** One set's preview at /sets/:setKey, the page a classmate's shared link opens. */
 export function SetPage() {
   const { publicSetQuery, publicSetsQuery } = usePublicContentQueries();
-  const { setKey = '' } = useParams();
+  const { setKey = '', shareCode } = useParams();
   const queryClient = useQueryClient();
   const publicSet = useQuery({
-    ...publicSetQuery(setKey),
+    ...publicSetQuery(shareCode ?? setKey, shareCode === undefined ? 'key' : 'share'),
     // Coming from the set list, the summary is already known, so the page shows it at once.
-    placeholderData: () => queryClient.getQueryData(publicSetsQuery.queryKey)?.find((set) => set.setKey === setKey),
+    placeholderData: () => queryClient.getQueryData(publicSetsQuery.queryKey)?.find((set) => shareCode === undefined ? set.setKey === setKey : set.shareCode === shareCode),
   });
 
   if (publicSet.isPending) {
@@ -61,7 +61,7 @@ function SetDetails({ publicSet }: { publicSet: PublicSet }) {
   const actions = (
     <div className="grid gap-3">
       <TrialAction publicSet={publicSet} />
-      <ShareLinks title={publicSet.title} path={setPath(publicSet.setKey)} />
+      <ShareLinks title={publicSet.title} path={setSharePath(publicSet.shareCode)} />
     </div>
   );
   const top = (

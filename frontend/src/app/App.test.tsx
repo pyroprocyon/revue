@@ -4,6 +4,12 @@ import { historySet, natureSet } from '../test/fixtures';
 import { renderApp, stubFetch } from '../test/renderApp';
 
 describe('App', () => {
+  it('opens signup directly at the short invitation route', async () => {
+    stubFetch(404);
+    renderApp('/i');
+    expect(screen.getByRole('textbox', { name: /^Username/ })).toBeDefined();
+  });
+
   it('leads the home page with the headline and the way into the sets', () => {
     stubFetch(200, [historySet, natureSet]);
     renderApp('/');

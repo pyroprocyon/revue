@@ -181,3 +181,37 @@ test('first sign-in while offline gives guidance and recovers after reconnecting
   await signIn(page, name);
   await expect(page.getByRole('heading', { name: `You’re signed in, ${name}` })).toBeVisible();
 });
+test('a short public share opens the intended set and its trial without signing in', async ({ page, pilot }) => {
+  const response = await page.request.get(`${pilot.origin}/api/v1/public-sets`);
+  const sets: { setKey: string; shareCode: string; title: string }[] = await response.json();
+  const set = sets.find(item => item.setKey === 'philippine-history');
+  expect(set).toBeDefined();
+  if (!set) throw new Error('The starter history set is required');
+  await page.goto(`${pilot.origin}/s/${set.shareCode}`);
+  await expect(page.getByRole('heading', { name: set.title, exact: true })).toBeVisible();
+  expect((await page.request.get('/api/v1/me')).status()).toBe(401);
+  await page.getByRole('link', { name: /Try 5 cards/ }).click();
+  await expect(page).toHaveURL(/\/sets\/philippine-history\/try$/);
+  await expect(page.getByRole('button', { name: 'Check answer' })).toBeVisible();
+});
+
+
+test('the same short pilot link registers two independent learners', async ({ page, browser, pilot }) => {
+  const invitation = pilot.invitation(true);
+  const second = await browser.newContext({ baseURL: pilot.origin, viewport: { width: 390, height: 844 } });
+  try {
+    const other = await second.newPage();
+    for (const learner of [page, other]) {
+      const name = username();
+      await learner.goto(invitation);
+      await expect(learner).toHaveURL(/\/i$/);
+      expect((await learner.request.get('/api/v1/me')).status()).toBe(401);
+      expect((await register(learner, name)).status()).toBe(200);
+      await expect(learner.getByRole('heading', { name: `You’re signed in, ${name}` })).toBeVisible();
+      expect(await (await learner.request.get('/api/v1/me')).json()).toEqual({ username: name });
+    }
+  } finally {
+    await second.close();
+  }
+});
+

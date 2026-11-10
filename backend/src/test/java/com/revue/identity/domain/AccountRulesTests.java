@@ -159,15 +159,22 @@ class AccountRulesTests {
     void invitationsAreSingleUseAndExpireAtTheDeadline() {
         SignupInvite invite =
                 new SignupInvite(
-                        UUID.randomUUID(), new TokenHash("a".repeat(64)), NOW, NOW.plusSeconds(60), null, null, null);
+                        UUID.randomUUID(),
+                        new TokenHash("a".repeat(64)),
+                        NOW,
+                        NOW.plusSeconds(60),
+                        null,
+                        null,
+                        null,
+                        false);
         assertThat(invite.redeem(UUID.randomUUID(), NOW).redeemedAt()).isEqualTo(NOW);
         assertThatIllegalStateException().isThrownBy(() -> invite.redeem(UUID.randomUUID(), NOW.plusSeconds(60)));
         assertThatIllegalStateException().isThrownBy(() -> invite.redeem(UUID.randomUUID(), NOW.minusSeconds(1)));
         SignupInvite detached =
-                new SignupInvite(invite.id(), invite.tokenHash(), NOW, invite.expiresAt(), null, NOW, null);
+                new SignupInvite(invite.id(), invite.tokenHash(), NOW, invite.expiresAt(), null, NOW, null, false);
         assertThatIllegalStateException().isThrownBy(() -> detached.redeem(UUID.randomUUID(), NOW));
         SignupInvite revoked =
-                new SignupInvite(invite.id(), invite.tokenHash(), NOW, invite.expiresAt(), NOW, null, null);
+                new SignupInvite(invite.id(), invite.tokenHash(), NOW, invite.expiresAt(), NOW, null, null, false);
         assertThatIllegalStateException().isThrownBy(() -> revoked.redeem(UUID.randomUUID(), NOW));
     }
 

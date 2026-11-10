@@ -1,6 +1,13 @@
 package com.revue.identity.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
@@ -16,11 +23,13 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
@@ -32,6 +41,53 @@ class UsernameAccountHttpTests {
     @Autowired MockMvc mvc;
 
     @Autowired JdbcTemplate jdbc;
+
+    @MockitoSpyBean AccountQueries accounts;
+    @MockitoSpyBean PasswordHasher hasher;
+    @MockitoSpyBean AccountSession session;
+    @Autowired AuthenticationAdmission admission;
+
+    @ParameterizedTest
+    @ValueSource(ints = {6, 16})
+    void theSharedPilotInvitationAdmitsDifferentAccountsUntilRevokedOrExpired(int tokenBytes) throws Exception {
+        String token =
+                Base64.getUrlEncoder()
+                        .withoutPadding()
+                        .encodeToString(
+                                UUID.randomUUID().toString().substring(0, tokenBytes).getBytes(StandardCharsets.UTF_8));
+        jdbc.update(
+                "insert into signup_invites (id, token_hash, created_at, expires_at, reusable) "
+                        + "values (?, ?, now() - interval '1 minute', now() + interval '1 hour', true)",
+                UUID.randomUUID(),
+                hash(token));
+        try {
+            for (int attempt = 0; attempt < 2; attempt++) {
+                Browser learner = new Browser();
+                learner.csrf();
+                String name = username();
+                assertThat(learner.send(signup(name, "kanjii", token)).getResponse().getStatus()).isEqualTo(200);
+                assertThat(learner.send(get("/api/v1/me")).getResponse().getContentAsString()).contains(name);
+            }
+            assertThat(
+                            jdbc.queryForMap(
+                                    "select redeemed_at, redeemed_by_user_id from signup_invites where token_hash = ?",
+                                    hash(token)))
+                    .containsEntry("redeemed_at", null)
+                    .containsEntry("redeemed_by_user_id", null);
+            Browser rejected = new Browser();
+            rejected.csrf();
+            jdbc.update("update signup_invites set revoked_at = now() where token_hash = ?", hash(token));
+            assertThat(rejected.send(signup(username(), "kanjii", token)).getResponse().getStatus()).isEqualTo(400);
+            jdbc.update(
+                    "update signup_invites set revoked_at = null, expires_at = now() - interval '1 second' where"
+                            + " token_hash = ?",
+                    hash(token));
+            assertThat(rejected.send(signup(username(), "kanjii", token)).getResponse().getStatus()).isEqualTo(400);
+            assertThat(rejected.send(get("/api/v1/me")).getResponse().getStatus()).isEqualTo(401);
+        } finally {
+            jdbc.update("update signup_invites set revoked_at = now() where token_hash = ?", hash(token));
+        }
+    }
 
     @Test
     void sixCharacterSignupEstablishesRealSessionWithoutEmail() throws Exception {
@@ -48,6 +104,25 @@ class UsernameAccountHttpTests {
                         jdbc.queryForObject(
                                 "select count(*) from auth_challenges where user_id = ?", Integer.class, row.get("id")))
                 .isZero();
+    }
+
+    @Test
+    void currentProfileUsesOneAuthoritativeAccountReadPerRequest() throws Exception {
+        Browser browser = new Browser();
+        browser.csrf();
+        String name = username();
+        assertThat(browser.send(signup(name, "kanjii", invitation())).getResponse().getStatus()).isEqualTo(200);
+        final UUID id = jdbc.queryForObject("select id from users where username = ?", UUID.class, name);
+        clearInvocations(accounts);
+        var response = browser.send(get("/api/v1/me")).getResponse();
+        assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(response.getContentAsString()).isEqualTo("{\"username\":\"" + name + "\"}");
+        verify(accounts, times(1)).byId(id);
+        jdbc.update("update users set credential_version = credential_version + 1 where id = ?", id);
+        var stale = browser.send(get("/api/v1/me")).getResponse();
+        assertThat(stale.getStatus()).isEqualTo(401);
+        assertThat(stale.getContentAsString()).isEmpty();
+        verify(accounts, times(2)).byId(id);
     }
 
     @Test
@@ -91,6 +166,7 @@ class UsernameAccountHttpTests {
                 new String[] {
                     "credential_version = credential_version + 1",
                     "suspended_at = now()",
+                    "credential_reset_required = true",
                     "deletion_request_id = gen_random_uuid(), deletion_requested_at = "
                             + "now(), purge_after = now() + interval '7 days'"
                 }) {
@@ -101,6 +177,75 @@ class UsernameAccountHttpTests {
             jdbc.update("update users set " + change + " where username = ?", username);
             assertThat(browser.send(get("/api/v1/me")).getResponse().getStatus()).isEqualTo(401);
         }
+    }
+
+    @Test
+    void credentialsChangedAfterPasswordProofCannotCreateLearnerSession() throws Exception {
+        Browser owner = new Browser();
+        owner.csrf();
+        String name = username();
+        assertThat(owner.send(signup(name, "kanjii", invitation())).getResponse().getStatus()).isEqualTo(200);
+        Browser returning = new Browser();
+        returning.csrf();
+        doAnswer(
+                        invocation -> {
+                            Object matched = invocation.callRealMethod();
+                            // Commit a credential change after hashing but before the login transaction checks the
+                            // version.
+                            jdbc.update(
+                                    "update users set credential_version = credential_version + 1 where username = ?",
+                                    name);
+                            return matched;
+                        })
+                .when(hasher)
+                .matches(anyString(), any());
+        try {
+            assertThat(returning.send(login(name, "kanjii")).getResponse().getStatus()).isEqualTo(401);
+        } finally {
+            reset(hasher);
+        }
+        assertThat(returning.send(get("/api/v1/me")).getResponse().getStatus()).isEqualTo(401);
+        assertThat(returning.send(login(name, "kanjii")).getResponse().getStatus()).isEqualTo(200);
+    }
+
+    @Test
+    void credentialChangeAfterSessionEstablishmentIsRejectedAndClearsTheSession() throws Exception {
+        Browser browser = new Browser();
+        browser.csrf();
+        String name = username();
+        assertThat(browser.send(signup(name, "kanjii", invitation())).getResponse().getStatus()).isEqualTo(200);
+        browser.csrf();
+        doAnswer(
+                        invocation -> {
+                            invocation.callRealMethod();
+                            jdbc.update(
+                                    "update users set credential_version = credential_version + 1 where username = ?",
+                                    name);
+                            return null;
+                        })
+                .when(session)
+                .establish(any());
+        try {
+            assertThat(browser.send(login(name, "kanjii")).getResponse().getStatus()).isEqualTo(401);
+        } finally {
+            reset(session);
+        }
+        assertThat(browser.send(get("/api/v1/me")).getResponse().getStatus()).isEqualTo(401);
+    }
+
+    @Test
+    void overlappingAuthenticationReturnsRetryFeedbackAndCanSucceedAfterRelease() throws Exception {
+        Browser browser = new Browser();
+        browser.csrf();
+        String name = username();
+        assertThat(browser.send(signup(name, "kanjii", invitation())).getResponse().getStatus()).isEqualTo(200);
+        browser.csrf();
+        try (var permit = admission.enter("other-operation")) {
+            var rejected = browser.send(login(name, "kanjii")).getResponse();
+            assertThat(rejected.getStatus()).isEqualTo(429);
+            assertThat(rejected.getHeader("Retry-After")).isEqualTo("60");
+        }
+        assertThat(browser.send(login(name, "kanjii")).getResponse().getStatus()).isEqualTo(200);
     }
 
     @Test

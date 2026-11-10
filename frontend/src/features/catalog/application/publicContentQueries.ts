@@ -10,8 +10,9 @@ export const publicContentKeys = {
 export function publicContentQueries(reader: PublicContentReader) {
   return {
     publicSetsQuery: queryOptions({ queryKey: publicContentKeys.sets, queryFn: () => reader.list() }),
-    publicSetQuery: (key: string) => queryOptions({
-      queryKey: publicContentKeys.set(key), queryFn: () => reader.summary(key),
+    publicSetQuery: (key: string, kind: 'key' | 'share' = 'key') => queryOptions({
+      queryKey: publicContentKeys.set(kind === 'share' ? `share:${key}` : key),
+      queryFn: () => kind === 'share' ? reader.sharedSummary(key) : reader.summary(key),
     }),
     demoCardsQuery: (key: string) => queryOptions({
       queryKey: publicContentKeys.trial(key), queryFn: () => reader.demoCards(key),

@@ -10,4 +10,5 @@ public record PublicSetSummary(
         String description,
         String publisherName,
         long cardCount,
-        boolean trialAvailable) {}
+        boolean trialAvailable,
+        String shareCode) {}

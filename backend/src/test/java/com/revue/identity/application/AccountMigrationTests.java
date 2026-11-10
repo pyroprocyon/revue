@@ -60,7 +60,7 @@ class AccountMigrationTests {
         var migration =
                 Flyway.configure().dataSource(dataSource).schemas(schema).defaultSchema(schema).load().migrate();
 
-        assertThat(migration.migrationsExecuted).isEqualTo(2);
+        assertThat(migration.migrationsExecuted).isEqualTo(3);
         assertThat(jdbc.queryForMap("select * from " + schema + ".sets where id = 1")).isEqualTo(setBefore);
         assertThat(
                         jdbc.queryForMap(

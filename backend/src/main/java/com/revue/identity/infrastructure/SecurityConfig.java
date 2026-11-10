@@ -53,6 +53,7 @@ public class SecurityConfig {
                         paths.matcher(HttpMethod.GET, "/api/v1/public-sets"),
                         paths.matcher(HttpMethod.GET, "/api/v1/public-sets/*"),
                         paths.matcher(HttpMethod.GET, "/api/v1/public-sets/*/demo-cards"),
+                        paths.matcher(HttpMethod.GET, "/api/v1/public-sets/share/*/summary"),
                         paths.matcher(HttpMethod.GET, "/api/v1/auth/csrf"),
                         paths.matcher(HttpMethod.POST, "/api/v1/auth/register"),
                         paths.matcher(HttpMethod.POST, "/api/v1/auth/login"),

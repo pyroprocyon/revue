@@ -17,7 +17,7 @@ public class PilotAuthenticationAdmission implements AuthenticationAdmission {
     private static final int MAX_ATTEMPTS = 10;
     private static final int MAX_IDENTIFIERS = 1024;
     private final Map<String, Attempts> attempts = new HashMap<>();
-    private final Semaphore hashing = new Semaphore(1);
+    private final Semaphore operations = new Semaphore(1);
     private final Clock clock;
 
     /** Creates the single-instance admission limiter using the supplied clock. */
@@ -32,7 +32,7 @@ public class PilotAuthenticationAdmission implements AuthenticationAdmission {
         Attempts previous = attempts.get(key);
         if ((previous != null && previous.count() >= MAX_ATTEMPTS)
                 || (previous == null && attempts.size() >= MAX_IDENTIFIERS)
-                || !hashing.tryAcquire()) {
+                || !operations.tryAcquire()) {
             throw new AccountProblem(AccountProblem.Kind.OVERLOADED, "Please wait a moment and try again");
         }
         attempts.put(
@@ -40,7 +40,7 @@ public class PilotAuthenticationAdmission implements AuthenticationAdmission {
                 previous == null
                         ? new Attempts(1, now.plus(WINDOW))
                         : new Attempts(previous.count() + 1, previous.expires()));
-        return hashing::release;
+        return operations::release;
     }
 
     private record Attempts(int count, Instant expires) {}

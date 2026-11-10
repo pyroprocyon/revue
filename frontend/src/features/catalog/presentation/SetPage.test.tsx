@@ -17,6 +17,20 @@ afterEach(() => {
 });
 
 describe('Set preview', () => {
+  it('opens a short share link and preserves the intended trial destination', async () => {
+    const fetchMock = stubFetch(200, { ...historySet, shareCode: '1' });
+    renderApp('/s/1');
+    await screen.findByRole('heading', { level: 1, name: 'Philippine History' });
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/public-sets/share/1/summary', expect.anything());
+    expect(screen.getByRole('link', { name: /Try 5 cards/ }).getAttribute('href')).toBe('/sets/philippine-history/try');
+  });
+
+  it('shows unavailable for an unknown short share code', async () => {
+    stubFetch(404);
+    renderApp('/s/unknown');
+    expect(await screen.findByRole('heading', { name: "This set isn't available right now." })).toBeDefined();
+  });
+
   it('shows the set, its publisher and checking status, and the way into its trial', async () => {
     const fetchMock = stubFetch(200, historySet);
 
@@ -104,7 +118,7 @@ describe('Set preview', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Copy link' }));
 
     expect(await screen.findByText('Link copied.')).toBeDefined();
-    expect(writeText).toHaveBeenCalledWith(`${window.location.origin}${SET_PAGE}`);
+    expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/s/1`);
   });
 
   it('shows the link to copy by hand when the clipboard is unavailable', async () => {
@@ -114,7 +128,7 @@ describe('Set preview', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Copy link' }));
 
     expect(
-      await screen.findByText(`Couldn't copy the link. Here it is: ${window.location.origin}${SET_PAGE}`),
+      await screen.findByText(`Couldn't copy the link. Here it is: ${window.location.origin}/s/1`),
     ).toBeDefined();
   });
 
@@ -133,6 +147,6 @@ describe('Set preview', () => {
     renderApp(SET_PAGE);
     fireEvent.click(await screen.findByRole('button', { name: 'Share' }));
 
-    expect(share).toHaveBeenCalledWith({ title: 'Philippine History', url: `${window.location.origin}${SET_PAGE}` });
+    expect(share).toHaveBeenCalledWith({ title: 'Philippine History', url: `${window.location.origin}/s/1` });
   });
 });

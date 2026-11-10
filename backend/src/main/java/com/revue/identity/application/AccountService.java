@@ -109,7 +109,7 @@ public class AccountService {
     }
 
     private static TokenHash inviteHash(String invitation) {
-        if (invitation == null || !invitation.matches("[A-Za-z0-9_-]{43}")) {
+        if (invitation == null || !invitation.matches("(?:[A-Za-z0-9_-]{8}|[A-Za-z0-9_-]{22}|[A-Za-z0-9_-]{43})")) {
             throw new IllegalArgumentException("Use your invitation link to create an account");
         }
         try {
