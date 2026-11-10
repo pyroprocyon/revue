@@ -10,6 +10,9 @@ interface JpaSharedSetRepository extends JpaRepository<SharedSetRow, Long> {
     @Query("select s from SharedSet s where s.setKey = :setKey and s.retiredAt is null")
     Optional<SharedSetRow> findActiveBySetKey(String setKey);
 
+    @Query("select s from SharedSet s where s.id = :id and s.retiredAt is null")
+    Optional<SharedSetRow> findActiveById(long id);
+
     @Query("select s from SharedSet s where s.retiredAt is null order by s.title, s.id")
     List<SharedSetRow> findAllActiveByTitle();
 }

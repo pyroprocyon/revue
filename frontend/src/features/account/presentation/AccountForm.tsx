@@ -21,7 +21,7 @@ export function AccountForm({ register = false }: { register?: boolean }) {
   const signInPath = returnPath ? `${SIGN_IN_PATH}?${new URLSearchParams({ returnTo: returnPath })}` : SIGN_IN_PATH;
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [invitation, setInvitation] = useState(() => new URLSearchParams(window.location.hash.slice(1)).get('invite') ?? '');
+  const [invitation, setInvitation] = useState(() => invitationFromFragment() ?? '');
   const [adult, setAdult] = useState(false);
   const [privacy, setPrivacy] = useState(false);
   const [show, setShow] = useState(false);
@@ -39,7 +39,7 @@ export function AccountForm({ register = false }: { register?: boolean }) {
     if (!register) return;
     function receiveInvitation() {
       if (window.location.hash === '') return;
-      const incoming = new URLSearchParams(window.location.hash.slice(1)).get('invite');
+      const incoming = invitationFromFragment();
       if (incoming !== null) setInvitation(incoming);
       window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search);
     }
@@ -104,4 +104,10 @@ export function AccountForm({ register = false }: { register?: boolean }) {
       </section>
     </Screen>
   );
+}
+
+function invitationFromFragment(): string | null {
+  const fragment = window.location.hash.slice(1);
+  if (/^(?:[A-Za-z0-9_-]{8}|[A-Za-z0-9_-]{22})$/.test(fragment)) return fragment;
+  return new URLSearchParams(fragment).get('invite');
 }

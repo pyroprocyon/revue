@@ -28,6 +28,21 @@ function setup(register = true, entry = '/register') {
 beforeEach(() => { window.history.replaceState({}, '', '/register'); });
 
 describe('pilot account forms', () => {
+  it.each([8, 22])('accepts a %i-character invitation and removes its fragment before registration', async (length) => {
+    const invitation = 'a'.repeat(length);
+    window.history.replaceState({}, '', `/i#${invitation}`);
+    const gateway = setup();
+    fireEvent.change(screen.getByRole('textbox', { name: /^Username/ }), { target: { value: 'student' } });
+    fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: testPassword } });
+    fireEvent.click(screen.getByRole('checkbox', { name: /at least 18/ }));
+    fireEvent.click(screen.getByRole('checkbox', { name: /privacy notice/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
+    await waitFor(() => expect(gateway.register).toHaveBeenCalledWith({
+      username: 'student', password: testPassword, invitation, adult: true, privacy: true,
+    }));
+    expect(window.location.hash).toBe('');
+  });
+
   it('registers with a six-character password, clears the invitation fragment and navigates on confirmation', async () => {
     const invite = 'a'.repeat(43);
     window.history.replaceState({}, '', `/register#invite=${invite}`);

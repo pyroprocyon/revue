@@ -42,6 +42,44 @@ class PublicSetEndpointsTests {
     @Autowired private JdbcTemplate jdbc;
 
     @Test
+    void shortShareCodesResolveOnlyActiveSetsAndRemainStableAcrossContentUpdates() throws Exception {
+        loader.load(
+                List.of(set("share-history", "History", cards("share-a", "share-b", "share-c", "share-d", "share-e"))));
+        Long id = jdbc.queryForObject("select id from sets where set_key = ?", Long.class, "share-history");
+        String code = Long.toString(id, 36);
+        mvc.perform(get(PUBLIC_SETS + "/share-history")).andExpect(jsonPath("$.shareCode").value(code));
+        mvc.perform(get(PUBLIC_SETS + "/share/" + code + "/summary"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"))
+                .andExpect(header().doesNotExist(HttpHeaders.SET_COOKIE))
+                .andExpect(jsonPath("$.setKey").value("share-history"));
+        loader.load(
+                List.of(
+                        set(
+                                "share-history",
+                                "Updated history",
+                                cards("share-a", "share-b", "share-c", "share-d", "share-e"))));
+        mvc.perform(get(PUBLIC_SETS + "/share/" + code + "/summary"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("Updated history"));
+        loader.load(
+                List.of(
+                        set(
+                                "other",
+                                "Other",
+                                cards(
+                                        "other-share-a",
+                                        "other-share-b",
+                                        "other-share-c",
+                                        "other-share-d",
+                                        "other-share-e"))));
+        mvc.perform(get(PUBLIC_SETS + "/share/" + code + "/summary")).andExpect(status().isNotFound());
+        for (String invalid : List.of("0", "01", "-1", "ABC", "zzzzzzzzzzzzzz", "missing")) {
+            mvc.perform(get(PUBLIC_SETS + "/share/" + invalid + "/summary")).andExpect(status().isNotFound());
+        }
+    }
+
+    @Test
     void theListShowsEveryActiveSetInTitleOrderWithoutAnyAnswers() throws Exception {
         loader.load(
                 List.of(
@@ -55,7 +93,7 @@ class PublicSetEndpointsTests {
                 .andExpect(jsonPath("$[*].setKey").value(contains("short", "history", "weather")))
                 .andExpect(jsonPath("$[*].cardCount").value(contains(2, 6, 5)))
                 .andExpect(jsonPath("$[*].trialAvailable").value(contains(false, true, true)))
-                .andExpect(jsonPath("$[0].*", hasSize(6)))
+                .andExpect(jsonPath("$[0].*", hasSize(7)))
                 .andExpect(jsonPath("$[1].title").value("History"))
                 .andExpect(jsonPath("$[1].description").value("A set for tests."))
                 .andExpect(jsonPath("$[1].publisherName").value("Revue"));
@@ -93,7 +131,7 @@ class PublicSetEndpointsTests {
         mvc.perform(get(PUBLIC_SETS + "/history"))
                 .andExpect(status().isOk())
                 .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"))
-                .andExpect(jsonPath("$.*", hasSize(6)))
+                .andExpect(jsonPath("$.*", hasSize(7)))
                 .andExpect(jsonPath("$.setKey").value("history"))
                 .andExpect(jsonPath("$.title").value("History"))
                 .andExpect(jsonPath("$.cardCount").value(6))

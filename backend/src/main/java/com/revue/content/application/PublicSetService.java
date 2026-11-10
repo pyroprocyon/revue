@@ -27,6 +27,22 @@ public class PublicSetService {
         return queries.summary(setKey).map(PublicSetService::summaryOf);
     }
 
+    /** Resolves a canonical short code to an active public set. */
+    public Optional<PublicSetSummary> summaryByShareCode(String code) {
+        if (!code.matches("[0-9a-z]{1,13}")) {
+            return Optional.empty();
+        }
+        try {
+            long id = Long.parseLong(code, 36);
+            if (id <= 0 || !Long.toString(id, 36).equals(code)) {
+                return Optional.empty();
+            }
+            return queries.summaryById(id).map(PublicSetService::summaryOf);
+        } catch (NumberFormatException invalid) {
+            return Optional.empty();
+        }
+    }
+
     /** Returns a trial only when the set has the full required number of cards. */
     public Optional<DemoCards> demoCards(String setKey) {
         return queries.demoCards(setKey, TRIAL_CARD_COUNT).filter(result -> result.cards().size() == TRIAL_CARD_COUNT);
@@ -39,6 +55,7 @@ public class PublicSetService {
                 set.description(),
                 set.publisherName(),
                 set.cardCount(),
-                set.cardCount() >= TRIAL_CARD_COUNT);
+                set.cardCount() >= TRIAL_CARD_COUNT,
+                Long.toString(set.id(), 36));
     }
 }

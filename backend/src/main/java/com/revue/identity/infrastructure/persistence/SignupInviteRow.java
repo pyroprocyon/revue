@@ -33,11 +33,14 @@ class SignupInviteRow {
     @Column(name = "redeemed_by_user_id")
     private @Nullable UUID redeemedByUserId;
 
+    @Column(nullable = false)
+    private boolean reusable;
+
     protected SignupInviteRow() {}
 
     SignupInvite toDomain() {
         return new SignupInvite(
-                id, new TokenHash(tokenHash), createdAt, expiresAt, revokedAt, redeemedAt, redeemedByUserId);
+                id, new TokenHash(tokenHash), createdAt, expiresAt, revokedAt, redeemedAt, redeemedByUserId, reusable);
     }
 
     void recordRedemption(SignupInvite invite) {

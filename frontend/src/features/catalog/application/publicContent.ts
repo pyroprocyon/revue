@@ -1,5 +1,6 @@
 export type PublicSet = {
   setKey: string;
+  shareCode: string;
   title: string;
   description: string;
   publisherName: string;
@@ -26,6 +27,7 @@ export type DemoCards = {
 /** The UI supplies this read port; HTTP belongs to the infrastructure adapter. */
 export interface PublicContentReader {
   list(): Promise<PublicSet[]>;
+  sharedSummary(code: string): Promise<PublicSet | null>;
   summary(setKey: string): Promise<PublicSet | null>;
   demoCards(setKey: string): Promise<DemoCards | null>;
 }

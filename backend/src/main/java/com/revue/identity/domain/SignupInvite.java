@@ -5,7 +5,7 @@ import java.util.Objects;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/** Single-use invitation state, including validity, redemption and revocation. */
+/** Invitation validity and revocation, with optional reuse for the shared pilot link. */
 public record SignupInvite(
         UUID id,
         TokenHash tokenHash,
@@ -13,26 +13,31 @@ public record SignupInvite(
         Instant expiresAt,
         @Nullable Instant revokedAt,
         @Nullable Instant redeemedAt,
-        @Nullable UUID redeemedByUserId) {
+        @Nullable UUID redeemedByUserId,
+        boolean reusable) {
     /** Validates the invitation's required fields and lifecycle timestamps. */
     public SignupInvite {
         Objects.requireNonNull(id);
         Objects.requireNonNull(tokenHash);
         Objects.requireNonNull(createdAt);
         Objects.requireNonNull(expiresAt);
-        if (!expiresAt.isAfter(createdAt)
+        if ((reusable && (redeemedAt != null || redeemedByUserId != null))
+                || !expiresAt.isAfter(createdAt)
                 || (redeemedByUserId != null && redeemedAt == null)
                 || (redeemedAt != null && (redeemedAt.isBefore(createdAt) || !redeemedAt.isBefore(expiresAt)))) {
             throw new IllegalArgumentException("Invalid invitation state");
         }
     }
 
-    /** Returns the redeemed invitation or rejects an unavailable invitation. */
+    /** Admits an account, recording redemption only for a single-use invitation. */
     public SignupInvite redeem(UUID accountId, Instant now) {
         Objects.requireNonNull(accountId);
         if (revokedAt != null || redeemedAt != null || now.isBefore(createdAt) || !now.isBefore(expiresAt)) {
             throw new IllegalStateException("Invitation is unavailable");
         }
-        return new SignupInvite(id, tokenHash, createdAt, expiresAt, revokedAt, now, accountId);
+        if (reusable) {
+            return this;
+        }
+        return new SignupInvite(id, tokenHash, createdAt, expiresAt, revokedAt, now, accountId, false);
     }
 }

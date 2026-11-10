@@ -98,7 +98,7 @@ lint: frontend-install ## Lint frontend code and validate Python/shell tooling s
 format-java: check-java ## Apply the four-space, 120-column Java style to production and test Java
 	cd "$(BACKEND_DIR)" && ./mvnw exec:exec -Djava.format.mode=apply
 
-invite: ## Issue one local pilot invitation; copy the private link from stdout
+invite: ## Create or replace the shared local pilot invitation; copy the link from stdout
 	python3 scripts/issue-pilot-invite.py
 
 install-hooks: ## Enable the local pre-push quality gate without replacing existing hooks

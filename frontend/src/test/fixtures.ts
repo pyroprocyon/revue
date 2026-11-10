@@ -2,6 +2,7 @@ import type { DemoCard, DemoCards, PublicSet } from '../features/catalog/applica
 
 export const historySet: PublicSet = {
   setKey: 'philippine-history',
+  shareCode: '1',
   title: 'Philippine History',
   description: 'Five moments from Mactan to Malolos.',
   publisherName: 'Revue',
@@ -11,6 +12,7 @@ export const historySet: PublicSet = {
 
 export const natureSet: PublicSet = {
   setKey: 'philippine-nature',
+  shareCode: '2',
   title: 'Philippine Nature',
   description: 'From Mount Apo to the Sulu Sea.',
   publisherName: 'Revue',

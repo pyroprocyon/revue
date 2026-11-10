@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
-type PilotApp = { origin: string; invitation: () => string };
+type PilotApp = { origin: string; invitation: (reusable?: boolean) => string };
 
 export const test = base.extend<object, { pilot: PilotApp }>({
   pilot: [async ({ browserName }, provide, worker) => {
@@ -41,13 +41,13 @@ export const test = base.extend<object, { pilot: PilotApp }>({
 
       await provide({
         origin,
-        invitation() {
-          const token = randomBytes(32).toString('base64url');
+        invitation(reusable = false) {
+          const token = randomBytes(reusable ? 6 : 32).toString('base64url');
           const digest = createHash('sha256').update(token).digest('hex');
           // Only generated UUID/digest values enter this SQL; no learner input is interpolated.
           compose(['exec', '-T', 'db', 'psql', '-U', 'e2e', '-d', 'e2e', '-v', 'ON_ERROR_STOP=1'],
-            `insert into signup_invites(id,token_hash,created_at,expires_at) values ('${randomUUID()}','${digest}',now(),now()+interval '1 hour');`);
-          return `${origin}/register#invite=${token}`;
+            `insert into signup_invites(id,token_hash,created_at,expires_at,reusable) values ('${randomUUID()}','${digest}',now(),now()+interval '1 hour',${reusable});`);
+          return reusable ? `${origin}/i#${token}` : `${origin}/register#invite=${token}`;
         },
       });
     } finally {

@@ -38,6 +38,14 @@ class PublicSetController {
         return publicSets.summary(setKey).map(PublicSetController::ok).orElseGet(PublicSetController::notFound);
     }
 
+    @GetMapping("/share/{shareCode}/summary")
+    ResponseEntity<PublicSetSummary> sharedSummary(@PathVariable String shareCode) {
+        return publicSets
+                .summaryByShareCode(shareCode)
+                .map(PublicSetController::ok)
+                .orElseGet(PublicSetController::notFound);
+    }
+
     @GetMapping("/{setKey}/demo-cards")
     ResponseEntity<DemoCards> demoCards(@PathVariable String setKey) {
         return publicSets.demoCards(setKey).map(PublicSetController::ok).orElseGet(PublicSetController::notFound);

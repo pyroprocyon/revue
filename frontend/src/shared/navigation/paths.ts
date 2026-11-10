@@ -3,6 +3,12 @@
 export const HOME_PATH = '/';
 export const SETS_PATH = '/sets';
 export const SET_ROUTE = '/sets/:setKey';
+export const SET_SHARE_ROUTE = '/s/:shareCode';
+export const INVITE_PATH = '/i';
+
+export function setSharePath(shareCode: string): string {
+  return `/s/${shareCode}`;
+}
 export const TRIAL_ROUTE = '/sets/:setKey/try';
 
 export function setPath(setKey: string): string {

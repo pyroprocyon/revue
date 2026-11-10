@@ -36,6 +36,11 @@ class JpaPublicSetQueries implements PublicSetQueries {
     }
 
     @Override
+    public Optional<Overview> summaryById(long id) {
+        return sets.findActiveById(id).map(set -> overview(set, cards.countActiveInSet(set)));
+    }
+
+    @Override
     public Optional<DemoCards> demoCards(String setKey, int limit) {
         return sets.findActiveBySetKey(setKey)
                 .map(
@@ -56,6 +61,6 @@ class JpaPublicSetQueries implements PublicSetQueries {
     }
 
     private static Overview overview(SharedSetRow set, long count) {
-        return new Overview(set.setKey(), set.title(), set.description(), set.publisherName(), count);
+        return new Overview(set.id(), set.setKey(), set.title(), set.description(), set.publisherName(), count);
     }
 }
