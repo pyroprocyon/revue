@@ -26,10 +26,10 @@ export function App() {
         <Route path={SETS_PATH} element={<SetsPage />} />
         <Route path={SET_ROUTE} element={<SetPage />} />
         <Route path={SET_SHARE_ROUTE} element={<SetPage />} />
-        <Route path={INVITE_PATH} element={<AccountForm register />} />
+        <Route path={INVITE_PATH} element={<AccountForm key="signup" register />} />
         <Route path={TRIAL_ROUTE} element={<TrialPage />} />
-        <Route path={SIGN_IN_PATH} element={<AccountForm />} />
-        <Route path={REGISTER_PATH} element={<AccountForm register />} />
+        <Route path={SIGN_IN_PATH} element={<AccountForm key="sign-in" />} />
+        <Route path={REGISTER_PATH} element={<AccountForm key="signup" register />} />
         <Route path={ACCOUNT_PATH} element={<AccountPage />} />
         <Route path="/privacy" element={<PrivacyPage />} />
         <Route path="/terms" element={<TermsPage />} />

@@ -34,6 +34,7 @@ describe('pilot account forms', () => {
     const gateway = setup();
     fireEvent.change(screen.getByRole('textbox', { name: /^Username/ }), { target: { value: 'student' } });
     fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: testPassword } });
+    fireEvent.change(screen.getByLabelText('Confirm password'), { target: { value: testPassword } });
     fireEvent.click(screen.getByRole('checkbox', { name: /at least 18/ }));
     fireEvent.click(screen.getByRole('checkbox', { name: /privacy notice/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
@@ -53,6 +54,7 @@ describe('pilot account forms', () => {
     expect(password.getAttribute('autocomplete')).toBe('new-password');
     fireEvent.change(username, { target: { value: 'student' } });
     fireEvent.change(password, { target: { value: testPassword } });
+    fireEvent.change(screen.getByLabelText('Confirm password'), { target: { value: testPassword } });
     fireEvent.click(screen.getByRole('checkbox', { name: /at least 18/ }));
     fireEvent.click(screen.getByRole('checkbox', { name: /privacy notice/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
@@ -66,6 +68,7 @@ describe('pilot account forms', () => {
     const gateway = setup(true, '/register?returnTo=%2Fsets%2Fexample');
     fireEvent.change(screen.getByRole('textbox', { name: /Username/ }), { target: { value: 'student' } });
     fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: testPassword } });
+    fireEvent.change(screen.getByLabelText('Confirm password'), { target: { value: testPassword } });
     const invitation = 'b'.repeat(43);
     const history = { keep: 'existing history state' };
     window.history.replaceState(history, '', `/register?returnTo=%2Fsets%2Fexample#invite=${invitation}`);
@@ -115,15 +118,62 @@ describe('pilot account forms', () => {
     expect(gateway.signIn).toHaveBeenCalledWith('student', testPassword);
   });
 
+  it('keeps mismatched signup passwords local and allows correction without re-entering the first password', async () => {
+    const invitation = 'a'.repeat(8);
+    window.history.replaceState({}, '', `/i#${invitation}`);
+    const gateway = setup();
+    const password = screen.getByLabelText('Password') as HTMLInputElement;
+    const confirmation = screen.getByLabelText('Confirm password') as HTMLInputElement;
+    expect(confirmation.autocomplete).toBe('new-password');
+    fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'student' } });
+    fireEvent.change(password, { target: { value: testPassword } });
+    fireEvent.change(confirmation, { target: { value: testPassword + 'x' } });
+    fireEvent.click(screen.getByRole('checkbox', { name: /at least 18/ }));
+    fireEvent.click(screen.getByRole('checkbox', { name: /privacy notice/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
+    expect(gateway.register).not.toHaveBeenCalled();
+    expect((await screen.findByRole('alert')).textContent).toBe('Passwords don’t match.');
+    expect(password.value).toBe(testPassword);
+    expect(confirmation.getAttribute('aria-invalid')).toBe('true');
+    fireEvent.change(confirmation, { target: { value: testPassword } });
+    expect(screen.queryByRole('alert')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
+    await screen.findByText('Account ready');
+    expect(gateway.register).toHaveBeenCalledExactlyOnceWith({ username: 'student', password: testPassword, invitation, adult: true, privacy: true });
+  });
+
+  it('clears both signup passwords after a server rejection while preserving the username', async () => {
+    window.history.replaceState({}, '', `/i#${'a'.repeat(8)}`);
+    const gateway = setup();
+    vi.mocked(gateway.register).mockRejectedValue(new Error('Please try again.'));
+    fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'student' } });
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: testPassword } });
+    fireEvent.change(screen.getByLabelText('Confirm password'), { target: { value: testPassword } });
+    fireEvent.click(screen.getByRole('checkbox', { name: /at least 18/ }));
+    fireEvent.click(screen.getByRole('checkbox', { name: /privacy notice/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
+    await screen.findByRole('alert');
+    expect((screen.getByLabelText('Password') as HTMLInputElement).value).toBe('');
+    expect((screen.getByLabelText('Confirm password') as HTMLInputElement).value).toBe('');
+    expect((screen.getByLabelText('Username') as HTMLInputElement).value).toBe('student');
+  });
+
   it('uses a current-password field and clears it after a rejected sign-in', async () => {
     const gateway = setup(false);
     vi.mocked(gateway.signIn).mockRejectedValue(new Error('Username or password is incorrect'));
     const password = screen.getByLabelText(/^Password/) as HTMLInputElement;
     expect(password.getAttribute('autocomplete')).toBe('current-password');
+    expect(screen.queryByLabelText('Confirm password')).toBeNull();
     fireEvent.change(screen.getByRole('textbox', { name: /Username/ }), { target: { value: 'student' } });
     fireEvent.change(password, { target: { value: testPassword } });
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Show password' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Show password' }));
     expect(password.type).toBe('text');
+    expect(password.value).toBe(testPassword);
+    expect(gateway.signIn).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Hide password' }));
+    expect(password.type).toBe('password');
+    expect(password.value).toBe(testPassword);
+    expect(gateway.signIn).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
     await screen.findByRole('alert');
     await waitFor(() => expect(password.value).toBe(''));

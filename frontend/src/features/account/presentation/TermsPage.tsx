@@ -1,16 +1,19 @@
-import { HomeLink } from '../../../shared/ui/HeaderLinks';
-import { PolicyLinks } from '../../../shared/ui/PolicyLinks';
 import { SupportLink } from '../../../shared/ui/SupportLink';
-import { Screen } from '../../../shared/ui/Screen';
+import { PolicyPageLayout, PolicySection } from './PolicyPageLayout';
 
 export function TermsPage() {
-  return <Screen top={<HomeLink />}>
-    <article className="space-y-5 pt-6 text-body">
-      <h1 className="text-title font-extrabold tracking-tight">Pilot terms</h1>
-      <p>Revue’s invited pilot is for adults aged 18 or older. Use your own account, keep your password and unused invitation private, and respect other learners and the sources credited on cards.</p>
-      <p>This is early learning software. Features may change and cards may contain mistakes. Check the credited sources and report inaccuracies to <SupportLink />. Practice results do not guarantee exam or job outcomes.</p>
-      <p>For account help or removal, email <SupportLink />. The privacy notice explains the information this pilot keeps.</p>
-    </article>
-    <PolicyLinks />
-  </Screen>;
+  return (
+    <PolicyPageLayout title="Terms">
+      <PolicySection title="Using Revue">
+        <p>This invited pilot is for adults (18+). Use your own account, keep your password and unused invitation link private, and respect other learners and credited sources.</p>
+      </PolicySection>
+      <PolicySection title="Learning limits">
+        <p>Revue is early software: features may change and cards may contain mistakes. Check the credited sources. Practice results do not guarantee exam or job outcomes.</p>
+      </PolicySection>
+      <PolicySection title="Help and corrections">
+        <p>For card corrections, account help or removal, email:</p>
+        <SupportLink className="inline-flex min-h-12 max-w-full items-center" />
+      </PolicySection>
+    </PolicyPageLayout>
+  );
 }

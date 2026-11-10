@@ -43,7 +43,7 @@ make invite
 
 Share the one link printed by the command with all pilot testers. It uses `/i#<code>` and remains reusable for seven days. Running `make invite` again replaces the shared link and revokes the previous one. The database stores only its hash. Existing single-use invitations still work until redeemed or expired. The default link uses port 5173; for another frontend address run `python3 scripts/issue-pilot-invite.py --origin http://127.0.0.1:<port>`. Keep the shared invitation within the pilot group. Reopen the original link if you refresh an unfinished registration.
 
-Choose a username (3–32 letters, numbers, underscores or hyphens) and a password (6–64 characters; common passwords are rejected). Confirm the pilot privacy notice and that you are at least 18. No email account or email provider setup is needed. Sign in again at `/sign-in`; `/account` shows your username and sign-out control. Password recovery tooling, saving sets and personal review history come in later slices. Email verification and self-service email recovery remain on the roadmap.
+Choose a username (3–32 letters, numbers, underscores or hyphens) and a password (6–64 characters; common passwords are rejected). Retype the password, then accept the pilot privacy notice and confirm that you are at least 18. No email account or email provider setup is needed. Sign in again at `/sign-in`; `/account` shows your username and sign-out control. Password recovery tooling, saving sets and personal review history come in later slices. Email verification and self-service email recovery remain on the roadmap.
 
 ### Rolling back the first account release
 
@@ -80,7 +80,7 @@ For editor support, `make frontend-install` installs host packages without start
 make e2e
 ```
 
-This installs the pinned Playwright browser and runs ten Chromium journeys against the real production image and a fresh PostgreSQL database. Tests cover invited signup with a six-character password, policy links, session persistence, logout/sign-in, rejected credentials, shared-set return navigation, separate browser accounts, shared and legacy invitation rules, short public set links, public support links at phone/desktop widths, keyboard access to a scrolling privacy notice, invitation recovery on an already-open form, and offline sign-in retry. These tests do not mock the account API or add test-only application endpoints.
+This installs the pinned Playwright browser and runs eleven Chromium journeys against the real production image and a fresh PostgreSQL database. Tests cover invited signup with a six-character password, policy links, session persistence, logout/sign-in, rejected credentials, shared-set return navigation, separate browser accounts, shared and legacy invitation rules, short public set links, public support links at phone/desktop widths, keyboard access to a scrolling privacy notice, invitation recovery on an already-open form, and offline sign-in retry. These tests do not mock the account API or add test-only application endpoints.
 
 Each worker owns a separate Compose project with a random database password, an unexposed database and a random loopback app port. It removes its containers, database volume and image tag on teardown, including ordinary test/setup failures. It does not use the development `.env` database, fixed development ports or existing users. Chromium uses the same local HTTP profile as the development stack; the backend production-profile tests cover secure cookies and forwarded HTTPS.
 

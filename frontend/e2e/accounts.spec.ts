@@ -9,6 +9,7 @@ const username = () => `learner_${randomUUID().replaceAll('-', '').slice(0, 24)}
 async function register(page: Page, name: string) {
   await page.getByRole('textbox', { name: 'Username' }).fill(name);
   await page.getByLabel(/^Password/).fill(PASSWORD);
+  await page.getByLabel('Confirm password', { exact: true }).fill(PASSWORD);
   await page.getByRole('checkbox', { name: /at least 18/ }).check();
   await page.getByRole('checkbox', { name: /privacy notice/ }).check();
   const response = page.waitForResponse(result => result.url().endsWith('/api/v1/auth/register') && result.request().method() === 'POST');
@@ -17,6 +18,7 @@ async function register(page: Page, name: string) {
 }
 
 async function signIn(page: Page, name: string, password = PASSWORD) {
+  await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
   await page.getByRole('textbox', { name: 'Username' }).fill(name);
   await page.getByLabel(/^Password/).fill(password);
   const response = page.waitForResponse(result => result.url().endsWith('/api/v1/auth/login') && result.request().method() === 'POST');
@@ -34,7 +36,7 @@ test('invited learner registers with six characters, reloads, signs out and sign
   const notice = context.waitForEvent('page');
   await page.getByRole('link', { name: 'Terms (opens in a new tab)' }).click();
   const terms = await notice;
-  await expect(terms.getByRole('heading', { name: 'Pilot terms' })).toBeVisible();
+  await expect(terms.getByRole('heading', { name: 'Terms', exact: true })).toBeVisible();
   await terms.close();
   await expect(page.getByRole('button', { name: 'Create account' })).toBeEnabled();
 
@@ -54,7 +56,16 @@ test('invited learner registers with six characters, reloads, signs out and sign
   expect((await page.request.get('/api/v1/me')).status()).toBe(401);
   await page.goto('/account');
   await expect(page).toHaveURL(/\/sign-in$/);
-  await signIn(page, name);
+  await page.getByRole('textbox', { name: 'Username' }).fill(name);
+  const password = page.getByLabel('Password', { exact: true });
+  await password.fill(PASSWORD);
+  await page.getByRole('button', { name: 'Show password' }).click();
+  await expect(password).toHaveAttribute('type', 'text');
+  await page.getByRole('button', { name: 'Hide password' }).click();
+  await expect(password).toHaveAttribute('type', 'password');
+  const loginResponse = page.waitForResponse(result => result.url().endsWith('/api/v1/auth/login') && result.request().method() === 'POST');
+  await password.press('Enter');
+  expect((await loginResponse).status()).toBe(200);
   await expect(page.getByRole('heading', { name: `You’re signed in, ${name}` })).toBeVisible();
   expect((await context.cookies()).find(cookie => cookie.name === 'SESSION')?.value).not.toBe(firstSession?.value);
 });
@@ -119,10 +130,13 @@ test('two browsers keep separate accounts and a duplicate username leaves its in
   } finally { await otherContext.close(); }
 });
 
-test('public support is available on phone and desktop without creating account cookies', async ({ page, context }) => {
+test('the landing footer is removed and other public pages retain support without account cookies', async ({ page, context }) => {
   for (const width of [360, 1280]) {
     await page.setViewportSize({ width, height: 800 });
-    for (const route of ['/', '/sign-in', '/privacy', '/terms']) {
+    await page.goto('/');
+    await expect(page.getByRole('navigation', { name: 'Help and policies' })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Sign in', exact: true })).toBeVisible();
+    for (const route of ['/sign-in', '/privacy', '/terms']) {
       await page.goto(route);
       const support = page.getByRole('navigation', { name: 'Help and policies' }).getByRole('link', { name: 'Support' });
       await expect(support).toHaveAttribute('href', 'mailto:revuetayo@gmail.com');
@@ -137,6 +151,11 @@ test('public support is available on phone and desktop without creating account 
 
 test('keyboard users can reach and scroll the privacy notice on a phone layout', async ({ page }) => {
   await page.goto('/privacy');
+  const details = page.locator('details');
+  await expect(details).not.toHaveAttribute('open');
+  await page.getByText('More privacy details', { exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await expect(details).toHaveAttribute('open', '');
   const content = page.getByRole('main');
   expect(await content.evaluate(element => element.scrollHeight > element.clientHeight)).toBe(true);
   await page.getByRole('link', { name: 'Revue', exact: true }).focus();
@@ -181,19 +200,6 @@ test('first sign-in while offline gives guidance and recovers after reconnecting
   await signIn(page, name);
   await expect(page.getByRole('heading', { name: `You’re signed in, ${name}` })).toBeVisible();
 });
-test('a short public share opens the intended set and its trial without signing in', async ({ page, pilot }) => {
-  const response = await page.request.get(`${pilot.origin}/api/v1/public-sets`);
-  const sets: { setKey: string; shareCode: string; title: string }[] = await response.json();
-  const set = sets.find(item => item.setKey === 'philippine-history');
-  expect(set).toBeDefined();
-  if (!set) throw new Error('The starter history set is required');
-  await page.goto(`${pilot.origin}/s/${set.shareCode}`);
-  await expect(page.getByRole('heading', { name: set.title, exact: true })).toBeVisible();
-  expect((await page.request.get('/api/v1/me')).status()).toBe(401);
-  await page.getByRole('link', { name: /Try 5 cards/ }).click();
-  await expect(page).toHaveURL(/\/sets\/philippine-history\/try$/);
-  await expect(page.getByRole('button', { name: 'Check answer' })).toBeVisible();
-});
 
 
 test('the same short pilot link registers two independent learners', async ({ page, browser, pilot }) => {
@@ -215,3 +221,50 @@ test('the same short pilot link registers two independent learners', async ({ pa
   }
 });
 
+test('a short public share opens the intended set and its trial without signing in', async ({ page, pilot }) => {
+  const response = await page.request.get(`${pilot.origin}/api/v1/public-sets`);
+  const sets: { setKey: string; shareCode: string; title: string }[] = await response.json();
+  const set = sets.find(item => item.setKey === 'philippine-history');
+  expect(set).toBeDefined();
+  if (!set) throw new Error('The starter history set is required');
+  await page.goto(`${pilot.origin}/s/${set.shareCode}`);
+  await expect(page.getByRole('heading', { name: set.title, exact: true })).toBeVisible();
+  expect((await page.request.get('/api/v1/me')).status()).toBe(401);
+  await page.getByRole('link', { name: /Try 5 cards/ }).click();
+  await expect(page).toHaveURL(/\/sets\/philippine-history\/try$/);
+  await expect(page.getByRole('button', { name: 'Check answer' })).toBeVisible();
+});
+
+
+test('signup checks the confirmation locally and sends only one password after correction', async ({ page, pilot }) => {
+  const name = username();
+  await page.goto(pilot.invitation());
+  const requests: string[] = [];
+  page.on('request', request => {
+    if (request.url().endsWith('/api/v1/auth/register') && request.method() === 'POST') requests.push(request.postData() ?? '');
+  });
+  await page.getByLabel('Username', { exact: true }).fill(name);
+  const password = page.getByLabel('Password', { exact: true });
+  const confirmation = page.getByLabel('Confirm password', { exact: true });
+  await password.fill(PASSWORD);
+  await confirmation.fill(PASSWORD + 'x');
+  await page.getByRole('checkbox', { name: /at least 18/ }).check();
+  await page.getByRole('checkbox', { name: /privacy notice/ }).check();
+  await page.getByRole('button', { name: 'Create account' }).click();
+  await expect(page.getByRole('alert')).toHaveText('Passwords don’t match.');
+  expect(requests).toHaveLength(0);
+  await expect(password).toHaveValue(PASSWORD);
+  await confirmation.fill(PASSWORD);
+  await page.getByRole('button', { name: 'Show confirmation password' }).click();
+  await expect(confirmation).toHaveAttribute('type', 'text');
+  await expect(password).toHaveAttribute('type', 'password');
+  await page.getByRole('button', { name: 'Hide confirmation password' }).click();
+  const response = page.waitForResponse(result => result.url().endsWith('/api/v1/auth/register') && result.request().method() === 'POST');
+  await confirmation.press('Enter');
+  expect((await response).status()).toBe(200);
+  await expect(page.getByRole('heading', { name: `You’re signed in, ${name}` })).toBeVisible();
+  expect(requests).toHaveLength(1);
+  const sent = new URLSearchParams(requests[0]);
+  expect([...sent.keys()].sort()).toEqual(['adult', 'invitation', 'password', 'privacy', 'username']);
+  expect(sent.get('password')).toBe(PASSWORD);
+});
