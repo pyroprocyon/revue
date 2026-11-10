@@ -7,3 +7,7 @@ backend/target
 frontend/dist
 .idea
 .vscode
+
+# Generated browser-test reports
+frontend/playwright-report/
+frontend/test-results/

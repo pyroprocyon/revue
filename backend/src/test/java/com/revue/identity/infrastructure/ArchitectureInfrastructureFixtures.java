@@ -6,7 +6,9 @@ import com.revue.identity.presentation.ArchitecturePresentationFixtures.UsesAppl
 /** Test-only adapter examples. */
 public final class ArchitectureInfrastructureFixtures {
 
-	public record UsesApplicationPort(OwnDomain application) { }
+    /** Infrastructure fixture whose application-port dependency is allowed. */
+    public record UsesApplicationPort(OwnDomain application) {}
 
-	public record PresentationLeak(UsesApplication endpoint) { }
+    /** Infrastructure fixture with a forbidden presentation dependency. */
+    public record PresentationLeak(UsesApplication endpoint) {}
 }

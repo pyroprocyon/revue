@@ -4,7 +4,8 @@ import { useEffect, useId } from 'react';
 import { Link } from 'react-router';
 import { usePublicContentQueries } from '../../features/catalog/presentation/PublicContentProvider';
 import { chip, primaryButton, textLink } from '../../shared/ui/buttonStyles';
-import { HomeLink } from '../../shared/ui/HeaderLinks';
+import { PolicyLinks } from '../../shared/ui/PolicyLinks';
+import { HomeLink, SignInLink } from '../../shared/ui/HeaderLinks';
 import { NextReviewPanel } from '../../features/study/presentation/NextReviewPanel';
 import { ReviewSteps } from '../../features/study/presentation/ReviewSteps';
 import { Screen } from '../../shared/ui/Screen';
@@ -35,7 +36,7 @@ export function LandingPage() {
     </div>
   );
   return (
-    <Screen wide top={<HomeLink />} actions={phoneActions} actionsOnPhonesOnly>
+    <Screen wide top={<><HomeLink /><SignInLink /></>} actions={phoneActions} actionsOnPhonesOnly>
       <section className="grid gap-10 pt-4 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-16 lg:pt-14">
         <HeroText />
         <SampleCard />
@@ -55,6 +56,7 @@ export function LandingPage() {
           <ReviewSteps />
         </div>
       </section>
+      <PolicyLinks />
     </Screen>
   );
 }

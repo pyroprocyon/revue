@@ -8,7 +8,7 @@ Revue is a modular monolith. Domain models describe publishing and daily schedul
 |---|---|---|
 | Content | Publish and browse maintained public sets | `PublishedSet` owns its `PublishedCard` entities. Stable keys identify publications. Corrections raise content versions; removal retires content. A set's retirement preserves its active cards. Required sources and key ownership are publishing rules. |
 | Reviews | Compute a daily scheduling recommendation | `DailyReviewScheduler` owns local-day normalization and the scheduling profile. `MemoryModel` describes what it needs from a memory algorithm. `ReviewRating` is independent of the FSRS library. |
-| Identity | Configure session and access protection | Only infrastructure exists today. Account registration and an account domain model remain future work. |
+| Identity | Register and authenticate invited pilot learners | Username/password rules, account eligibility, invitation redemption, credential versions and session access. Email verification and automated recovery are deferred. |
 | Platform | Serve the browser app and static assets | HTTP forwarding, compression negotiation, cache headers and the application clock are technical concerns. |
 
 A published set is an aggregate: its public operations control changes to its cards. Card mutation methods are package-private. Publication input records are immutable values; changing a card's definition increments its content version once. Numeric database IDs and audit timestamps belong to persistence rows. They survive republishing and retirement.
@@ -46,6 +46,9 @@ Contexts currently have no direct dependencies on each other. Add a narrow appli
 ## Frontend boundaries
 
 - `app`: route composition and concrete adapter wiring.
+- `features/account/application`: account gateway, profile contracts and local return-path rules.
+- `features/account/infrastructure`: same-origin account HTTP and CSRF handling.
+- `features/account/presentation`: username forms, account status and pilot notices, supplied through the account provider.
 - `features/catalog/application`: content projections, the `PublicContentReader` port and query definitions.
 - `features/catalog/infrastructure`: the HTTP reader implementation.
 - `features/catalog/presentation`: browsing screens and the provider that supplies the reader to presentation code.
@@ -63,15 +66,15 @@ A public link or signup invitation grants no access to another learner's progres
 
 ## Account foundation and remaining layers
 
-M2.1a implements the account foundation in the existing `identity` context. Pure domain values own canonical email, invitation validity, eligibility and deletion rules. `RegistrationCommit` saves a pending account, invite redemption and initial verification challenge in one transaction through the application-owned `RegistrationStore` port. It grants no learner session. Public signup, verification, sign-in, reset and deletion workflows remain unimplemented.
+M2.1a implements the account foundation in the existing `identity` context. Pure domain values own canonical email, invitation validity, eligibility and deletion rules. `RegistrationCommit` saves a pending account, invite redemption and initial verification challenge in one transaction through the application-owned `RegistrationStore` port. That internal email-registration path remains as a deferred foundation. M2.1b adds invited username/password registration, sign-in, logout and current-account access. Email collection, verification, email delivery and self-service recovery are deferred; operator recovery and deletion workflows remain later slices.
 
 The JPA adapter locks the invitation and uses PostgreSQL conflict handling for expected email/digest collisions. Email uniqueness is enforced by the database, so two different invitations cannot race past a preliminary lookup. A duplicate registration never overwrites credentials or consumes another invitation. The clock is read after acquiring the invite lock, and any failed save rolls back all three changes. No credential hashing, provider call or session effect occurs inside this transaction.
 
 V4 adds UUID account/invitation/challenge IDs, independent eligibility facts and all-or-none deletion fields. It preserves existing content and session data. Account erasure cascades to private challenges and clears the invitation's user link while retaining its redemption timestamp. The actual erasure use case, deletion journal, cleanup worker and restore procedure remain M2.3 work. Domain deletion cancellation requires the current request and credential version, advances that version and preserves every other restriction; its future application caller must authenticate the proof and hold the account lock.
 
-The pilot email key trims outer ASCII whitespace and lowercases ASCII dot-atom addresses with DNS domains. Dots and plus aliases remain significant; quoted local parts and internationalized addresses are not supported in this slice. Password encodings retain their algorithm prefix and are never normalized as email. Token digests are SHA-256 hex values; raw token generation and password encoding remain adapter work for M2.1b. Diagnostic strings redact email and credential/digest values.
+The pilot email key trims outer ASCII whitespace and lowercases ASCII dot-atom addresses with DNS domains. Dots and plus aliases remain significant; quoted local parts and internationalized addresses are not supported in this slice. Password encodings retain their algorithm prefix and are never normalized as email. Token digests are SHA-256 hex values. M2.1b uses a cryptographically random invitation from the local operator command and Argon2id password encoding in an infrastructure adapter. Diagnostic strings redact email and credential/digest values.
 
-Deletion recovery lasts seven elapsed days. The foundation also uses the plan's proposed seven-day unverified-registration lifetime, measured from creation; no cleanup runs yet. A pending deletion window takes precedence over unverified cleanup. Verification challenge expiry is supplied by trusted preparation and rechecked at commit; its delivery policy belongs to M2.1b.
+Deletion recovery lasts seven elapsed days. The foundation also uses the plan's proposed seven-day unverified-registration lifetime, measured from creation; no cleanup runs yet. A pending deletion window takes precedence over unverified cleanup. Username accounts do not require email verification and never enter the abandoned unverified-email expiry path. Email challenge delivery remains deferred.
 
 The dependency direction remains presentation -> application -> domain, with infrastructure implementing inward-owned ports. Responsibilities across the account slices are:
 
@@ -86,7 +89,7 @@ Keep hashing and email/provider work outside database transactions. Commit accou
 
 Account eligibility is derived from separate verification/agreements, suspension and deletion facts. Cancelling deletion removes only that restriction. Increment the existing credential version for access-invalidating lifecycle changes so failed session eviction cannot revive an old session after cancellation. Restricted sessions retain their allowed purpose, and session completion carries the validated application result version, including the new committed version after an authorized cancellation. It never replaces a delayed result with the latest version.
 
-Pilot signup uses one persisted single-use invitation, redeemed in the same short transaction as the unique account and verification challenge. Retries cannot consume another invitation or overwrite credentials. Erasure removes identifying invitation links without making a consumed token reusable. These are planned domain/application invariants with database constraints and concurrency tests, not new middleware or a separate service.
+Pilot username signup uses one persisted single-use invitation, redeemed in the same short transaction as the unique account. It creates no verification challenge. Retries cannot consume another invitation or overwrite credentials. Erasure removes identifying invitation links without making a consumed token reusable. The database constraints and transactional application boundary preserve these invariants without a separate service.
 
 Keep the pilot implementation small: account foundation, signup/verification, login/recovery and explicit saving are separate review units. Administrative MFA/elevation belongs to admin writes, not routine learner signup or study.
 
@@ -111,3 +114,19 @@ Behavioral tests remain authoritative for public JSON, ordering, missing/retired
 This refactor preserves the current daily-only scheduling profile, which disables short-term learning/relearning steps. It adds neither persisted review submission nor short-term relearning. Focus Practice remains a candidate; it must use its own practice flow without changing normal schedules or review history.
 
 M2.1a adds account tables only. Published content, API URLs, browser URLs, UI and deployment settings are unchanged. New domain work should add only the models and ports its actual use cases require. Architecture checks enforce dependency rules; they do not replace review of domain meaning or behavior.
+
+## Username/password pilot
+
+V5 adds a unique canonical username while retaining the V4 email foundation. Usernames are 3–32 ASCII letters, digits, underscores or hyphens, with surrounding whitespace removed and case folded. Passwords are 6–64 Unicode code points, preserve spaces and case, and reject a small common-password list. The six-character minimum is an explicit pilot tradeoff.
+
+`AccountService` validates input and performs admitted Argon2id work outside database transactions. `RegistrationCommit.registerUsername` rechecks the locked invitation and commits account creation and redemption together. `LoginCommit` locks the account and rechecks the credential version observed before password verification. Session establishment uses that committed result, never a newer unproved version. Every private API request checks current account eligibility and session version. Public browsing remains available without a session or CSRF cookie.
+
+The HTTP adapter uses form-encoded requests with an 8 KiB body limit, including Tomcat parsing limits for chunked bodies. A bounded single-instance admission adapter limits attempts per username and permits one expensive authentication operation at a time, with no waiting queue. Sessions rotate on authentication; CSRF tokens rotate with them and logout invalidates the session. Both cookies are HttpOnly; the form receives its CSRF header value from the same-origin bootstrap response. Raw passwords and invitations stay out of application logs, persistent browser storage and query keys. Invitation links put the token in a fragment, removed when the form loads. A refresh then requires reopening the original invitation. The mounted registration form also consumes newly arriving invitation fragments without a reload, preserving typed fields, query parameters and history state. CSRF bootstrap and account POST failures share the same connection/retry guidance.
+
+The local `make invite` command writes only a token digest to the local Compose database and prints a private, single-use link. There is no automated email delivery integration or invitation dashboard. The account page is honest that set saving and personal review persistence are not implemented yet. Pilot support, feedback, inaccuracy reports and privacy requests use the founder-confirmed inbox `revuetayo@gmail.com`, exposed through a shared presentation link. Google processes voluntary support correspondence through Gmail. This human support channel does not add account email collection, automated delivery, verification or a recovery bypass. Automatic deletion and recovery are not claimed as implemented.
+
+Authenticated session compatibility also depends on the application classes serialized by Spring Session JDBC. A rollback to the account-foundation release requires invalidating the newer authenticated sessions while keeping additive V5 and account data. Follow the [first-account-release rollback procedure](../README.md#rolling-back-the-first-account-release) before reopening traffic.
+
+## Browser acceptance tests
+
+Playwright tests under `frontend/e2e` cross the real presentation, HTTP, session, application and PostgreSQL boundaries through the production Docker image. Only invitation provisioning touches the disposable database directly; authentication always uses the actual forms and endpoints. No test route or application-only bypass is introduced. The worker fixture owns its separate Compose project and cleanup. Component/domain tests remain independent and faster. Browser tests, their fixture and configuration are type-checked, linted and included in Sonar's source inventory. Generated reports are ignored.

@@ -25,7 +25,7 @@ NODE_RUN := $(abspath scripts/with-node.sh)
 # Every Compose target needs a local .env file and a running Docker engine.
 PREREQS := .env check-docker
 
-.PHONY: lint install-hooks tooling-test quality sonar help start stop up down restart rebuild rebuild-clean logs ps db db-shell reset test check build frontend-install check-docker check-java smoke
+.PHONY: format-java e2e invite lint install-hooks tooling-test quality sonar help start stop up down restart rebuild rebuild-clean logs ps db db-shell reset test check build frontend-install check-docker check-java smoke
 
 help: ## Show this list
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z_-]+:.*## / {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -93,7 +93,13 @@ check: lint test build tooling-test ## Run lint, tests, type checking and the fr
 lint: frontend-install ## Lint frontend code and validate Python/shell tooling syntax
 	cd "$(FRONTEND_DIR)" && bash "$(NODE_RUN)" npm run lint
 	python3 -m py_compile scripts/*.py
-	@for script in scripts/*.sh .githooks/pre-push; do bash -n "$$script"; done
+	@for script in scripts/*.sh backend/format-java.sh .githooks/pre-push; do bash -n "$$script"; done
+
+format-java: check-java ## Apply the four-space, 120-column Java style to production and test Java
+	cd "$(BACKEND_DIR)" && ./mvnw exec:exec -Djava.format.mode=apply
+
+invite: ## Issue one local pilot invitation; copy the private link from stdout
+	python3 scripts/issue-pilot-invite.py
 
 install-hooks: ## Enable the local pre-push quality gate without replacing existing hooks
 	@existing=$$(git config --get core.hooksPath || true); \
@@ -111,8 +117,12 @@ install-hooks: ## Enable the local pre-push quality gate without replacing exist
 tooling-test: ## Check that analysis cannot silently omit application code or tests
 	python3 -m unittest discover -s scripts -p 'test_*.py'
 
-quality: check ## Run all checks plus SonarQube for Java and TypeScript (requires Docker)
+quality: check e2e ## Run all checks, browser journeys and SonarQube (requires Docker)
 	python3 scripts/check-sonar.py
+
+e2e: check-docker frontend-install ## Test pilot account journeys against a disposable production app and database
+	cd "$(FRONTEND_DIR)" && bash "$(NODE_RUN)" npx --no-install playwright install --only-shell chromium
+	cd "$(FRONTEND_DIR)" && bash "$(NODE_RUN)" npm run test:e2e
 
 sonar: check-docker check-java ## Analyze already compiled Java and installed frontend sources
 	python3 scripts/check-sonar.py

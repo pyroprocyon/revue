@@ -33,8 +33,10 @@ class ScopeTests(unittest.TestCase):
         self.addCleanup(directory.cleanup)
         self.root = Path(directory.name)
         self.paths = ["backend/src/main/java/Account.java", "backend/src/test/java/AccountTest.java",
-                      "frontend/src/Card.tsx", "frontend/src/Card.test.tsx"]
-        for name in self.paths + ["frontend/node_modules/generated.ts", "frontend/dist/generated.js"]:
+                      "frontend/src/Card.tsx", "frontend/src/Card.test.tsx", "frontend/playwright.config.ts",
+                      "frontend/e2e/fixtures.ts", "frontend/e2e/accounts.spec.ts"]
+        for name in self.paths + ["frontend/node_modules/generated.ts", "frontend/dist/generated.js",
+                                  "frontend/playwright-report/index.html", "frontend/test-results/trace.js"]:
             path = self.root / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.touch()

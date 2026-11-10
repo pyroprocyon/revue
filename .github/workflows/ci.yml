@@ -41,6 +41,12 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
           package-manager-cache: false
 
+      - name: Install Chromium and Linux browser dependencies
+        working-directory: frontend
+        run: |
+          npm ci
+          npx --no-install playwright install --with-deps --only-shell chromium
+
       - name: Run the pre-PR quality gate
         run: make quality
 
@@ -53,7 +59,10 @@ jobs:
         with:
           name: quality-reports
           path: |
+            frontend/playwright-report/
+            frontend/test-results/
             backend/target/checkstyle-result.xml
+            backend/target/checkstyle-project-result.xml
             backend/target/quality/sonar-issues.json
             backend/target/quality/sonar-gate.json
             backend/target/quality/sonar-scope.json

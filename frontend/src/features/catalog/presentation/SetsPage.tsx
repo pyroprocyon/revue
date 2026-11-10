@@ -3,7 +3,7 @@ import { ChevronRight } from 'lucide-react';
 import { Link } from 'react-router';
 import type { PublicSet } from '../application/publicContent';
 import { usePublicContentQueries } from './PublicContentProvider';
-import { HomeLink } from '../../../shared/ui/HeaderLinks';
+import { HomeLink, SignInLink } from '../../../shared/ui/HeaderLinks';
 import { LoadFailed } from '../../../shared/ui/LoadFailed';
 import { LoadingScreen, MessageScreen } from '../../../shared/ui/MessageScreen';
 import { Screen } from '../../../shared/ui/Screen';
@@ -28,7 +28,7 @@ export function SetsPage() {
     );
   }
   return (
-    <Screen top={<HomeLink />}>
+    <Screen top={<><HomeLink /><SignInLink /></>}>
       <section className="pt-2">
         <h1 className="text-title font-extrabold tracking-tight">Choose a set</h1>
         <p className="mt-2 text-body text-muted">

@@ -23,7 +23,9 @@ export function Screen({ top, actions, actionsOnPhonesOnly = false, wide = false
       <header className={`${column} flex min-h-14 shrink-0 flex-wrap items-center gap-x-3 pt-[env(safe-area-inset-top)]`}>
         {top}
       </header>
-      <main className="min-h-[min(16rem,50dvh)] flex-1 scroll-smooth overflow-y-auto overscroll-contain lg:flex-none lg:overflow-visible">
+      <main
+        tabIndex={0 /* NOSONAR S6845: this scroll container needs focus for native keyboard scrolling. */}
+        className="focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent min-h-[min(16rem,50dvh)] flex-1 scroll-smooth overflow-y-auto overscroll-contain lg:flex-none lg:overflow-visible">
         <div className={`${column} flex min-h-full flex-col pb-[max(1rem,env(safe-area-inset-bottom))]`}>{children}</div>
       </main>
       {actions && (

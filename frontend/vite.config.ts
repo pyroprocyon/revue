@@ -1,7 +1,7 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { loadEnv } from 'vite';
-import { defineConfig } from 'vitest/config';
+import { configDefaults, defineConfig } from 'vitest/config';
 
 // One config for Vite and Vitest, so tests compile code the same way the app build does.
 export default defineConfig(({ mode }) => {
@@ -19,6 +19,7 @@ export default defineConfig(({ mode }) => {
     },
     test: {
       environment: 'jsdom',
+      exclude: [...configDefaults.exclude, 'e2e/**'],
       setupFiles: ['./src/test/setup.ts'],
     },
   };
