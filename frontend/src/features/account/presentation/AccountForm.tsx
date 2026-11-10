@@ -1,4 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
+import { Eye, EyeOff } from 'lucide-react';
 import { useEffect, useRef, useState, type SubmitEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { safeAccountReturnPath } from '../application/account';
@@ -10,7 +11,9 @@ import { Screen } from '../../../shared/ui/Screen';
 import { primaryButton, textLink } from '../../../shared/ui/buttonStyles';
 import { ACCOUNT_PATH, SIGN_IN_PATH } from '../../../shared/navigation/paths';
 
-const inputStyle = 'mt-2 min-h-12 w-full rounded-control border border-field-edge bg-surface px-3 text-body text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent';
+const PASSWORD_MISMATCH = 'Passwords don’t match.';
+
+const inputStyle = 'min-h-14 w-full rounded-control border border-field-edge bg-surface px-4 text-body text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent';
 
 export function AccountForm({ register = false }: { register?: boolean }) {
   const gateway = useAccountGateway();
@@ -21,10 +24,12 @@ export function AccountForm({ register = false }: { register?: boolean }) {
   const signInPath = returnPath ? `${SIGN_IN_PATH}?${new URLSearchParams({ returnTo: returnPath })}` : SIGN_IN_PATH;
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [passwordConfirmation, setPasswordConfirmation] = useState('');
   const [invitation, setInvitation] = useState(() => invitationFromFragment() ?? '');
   const [adult, setAdult] = useState(false);
   const [privacy, setPrivacy] = useState(false);
   const [show, setShow] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const errorRef = useRef<HTMLParagraphElement>(null);
@@ -51,56 +56,103 @@ export function AccountForm({ register = false }: { register?: boolean }) {
   async function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy || needsInvitation) return;
+    if (register && password !== passwordConfirmation) {
+      setError(PASSWORD_MISMATCH);
+      return;
+    }
     setBusy(true);
     setError('');
     try {
       if (register) await gateway.register({ username, password, invitation, adult, privacy });
       else await gateway.signIn(username, password);
       setPassword('');
+      setPasswordConfirmation('');
       queryClient.clear();
       await navigate(returnPath ?? ACCOUNT_PATH, { replace: true });
     } catch (failure) {
       setPassword('');
+      setPasswordConfirmation('');
       setError(failure instanceof Error ? failure.message : 'Please try again.');
     } finally {
       setBusy(false);
     }
   }
 
+  function clearPasswordMismatch() {
+    if (error === PASSWORD_MISMATCH) setError('');
+  }
+
+  const passwordId = register ? 'new-password' : 'current-password';
+  const confirmationMismatch = error === PASSWORD_MISMATCH;
+
   return (
-    <Screen top={<HomeLink />} actions={
-      <button className={`${primaryButton} w-full`} type="submit" form="account-form" disabled={busy || needsInvitation}>
-        {actionLabel}
-      </button>
-    }>
-      <section className="pt-6">
-        <h1 className="text-title font-extrabold tracking-tight">{register ? 'Create your account' : 'Welcome back'}</h1>
-        <p className="mt-3 text-body text-muted">{register ? 'Choose a username and a password you’ll remember.' : 'Sign in with your username and password.'}</p>
-        {needsInvitation && <p role="status" className="mt-5 rounded-card bg-surface p-4 text-body">Open the invitation link from the person who invited you. Already registered? <Link className={textLink} to={signInPath}>Sign in</Link>.</p>}
-        <form id="account-form" onSubmit={(event) => void submit(event)} className="mt-6 grid gap-5" aria-busy={busy}>
-          <label className="text-label font-semibold">Username
-            <input className={inputStyle} name="username" autoComplete="username" autoCapitalize="none" spellCheck={false}
-              required minLength={3} maxLength={32} value={username} onChange={(event) => setUsername(event.target.value)}
-              aria-describedby={register ? 'username-help' : undefined} />
-            {register && <span id="username-help" className="mt-1 block text-support font-normal text-muted">3–32 letters, numbers, underscores or hyphens.</span>}
-          </label>
-          <label className="text-label font-semibold">Password
-            <input className={inputStyle} name="password" type={show ? 'text' : 'password'} required minLength={6}
-              autoComplete={register ? 'new-password' : 'current-password'} value={password}
-              onChange={(event) => setPassword(event.target.value)} aria-describedby={register ? 'password-help' : undefined} />
-            {register && <span id="password-help" className="mt-1 block text-support font-normal text-muted">6–64 characters. Spaces are welcome.</span>}
-          </label>
-          <label className="flex min-h-12 items-center gap-3 text-body">
-            <input type="checkbox" checked={show} onChange={(event) => setShow(event.target.checked)} className="size-5 accent-accent" />Show password
-          </label>
-          {register && <>
-            <label className="flex min-h-12 items-start gap-3 text-body"><input className="mt-1 size-5 shrink-0 accent-accent" type="checkbox" required checked={adult} onChange={(event) => setAdult(event.target.checked)} />I’m at least 18 years old.</label>
-            <label className="flex min-h-12 items-start gap-3 text-body"><input className="mt-1 size-5 shrink-0 accent-accent" type="checkbox" required checked={privacy} onChange={(event) => setPrivacy(event.target.checked)} /><span>I’ve read the <Link to="/privacy" target="_blank" rel="noreferrer" className={textLink}>privacy notice<span className="sr-only"> (opens in a new tab)</span></Link>.</span></label>
-          </>}
-          {error && <p ref={errorRef} tabIndex={-1} role="alert" className="focus-visible:outline-2 focus-visible:outline-accent rounded-card bg-surface p-4 text-body text-ink">{error}</p>}
-        </form>
-        <p className="mt-6 text-support text-muted">{register ? <>Already registered? <Link to={signInPath} className={textLink}>Sign in</Link>.</> : <>Forgot your password? <SupportLink>Contact support</SupportLink>.</>}</p>
-        <PolicyLinks newTab={register} />
+    <Screen top={<div className="mx-auto"><HomeLink /></div>}>
+      <section className="mx-auto w-full max-w-[28rem] py-6 sm:py-10 lg:py-14">
+        <div className="rounded-card bg-surface p-4 shadow-card sm:p-8">
+          <h1 className="text-title font-extrabold tracking-tight">{register ? 'Create your account' : 'Welcome back'}</h1>
+          <p className="mt-2 text-body text-muted">
+            {register ? 'Choose a username and a password you’ll remember.' : 'Sign in to your Revue account.'}
+          </p>
+          {needsInvitation && (
+            <p role="status" className="mt-5 rounded-inset bg-subtle p-4 text-body">
+              Open the invitation link from the person who invited you. Already registered?{' '}
+              <Link className={textLink} to={signInPath}>Sign in</Link>.
+            </p>
+          )}
+          <form id="account-form" onSubmit={(event) => void submit(event)} className="mt-7 grid gap-5" aria-busy={busy}>
+            <div>
+              <label htmlFor="username" className="text-label font-semibold">Username</label>
+              <input id="username" className={`${inputStyle} mt-2 block`} name="username" autoComplete="username"
+                autoCapitalize="none" spellCheck={false} required minLength={3} maxLength={32}
+                value={username} onChange={(event) => setUsername(event.target.value)}
+                aria-describedby={register ? 'username-help' : undefined} />
+              {register && <span id="username-help" className="mt-1 block text-support text-muted">3–32 letters, numbers, underscores or hyphens.</span>}
+            </div>
+            <div>
+              <label htmlFor={passwordId} className="text-label font-semibold">Password</label>
+              <div className="relative mt-2">
+                <input id={passwordId} className={`${inputStyle} block pr-[56px]`} name="password" type={show ? 'text' : 'password'}
+                  required minLength={6} autoComplete={register ? 'new-password' : 'current-password'} value={password}
+                  onChange={(event) => { setPassword(event.target.value); clearPasswordMismatch(); }} aria-describedby={register ? 'password-help' : undefined} />
+                <button type="button" aria-label={show ? 'Hide password' : 'Show password'}
+                  aria-controls={passwordId} onClick={() => setShow(!show)}
+                  className="pressable absolute inset-y-0 right-0 inline-flex min-h-12 w-[48px] items-center justify-center rounded-control text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+                  {show ? <EyeOff aria-hidden="true" size={20} /> : <Eye aria-hidden="true" size={20} />}
+                </button>
+              </div>
+              {register && <span id="password-help" className="mt-1 block text-support text-muted">6–64 characters. Spaces are welcome.</span>}
+            </div>
+            {register && <>
+              <div>
+                <label htmlFor="confirm-password" className="text-label font-semibold">Confirm password</label>
+                <div className="relative mt-2">
+                  <input id="confirm-password" className={`${inputStyle} block pr-[56px]`} name="passwordConfirmation"
+                    type={showConfirmation ? 'text' : 'password'} autoComplete="new-password" required minLength={6}
+                    value={passwordConfirmation}
+                    onChange={(event) => { setPasswordConfirmation(event.target.value); clearPasswordMismatch(); }}
+                    aria-invalid={confirmationMismatch || undefined} aria-describedby={confirmationMismatch ? 'account-error' : undefined} />
+                  <button type="button" aria-label={showConfirmation ? 'Hide confirmation password' : 'Show confirmation password'}
+                    aria-controls="confirm-password" onClick={() => setShowConfirmation(!showConfirmation)}
+                    className="pressable absolute inset-y-0 right-0 inline-flex min-h-12 w-[48px] items-center justify-center rounded-control text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+                    {showConfirmation ? <EyeOff aria-hidden="true" size={20} /> : <Eye aria-hidden="true" size={20} />}
+                  </button>
+                </div>
+              </div>
+              <label className="flex min-h-12 items-start gap-3 text-body"><input className="mt-1 size-5 shrink-0 accent-accent" type="checkbox" required checked={adult} onChange={(event) => setAdult(event.target.checked)} />I’m at least 18 years old.</label>
+              <label className="flex min-h-12 items-start gap-3 text-body"><input className="mt-1 size-5 shrink-0 accent-accent" type="checkbox" required checked={privacy} onChange={(event) => setPrivacy(event.target.checked)} /><span>I’ve read the <Link to="/privacy" target="_blank" rel="noreferrer" className={textLink}>privacy notice<span className="sr-only"> (opens in a new tab)</span></Link>.</span></label>
+            </>}
+            {error && <p id="account-error" ref={errorRef} tabIndex={-1} role="alert" className="rounded-inset bg-highlight-soft p-4 text-support text-ink focus-visible:outline-2 focus-visible:outline-accent">{error}</p>}
+            <button className={`${primaryButton} w-full`} type="submit" disabled={busy || needsInvitation}>
+              {actionLabel}
+            </button>
+          </form>
+          <p className="mt-6 text-center text-support text-muted">
+            {register ? <>Already registered? <Link to={signInPath} className={textLink}>Sign in</Link>.</> : <>Forgot your password? <SupportLink>Contact support</SupportLink>.</>}
+          </p>
+        </div>
+        <div className="flex justify-center">
+          <PolicyLinks newTab={register} />
+        </div>
       </section>
     </Screen>
   );

@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { historySet, natureSet } from '../test/fixtures';
 import { renderApp, stubFetch } from '../test/renderApp';
@@ -8,6 +8,25 @@ describe('App', () => {
     stubFetch(404);
     renderApp('/i');
     expect(screen.getByRole('textbox', { name: /^Username/ })).toBeDefined();
+  });
+
+  it('clears signup passwords and mismatch feedback when switching to sign-in', async () => {
+    window.history.replaceState({}, '', '/i#viewtest');
+    stubFetch(200, [historySet, natureSet]);
+    renderApp('/i');
+    fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'student' } });
+    const password = crypto.randomUUID();
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: password } });
+    fireEvent.change(screen.getByLabelText('Confirm password'), { target: { value: password + 'x' } });
+    fireEvent.click(screen.getByRole('checkbox', { name: /at least 18/ }));
+    fireEvent.click(screen.getByRole('checkbox', { name: /privacy notice/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
+    expect((await screen.findByRole('alert')).textContent).toBe('Passwords don’t match.');
+    fireEvent.click(screen.getByRole('link', { name: 'Sign in' }));
+    expect(screen.getByRole('heading', { name: 'Welcome back' })).toBeDefined();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect((screen.getByLabelText('Password') as HTMLInputElement).value).toBe('');
+    expect(screen.queryByLabelText('Confirm password')).toBeNull();
   });
 
   it('leads the home page with the headline and the way into the sets', () => {
@@ -21,6 +40,7 @@ describe('App', () => {
     expect(browseLinks.map((link) => link.getAttribute('href'))).toEqual(['/sets', '/sets']);
     expect(screen.getAllByText('No account needed. Practice isn’t saved.').length).toBeGreaterThan(0);
     expect(screen.queryByText(/free/i)).toBeNull();
+    expect(screen.queryByRole('navigation', { name: 'Help and policies' })).toBeNull();
   });
 
   it('says "review" only in the headline, using practice, set and comes back elsewhere', () => {

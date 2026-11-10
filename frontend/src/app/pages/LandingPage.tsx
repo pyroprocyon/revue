@@ -4,7 +4,6 @@ import { useEffect, useId } from 'react';
 import { Link } from 'react-router';
 import { usePublicContentQueries } from '../../features/catalog/presentation/PublicContentProvider';
 import { chip, primaryButton, textLink } from '../../shared/ui/buttonStyles';
-import { PolicyLinks } from '../../shared/ui/PolicyLinks';
 import { HomeLink, SignInLink } from '../../shared/ui/HeaderLinks';
 import { NextReviewPanel } from '../../features/study/presentation/NextReviewPanel';
 import { ReviewSteps } from '../../features/study/presentation/ReviewSteps';
@@ -56,7 +55,6 @@ export function LandingPage() {
           <ReviewSteps />
         </div>
       </section>
-      <PolicyLinks />
     </Screen>
   );
 }
