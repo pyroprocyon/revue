@@ -7,7 +7,7 @@ type LoadFailedProps = {
   retrying: boolean;
 };
 
-export function LoadFailed({ onRetry, retrying }: LoadFailedProps) {
+export function LoadFailed({ onRetry, retrying }: Readonly<LoadFailedProps>) {
   const retryButton = (
     <ActionRow>
       <button type="button" onClick={onRetry} disabled={retrying} className={secondaryButton}>

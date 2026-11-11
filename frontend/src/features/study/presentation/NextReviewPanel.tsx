@@ -5,7 +5,7 @@ type NextReviewPanelProps = {
 };
 
 /** The coral-tinted "comes back" panel with a small calendar, on the landing page's sample card. */
-export function NextReviewPanel({ label, when, note }: NextReviewPanelProps) {
+export function NextReviewPanel({ label, when, note }: Readonly<NextReviewPanelProps>) {
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-control bg-highlight-soft p-3 lg:gap-6 lg:p-6">
       <div className="min-w-0 flex-[1_1_10rem]">

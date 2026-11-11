@@ -120,17 +120,18 @@ exit "${TEST_EXIT:-0}"
         make = self.bin / "make"
         make.write_text("#!" + sys.executable + "\n" + """from pathlib import Path
 import subprocess
+import sys
 import tempfile
 with tempfile.TemporaryDirectory() as directory:
     subprocess.run(["git", "init", "-q", directory], check=True)
     actual = subprocess.check_output(["git", "-C", directory, "rev-parse", "--show-toplevel"], text=True).strip()
     assert actual == directory, actual
-Path(".git/quality-called").write_text("quality")
+Path(".git/quality-called").write_text(" ".join(sys.argv[1:]))
 """)
         result = self.push(GIT_DIR=str(self.root / ".git"), GIT_WORK_TREE=str(self.root),
                            GIT_INDEX_FILE=str(self.root / ".git/index"))
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual((self.root / ".git/quality-called").read_text(), "quality")
+        self.assertEqual((self.root / ".git/quality-called").read_text(), "quality-local")
 
     def test_new_branch_scans_every_commit_since_remote_main(self):
         first = self.head
@@ -315,7 +316,7 @@ Path(".git/quality-called").write_text("quality")
     def test_clean_head_runs_the_complete_quality_command(self):
         result = self.push()
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual((self.root / ".git/quality-called").read_text(), "quality")
+        self.assertEqual((self.root / ".git/quality-called").read_text(), "quality-local")
 
     def test_dirty_checkout_is_blocked_before_checks(self):
         (self.root / "pending.py").write_text("pending = True\n")

@@ -44,7 +44,7 @@ public class AccountService {
         Username username = new Username(rawUsername);
         PasswordPolicy.validate(password);
         TokenHash invite = PilotInvitation.hash(invitation);
-        try (var permit = admission.enter(username.value())) {
+        try (var _ = admission.enter(username.value())) {
             boolean available = pilotInvitation.isConfigured()
                 ? pilotInvitation.accepts(invite)
                 : accounts.inviteAvailable(invite);
@@ -66,10 +66,10 @@ public class AccountService {
         try {
             username = new Username(rawUsername);
             PasswordPolicy.validateLength(password);
-        } catch (IllegalArgumentException invalid) {
+        } catch (IllegalArgumentException _) {
             throw LoginCommit.rejected();
         }
-        try (var permit = admission.enter(username.value())) {
+        try (var _ = admission.enter(username.value())) {
             var stored = accounts.byUsername(username);
             boolean matches = hasher.matches(password, stored.map(AccountQueries.Credentials::hash).orElse(null));
             if (stored.isEmpty() || !matches) {

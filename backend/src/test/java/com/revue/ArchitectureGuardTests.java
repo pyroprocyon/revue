@@ -27,8 +27,8 @@ class ArchitectureGuardTests {
     @ParameterizedTest
     @MethodSource("invalidDomainDependencies")
     void theNewDomainRejectsFrameworkAndForeignDomainTypes(Class<?> fixture, String forbiddenType) {
-        assertThatThrownBy(() -> ArchitectureTests.checkDomainDependencies(importFixture(fixture)))
-            .isInstanceOf(AssertionError.class)
+        var classes = importFixture(fixture);
+        assertThatThrownBy(() -> ArchitectureTests.checkDomainDependencies(classes)).isInstanceOf(AssertionError.class)
             .hasMessageContaining(forbiddenType);
     }
 
@@ -49,7 +49,8 @@ class ArchitectureGuardTests {
     @ParameterizedTest
     @MethodSource("invalidApplicationDependencies")
     void theNewApplicationRejectsAdaptersTransportAndOtherContexts(Class<?> fixture, String forbiddenType) {
-        assertThatThrownBy(() -> ArchitectureTests.checkApplicationDependencies(importFixture(fixture)))
+        var classes = importFixture(fixture);
+        assertThatThrownBy(() -> ArchitectureTests.checkApplicationDependencies(classes))
             .isInstanceOf(AssertionError.class)
             .hasMessageContaining(forbiddenType);
     }
@@ -79,19 +80,15 @@ class ArchitectureGuardTests {
 
     @Test
     void presentationCannotUseTheSecurityPrincipalDirectly() {
-        assertThatThrownBy(
-            () -> ArchitectureTests
-                .checkAdapterDependencies(importAdapterFixture(ArchitecturePresentationFixtures.SecurityLeak.class)))
-            .isInstanceOf(AssertionError.class)
+        var classes = importAdapterFixture(ArchitecturePresentationFixtures.SecurityLeak.class);
+        assertThatThrownBy(() -> ArchitectureTests.checkAdapterDependencies(classes)).isInstanceOf(AssertionError.class)
             .hasMessageContaining("org.springframework.security.core.Authentication");
     }
 
     @Test
     void infrastructureCannotDependOnPresentation() {
-        assertThatThrownBy(
-            () -> ArchitectureTests.checkAdapterDependencies(
-                importAdapterFixture(ArchitectureInfrastructureFixtures.PresentationLeak.class)))
-            .isInstanceOf(AssertionError.class)
+        var classes = importAdapterFixture(ArchitectureInfrastructureFixtures.PresentationLeak.class);
+        assertThatThrownBy(() -> ArchitectureTests.checkAdapterDependencies(classes)).isInstanceOf(AssertionError.class)
             .hasMessageContaining(ArchitecturePresentationFixtures.UsesApplication.class.getName());
     }
 

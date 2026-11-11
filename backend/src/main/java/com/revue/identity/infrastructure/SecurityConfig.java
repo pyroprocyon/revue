@@ -51,7 +51,7 @@ public class SecurityConfig {
         AccountService accounts,
         CookieCsrfTokenRepository csrf,
         SecurityContextRepository contexts,
-        SessionAuthenticationStrategy sessions) throws Exception {
+        SessionAuthenticationStrategy sessions) {
         var paths = PathPatternRequestMatcher.withDefaults();
         var publicRoutes = new OrRequestMatcher(
             paths.matcher("/actuator/health"),

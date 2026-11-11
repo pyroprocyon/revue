@@ -25,7 +25,7 @@ export const RATINGS: Record<Rating, RatingDetails> = {
 export const RATINGS_IN_ORDER: Rating[] = ['again', 'hard', 'good', 'easy'];
 
 /** A four-quadrant ring fills clockwise as recall gets stronger. */
-export function RecallMeter({ rating }: { rating: Rating }) {
+export function RecallMeter({ rating }: Readonly<{ rating: Rating }>) {
   const { level, meter } = RATINGS[rating];
   return (
     <svg aria-hidden="true" viewBox="0 0 24 24" className="size-6 shrink-0">
@@ -42,7 +42,7 @@ export function RecallMeter({ rating }: { rating: Rating }) {
 }
 
 /** A rating shown, not chosen: the same look as a rating button, without a button's shadow or states. */
-export function RatingTag({ rating }: { rating: Rating }) {
+export function RatingTag({ rating }: Readonly<{ rating: Rating }>) {
   const { label, meaning, tint } = RATINGS[rating];
   return (
     <p className={`inline-flex items-center gap-2 rounded-control px-2 py-1 max-lg:text-label lg:gap-2.5 lg:px-3 lg:py-2 ${tint}`}>

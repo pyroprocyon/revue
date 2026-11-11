@@ -22,7 +22,9 @@ export function LandingPage() {
 
   // Most visitors tap "Browse sets" next, so the list of sets loads now and opens at once.
   useEffect(() => {
-    void queryClient.prefetchQuery(publicSetsQuery);
+    void queryClient.query(publicSetsQuery).catch(() => {
+      // The set list owns error feedback when the visitor opens it.
+    });
   }, [queryClient, publicSetsQuery]);
 
   // Old section links still work on phones, where the inline explanation is now hidden.
@@ -76,7 +78,7 @@ function HeroText() {
         <span className="block">before</span>{' '}
         <span className="block">
           <span className="relative inline-block">
-            it’s
+            {'it’s'}
             <span
               aria-hidden="true"
               className="absolute inset-x-0 -bottom-1.5 h-1.5 rounded-full bg-highlight lg:-bottom-3 lg:h-2.5"
@@ -107,7 +109,7 @@ function LandingActions() {
   );
 }
 
-function AccountActions({ className }: { className: string }) {
+function AccountActions({ className }: Readonly<{ className: string }>) {
   return (
     <nav aria-label="Account" className={`${className} flex-wrap gap-3`}>
       <SignInLink appearance="account" />

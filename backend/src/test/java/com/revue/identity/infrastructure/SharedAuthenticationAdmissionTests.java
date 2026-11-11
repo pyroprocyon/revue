@@ -36,16 +36,15 @@ class SharedAuthenticationAdmissionTests {
         var first = replica();
         var second = replica();
         for (int i = 0; i < 10; i++) {
-            try (var permit = (i % 2 == 0 ? first : second).enter("same-learner")) {
-            }
+            (i % 2 == 0 ? first : second).enter("same-learner").close();
         }
-        assertThatThrownBy(() -> replica().enter("same-learner")).isInstanceOf(AccountProblem.class);
+        var replacement = replica();
+        assertThatThrownBy(() -> replacement.enter("same-learner")).isInstanceOf(AccountProblem.class);
         assertThat(jdbc.queryForObject("SELECT attempts FROM authentication_attempts", Integer.class)).isEqualTo(10);
         assertThat(jdbc.queryForObject("SELECT identifier_hash FROM authentication_attempts", String.class))
             .matches("[0-9a-f]{64}");
         jdbc.update("UPDATE authentication_attempts SET expires_at = clock_timestamp() - interval '1 second'");
-        try (var permit = second.enter("same-learner")) {
-        }
+        second.enter("same-learner").close();
         assertThat(jdbc.queryForObject("SELECT attempts FROM authentication_attempts", Integer.class)).isEqualTo(1);
     }
 

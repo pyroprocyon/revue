@@ -20,8 +20,7 @@ import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 public class OperationsSecurityConfig {
     @Bean
     @Order(1)
-    SecurityFilterChain operationsSecurity(HttpSecurity http, @Value("${revue.operations.token:}") String token)
-        throws Exception {
+    SecurityFilterChain operationsSecurity(HttpSecurity http, @Value("${revue.operations.token:}") String token) {
         if (!token.isEmpty() && token.length() < 32) {
             throw new IllegalArgumentException("Operations token must contain at least 32 characters");
         }

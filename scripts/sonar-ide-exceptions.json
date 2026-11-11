@@ -1,0 +1,32 @@
+[
+  {
+    "path": "backend/src/test/java/com/revue/CapacityBaselineCheck.java",
+    "rule": "java:S3577",
+    "source": "class CapacityBaselineCheck {",
+    "reason": "This load check runs explicitly through make capacity-check. A default Surefire test name would add it to every unit and integration test run."
+  },
+  {
+    "path": "backend/src/test/java/com/revue/RecoveryDrillCheck.java",
+    "rule": "java:S3577",
+    "source": "class RecoveryDrillCheck {",
+    "reason": "This restore drill runs explicitly through make recovery-check. A default Surefire test name would run the extra database restore on every build."
+  },
+  {
+    "path": "frontend/src/index.css",
+    "rule": "css:S9423",
+    "source": "animation: none !important;",
+    "reason": "The reduced-motion media query must override animation utilities, including loading indicators and the flashcard flip."
+  },
+  {
+    "path": "frontend/src/index.css",
+    "rule": "css:S9423",
+    "source": "transition: none !important;",
+    "reason": "The reduced-motion media query must override component and utility transitions regardless of selector specificity."
+  },
+  {
+    "path": "frontend/src/index.css",
+    "rule": "css:S9423",
+    "source": "scroll-behavior: auto !important;",
+    "reason": "The reduced-motion media query must override smooth scrolling utilities on any affected scroll container."
+  }
+]

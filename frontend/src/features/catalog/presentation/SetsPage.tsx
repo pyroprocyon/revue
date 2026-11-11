@@ -73,7 +73,7 @@ export function SetsPage() {
   );
 }
 
-function SetChoice({ publicSet }: { publicSet: PublicSet }) {
+function SetChoice({ publicSet }: Readonly<{ publicSet: PublicSet }>) {
   return (
     <Link
       to={setPath(publicSet.setKey)}

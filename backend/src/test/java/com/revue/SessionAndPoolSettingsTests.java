@@ -65,9 +65,8 @@ class SessionAndPoolSettingsTests {
     void theSessionCookieLastsThirtyDaysAndScriptsCannotReadIt() {
         String cookie = writeSessionCookie(cookieSerializer);
 
-        assertThat(cookie).contains("Max-Age=2592000", "HttpOnly", "SameSite=Lax");
         // Local development runs over plain HTTP, where a Secure cookie would never come back.
-        assertThat(cookie).doesNotContain("Secure");
+        assertThat(cookie).contains("Max-Age=2592000", "HttpOnly", "SameSite=Lax").doesNotContain("Secure");
     }
 
     @Test

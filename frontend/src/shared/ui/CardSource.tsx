@@ -7,7 +7,7 @@ const WEB_ADDRESS = /https:\/\/\S+/;
  * name followed by a web address. The address becomes a link on the name, so a long address
  * never stretches the card. The link opens a new tab, so the student keeps their place.
  */
-export function CardSource({ source }: { source: string }) {
+export function CardSource({ source }: Readonly<{ source: string }>) {
   const address = WEB_ADDRESS.exec(source)?.[0];
   const name = address === undefined ? source : source.replace(address, '').trim().replace(/:$/, '');
   return (

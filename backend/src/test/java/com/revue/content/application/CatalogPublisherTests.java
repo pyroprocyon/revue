@@ -43,8 +43,11 @@ class CatalogPublisherTests {
         assertThat(publisher.publish(2, DIGEST, source("Published"))).isTrue();
         var updated = jdbc.queryForObject("SELECT updated_at FROM sets WHERE set_key = 'publisher-test'", Object.class);
         assertThat(publisher.publish(2, DIGEST, source("Published"))).isFalse();
-        assertThatThrownBy(() -> publisher.publish(1, DIGEST, source("Old"))).isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> publisher.publish(2, "b".repeat(64), source("Changed")))
+        var oldContent = source("Old");
+        assertThatThrownBy(() -> publisher.publish(1, DIGEST, oldContent)).isInstanceOf(IllegalStateException.class);
+        var changedContent = source("Changed");
+        var changedDigest = "b".repeat(64);
+        assertThatThrownBy(() -> publisher.publish(2, changedDigest, changedContent))
             .isInstanceOf(IllegalStateException.class);
         assertThat(jdbc.queryForObject("SELECT updated_at FROM sets WHERE set_key = 'publisher-test'", Object.class))
             .isEqualTo(updated);
@@ -54,7 +57,9 @@ class CatalogPublisherTests {
     void failedPublicationRollsBackContentAndRevision() {
         publisher.publish(1, DIGEST, source("Published"));
         var invalid = new SetDefinition("invalid", "invalid", "", "", "", "", List.of());
-        assertThatThrownBy(() -> publisher.publish(2, "b".repeat(64), List.of(source("Changed").getFirst(), invalid)))
+        var changedContent = List.of(source("Changed").getFirst(), invalid);
+        var changedDigest = "b".repeat(64);
+        assertThatThrownBy(() -> publisher.publish(2, changedDigest, changedContent))
             .isInstanceOf(InvalidContentException.class);
         assertThat(jdbc.queryForObject("SELECT revision FROM catalog_publication", Long.class)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT title FROM sets WHERE set_key = 'publisher-test'", String.class))
@@ -88,7 +93,9 @@ class CatalogPublisherTests {
             "Publisher",
             "Subject",
             source("Original").getFirst().cards());
-        assertThatThrownBy(() -> publisher.publish(2, "b".repeat(64), List.of(fresh, moved)))
+        var changedContent = List.of(fresh, moved);
+        var changedDigest = "b".repeat(64);
+        assertThatThrownBy(() -> publisher.publish(2, changedDigest, changedContent))
             .isInstanceOf(InvalidContentException.class);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM sets WHERE set_key = 'new-publisher-set'", Integer.class))
             .isZero();

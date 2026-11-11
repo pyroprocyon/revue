@@ -43,7 +43,7 @@ public class BoundedAuthenticationAdmission implements AuthenticationAdmission {
                     operations.release();
                 }
             };
-        } catch (DataAccessException | CannotCreateTransactionException ex) {
+        } catch (DataAccessException | CannotCreateTransactionException _) {
             operations.release();
             throw rejected("store_unavailable");
         } catch (RuntimeException ex) {

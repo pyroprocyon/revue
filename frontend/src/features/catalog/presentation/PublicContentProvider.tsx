@@ -4,7 +4,7 @@ import { publicContentQueries } from '../application/publicContentQueries';
 
 const ReaderContext = createContext<PublicContentReader | null>(null);
 
-export function PublicContentProvider({ reader, children }: { reader: PublicContentReader; children: ReactNode }) {
+export function PublicContentProvider({ reader, children }: Readonly<{ reader: PublicContentReader; children: ReactNode }>) {
   return <ReaderContext value={reader}>{children}</ReaderContext>;
 }
 

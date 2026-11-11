@@ -41,7 +41,7 @@ class FlywayMigrationTests {
                 + "IS NOT NULL ORDER BY installed_rank");
 
         assertThat(applied).extracting(row -> row.get("version")).contains("1");
-        assertThat(applied).allSatisfy(row -> assertThat(row.get("success")).isEqualTo(true));
+        assertThat(applied).allSatisfy(row -> assertThat(row).containsEntry("success", true));
     }
 
     @Test

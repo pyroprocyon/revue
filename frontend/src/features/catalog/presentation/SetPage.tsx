@@ -47,14 +47,16 @@ export function SetPage() {
   return <SetDetails publicSet={publicSet.data} />;
 }
 
-function SetDetails({ publicSet }: { publicSet: PublicSet }) {
+function SetDetails({ publicSet }: Readonly<{ publicSet: PublicSet }>) {
   const { trialCardsQuery } = usePublicContentQueries();
   const queryClient = useQueryClient();
 
   // Visitors usually try the cards next, so load them now and the trial opens without waiting.
   useEffect(() => {
     if (publicSet.trialAvailable) {
-      void queryClient.prefetchQuery(trialCardsQuery(publicSet.setKey));
+      void queryClient.query(trialCardsQuery(publicSet.setKey)).catch(() => {
+        // The trial owns error feedback when the visitor opens it.
+      });
     }
   }, [queryClient, publicSet.setKey, publicSet.trialAvailable, trialCardsQuery]);
 
@@ -87,7 +89,7 @@ function SetDetails({ publicSet }: { publicSet: PublicSet }) {
   );
 }
 
-function TrialAction({ publicSet }: { publicSet: PublicSet }) {
+function TrialAction({ publicSet }: Readonly<{ publicSet: PublicSet }>) {
   const className = `${primaryButton} w-full sm:w-auto lg:min-h-14 lg:gap-3 lg:px-6 lg:text-lg`;
   if (!publicSet.trialAvailable) {
     return (

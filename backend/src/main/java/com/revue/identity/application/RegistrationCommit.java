@@ -39,7 +39,7 @@ public class RegistrationCommit {
         if (invite != null) {
             try {
                 invite = invite.redeem(account.id(), now);
-            } catch (IllegalStateException unavailable) {
+            } catch (IllegalStateException _) {
                 throw new RegistrationUnavailableException();
             }
         }

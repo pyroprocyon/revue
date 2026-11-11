@@ -64,12 +64,11 @@ class ContentLoaderTests {
         assertThat(result.setsAdded()).isEqualTo(1);
         assertThat(result.cardsAdded()).isEqualTo(3);
         Map<String, Object> set = setRow("first-load");
-        assertThat(set.get("title")).isEqualTo("First Load");
-        assertThat(set.get("publisher_name")).isEqualTo("Revue");
+        assertThat(set).containsEntry("title", "First Load").containsEntry("publisher_name", "Revue");
         assertThat(set.get("retired_at")).isNull();
         assertThat(cardKeysInOrder("first-load")).containsExactly("first-load-a", "first-load-b", "first-load-c");
         Map<String, Object> cardA = cardRow("first-load-a");
-        assertThat(cardA.get("content_version")).isEqualTo(1);
+        assertThat(cardA).containsEntry("content_version", 1);
         assertThat(keyIdeas("first-load-a")).containsExactly("First idea", "Second idea");
     }
 
@@ -84,9 +83,9 @@ class ContentLoaderTests {
         ContentLoader.Result second = loader.load(files);
 
         assertThat(second.changedNothing()).isTrue();
-        assertThat(setRow("same-twice").get("updated_at")).isEqualTo(setUpdated);
-        assertThat(cardRow("same-twice-a").get("updated_at")).isEqualTo(cardUpdated);
-        assertThat(cardRow("same-twice-a").get("content_version")).isEqualTo(1);
+        assertThat(setRow("same-twice")).containsEntry("updated_at", setUpdated);
+        assertThat(cardRow("same-twice-a")).containsEntry("updated_at", cardUpdated)
+            .containsEntry("content_version", 1);
     }
 
     @ParameterizedTest
@@ -133,9 +132,9 @@ class ContentLoaderTests {
 
         assertThat(result.cardsChanged()).isEqualTo(1);
         assertThat(cardId("wording-b")).isEqualTo(idBefore);
-        assertThat(cardRow("wording-b").get("explanation")).isEqualTo("A clearer explanation.");
-        assertThat(cardRow("wording-b").get("content_version")).isEqualTo(2);
-        assertThat(cardRow("wording-a").get("content_version")).isEqualTo(1);
+        assertThat(cardRow("wording-b")).containsEntry("explanation", "A clearer explanation.")
+            .containsEntry("content_version", 2);
+        assertThat(cardRow("wording-a")).containsEntry("content_version", 1);
     }
 
     /**
@@ -160,7 +159,7 @@ class ContentLoaderTests {
 
         assertThat(result.cardsChanged()).isEqualTo(1);
         assertThat(cardId(key)).isEqualTo(idBefore);
-        assertThat(cardRow(key).get("content_version")).isEqualTo(2);
+        assertThat(cardRow(key)).containsEntry("content_version", 2);
         Object saved = column.equals("key_ideas") ? keyIdeas(key) : cardRow(key).get(column);
         assertThat(saved).isEqualTo(expected);
     }
@@ -274,7 +273,7 @@ class ContentLoaderTests {
 
         Map<String, Object> saved = cardRow("plain-card");
         assertThat(saved.get("explanation")).isNull();
-        assertThat(saved.get("source")).isEqualTo("Class notes, page 1.");
+        assertThat(saved).containsEntry("source", "Class notes, page 1.");
         assertThat(keyIdeas("plain-card")).isEmpty();
 
         CardDefinition withNote = edit(
@@ -286,12 +285,12 @@ class ContentLoaderTests {
             null,
             plain.source());
         loader.load(List.of(set("plain-card-set", "Plain", withNote)));
-        assertThat(cardRow("plain-card").get("explanation")).isEqualTo("A short note.");
-        assertThat(cardRow("plain-card").get("content_version")).isEqualTo(2);
+        assertThat(cardRow("plain-card")).containsEntry("explanation", "A short note.")
+            .containsEntry("content_version", 2);
 
         loader.load(List.of(set("plain-card-set", "Plain", plain)));
         assertThat(cardRow("plain-card").get("explanation")).isNull();
-        assertThat(cardRow("plain-card").get("content_version")).isEqualTo(3);
+        assertThat(cardRow("plain-card")).containsEntry("content_version", 3);
     }
 
     @Test
@@ -302,7 +301,7 @@ class ContentLoaderTests {
         loader.load(List.of(set("fix-hook-removed-set", "Fix", withHook(original, null))));
 
         assertThat(cardRow("fix-hook-removed").get("memory_hook")).isNull();
-        assertThat(cardRow("fix-hook-removed").get("content_version")).isEqualTo(2);
+        assertThat(cardRow("fix-hook-removed")).containsEntry("content_version", 2);
     }
 
     @Test
@@ -319,7 +318,7 @@ class ContentLoaderTests {
         assertThat(again.changedNothing()).isTrue();
         assertThat(activeCardKeysInOrder("order")).containsExactly("order-c", "order-b");
         assertThat(cardRow("order-a").get("retired_at")).isNotNull();
-        assertThat(cardRow("order-b").get("content_version")).isEqualTo(1);
+        assertThat(cardRow("order-b")).containsEntry("content_version", 1);
     }
 
     @Test
@@ -370,7 +369,7 @@ class ContentLoaderTests {
         loader.load(List.of(set("renamed", "New Title", card("renamed-a", "Question A?"))));
 
         assertThat(setId("renamed")).isEqualTo(idBefore);
-        assertThat(setRow("renamed").get("title")).isEqualTo("New Title");
+        assertThat(setRow("renamed")).containsEntry("title", "New Title");
     }
 
     @Test
@@ -380,7 +379,8 @@ class ContentLoaderTests {
 
         SetDefinition from = set("move-from", "From", card("move-b", "Question B?"));
         SetDefinition to = set("move-to", "To", moving);
-        assertThatExceptionOfType(InvalidContentException.class).isThrownBy(() -> loader.load(List.of(from, to)))
+        var movedContent = List.of(from, to);
+        assertThatExceptionOfType(InvalidContentException.class).isThrownBy(() -> loader.load(movedContent))
             .satisfies(
                 ex -> assertThat(ex.problems())
                     .anySatisfy(problem -> assertThat(problem).contains("key belongs to set move-from")));
@@ -402,11 +402,11 @@ class ContentLoaderTests {
             a.memoryHook(),
             a.source());
 
-        assertThatExceptionOfType(InvalidContentException.class)
-            .isThrownBy(() -> loader.load(List.of(set("broken", "Broken", threeIdeas))));
+        var brokenContent = List.of(set("broken", "Broken", threeIdeas));
+        assertThatExceptionOfType(InvalidContentException.class).isThrownBy(() -> loader.load(brokenContent));
 
-        assertThat(cardRow("broken-a").get("answer")).isEqualTo("Answer for broken-a.");
-        assertThat(cardRow("broken-a").get("content_version")).isEqualTo(1);
+        assertThat(cardRow("broken-a")).containsEntry("answer", "Answer for broken-a.")
+            .containsEntry("content_version", 1);
     }
 
     @Test
@@ -422,16 +422,16 @@ class ContentLoaderTests {
             null,
             null);
 
-        assertThatExceptionOfType(InvalidContentException.class)
-            .isThrownBy(() -> loader.load(List.of(set("source-required-set", "Changed Set", unsourced))))
+        var unsourcedContent = List.of(set("source-required-set", "Changed Set", unsourced));
+        assertThatExceptionOfType(InvalidContentException.class).isThrownBy(() -> loader.load(unsourcedContent))
             .satisfies(
                 ex -> assertThat(ex.problems())
                     .anySatisfy(problem -> assertThat(problem).contains("source is missing")));
 
-        assertThat(cardRow(original.key()).get("answer")).isEqualTo(original.answer());
-        assertThat(cardRow(original.key()).get("source")).isEqualTo(original.source());
-        assertThat(cardRow(original.key()).get("content_version")).isEqualTo(1);
-        assertThat(setRow("source-required-set").get("title")).isEqualTo("Existing Set");
+        assertThat(cardRow(original.key())).containsEntry("answer", original.answer())
+            .containsEntry("source", original.source())
+            .containsEntry("content_version", 1);
+        assertThat(setRow("source-required-set")).containsEntry("title", "Existing Set");
     }
 
     @Test
