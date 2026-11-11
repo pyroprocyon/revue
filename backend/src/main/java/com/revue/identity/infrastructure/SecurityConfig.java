@@ -33,7 +33,7 @@ import org.springframework.security.web.util.matcher.OrRequestMatcher;
  * route, and the built assets. The React app then asks the API what the visitor may see. Keep every server route under
  * {@code /api}, because anything outside it is public.
  *
- * <p>Email sign-in, sessions and CSRF protection are added here with the sign-in work.
+ * <p>Invited username/password sign-in uses JDBC sessions and CSRF protection. Email sign-in is not enabled.
  */
 @Configuration(proxyBeanMethods = false)
 public class SecurityConfig {
@@ -48,6 +48,8 @@ public class SecurityConfig {
         var paths = PathPatternRequestMatcher.withDefaults();
         var publicRoutes = new OrRequestMatcher(
             paths.matcher("/actuator/health"),
+            paths.matcher("/actuator/health/liveness"),
+            paths.matcher("/actuator/health/readiness"),
             paths.matcher(HttpMethod.GET, "/api/v1/public-sets"),
             paths.matcher(HttpMethod.GET, "/api/v1/public-sets/*"),
             paths.matcher(HttpMethod.GET, "/api/v1/public-sets/*/demo-cards"),
@@ -59,7 +61,9 @@ public class SecurityConfig {
         http.authorizeHttpRequests(
             requests -> requests.requestMatchers(publicRoutes)
                 .permitAll()
-                .requestMatchers("/api/**", "/actuator/**")
+                .requestMatchers("/actuator/**")
+                .denyAll()
+                .requestMatchers("/api/**")
                 .hasAuthority("LEARNER")
                 .anyRequest()
                 .permitAll())

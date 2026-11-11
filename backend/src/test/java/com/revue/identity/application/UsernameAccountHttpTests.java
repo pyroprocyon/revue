@@ -12,9 +12,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 import com.revue.TestcontainersConfiguration;
+import com.zaxxer.hikari.HikariDataSource;
+import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.servlet.http.Cookie;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.sql.Connection;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.HexFormat;
@@ -52,6 +56,10 @@ class UsernameAccountHttpTests {
     AccountSession session;
     @Autowired
     AuthenticationAdmission admission;
+    @Autowired
+    HikariDataSource pool;
+    @Autowired
+    MeterRegistry metrics;
 
     @ParameterizedTest
     @ValueSource(ints = {6, 16})
@@ -219,6 +227,30 @@ class UsernameAccountHttpTests {
             reset(session);
         }
         assertThat(browser.send(get("/api/v1/me")).getResponse().getStatus()).isEqualTo(401);
+    }
+
+    @Test
+    void unavailableAdmissionStorageReturnsRetryFeedbackAndReleasesItsPermit() throws Exception {
+        Browser browser = new Browser();
+        browser.csrf();
+        var unavailable = metrics.counter("revue.authentication.admission", "result", "store_unavailable");
+        double before = unavailable.count();
+        var held = new ArrayList<Connection>();
+        String name = username();
+        try {
+            for (int i = 0; i < pool.getMaximumPoolSize(); i++) {
+                held.add(pool.getConnection());
+            }
+            var rejected = browser.send(login(name, "kanjii")).getResponse();
+            assertThat(rejected.getStatus()).isEqualTo(429);
+            assertThat(rejected.getHeader("Retry-After")).isEqualTo("60");
+            assertThat(unavailable.count()).isEqualTo(before + 1);
+        } finally {
+            for (var connection : held) {
+                connection.close();
+            }
+        }
+        assertThat(browser.send(login(name, "kanjii")).getResponse().getStatus()).isEqualTo(401);
     }
 
     @Test

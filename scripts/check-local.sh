@@ -21,12 +21,12 @@ html=$(curl --fail --silent --show-error --max-time 10 "$frontend_url/")
   || fail 'The frontend did not return the React entry page.'
 entry=$(curl --fail --silent --show-error --max-time 10 "$frontend_url/src/main.tsx")
 [[ "$entry" == *'createRoot'* ]] || fail 'The frontend entry module did not load.'
-health=$(curl --fail --silent --show-error --max-time 10 "$frontend_url/actuator/health")
+health=$(curl --fail --silent --show-error --max-time 10 "$frontend_url/actuator/health/readiness")
 [[ "$health" == '{"status":"UP"}' ]] || fail 'Backend health failed through the frontend proxy.'
 status=$(status_of "$frontend_url/api/v1/me")
 [[ "$status" == 401 ]] || fail "Protected API returned $status instead of 401 through the proxy."
 # The public sets work signed out, and there is more than one with a five-card trial. The app
-# loads the set files just after it reports healthy, so a fresh database may need a moment.
+# receives content from the one-off publisher before the serving instance starts.
 for attempt in 1 2 3 4 5 6; do
   # A failed request or a list without trial sets is retried, so neither may stop the script here.
   sets=$(curl --fail --silent --show-error --max-time 10 "$frontend_url/api/v1/public-sets" || true)
