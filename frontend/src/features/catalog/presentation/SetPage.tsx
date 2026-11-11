@@ -40,7 +40,7 @@ export function SetPage() {
     );
     return (
       <MessageScreen title="This set isn't available right now." action={allSetsButton}>
-        <p>Please check again later, or choose another set.</p>
+        <p>Check back later.</p>
       </MessageScreen>
     );
   }
@@ -59,7 +59,7 @@ function SetDetails({ publicSet }: { publicSet: PublicSet }) {
   }, [queryClient, publicSet.setKey, publicSet.trialAvailable, demoCardsQuery]);
 
   const actions = (
-    <div className="grid gap-3">
+    <div className="grid gap-3 lg:flex lg:flex-wrap lg:items-start lg:justify-between lg:gap-4">
       <TrialAction publicSet={publicSet} />
       <ShareLinks title={publicSet.title} path={setSharePath(publicSet.shareCode)} />
     </div>
@@ -71,25 +71,28 @@ function SetDetails({ publicSet }: { publicSet: PublicSet }) {
     </>
   );
   return (
-    <Screen top={top} actions={actions}>
-      <article className="mt-2 flex flex-col rounded-card bg-surface p-4 shadow-card sm:p-6">
-        <p className={`${chip} self-start`}>Shared set</p>
-        <h1 className="mt-3 text-title font-extrabold tracking-tight text-balance">{publicSet.title}</h1>
-        <p className="mt-2 text-body text-muted">{publicSet.description}</p>
-        <FactLine
-          facts={[`Published by ${publicSet.publisherName}`, 'Not yet checked', cardCountLabel(publicSet.cardCount)]}
-          className="pt-6 text-support font-medium"
-        />
-      </article>
-    </Screen>
+    <div className="lg:[--container-page:46rem]">
+      <Screen top={top} actions={actions}>
+        <article className="mt-2 flex flex-col rounded-card bg-surface p-4 shadow-card sm:p-6 lg:mt-8 lg:p-8">
+          <p className={`${chip} self-start`}>Shared set</p>
+          <h1 className="mt-3 text-title font-extrabold tracking-tight text-balance lg:text-title-lg">{publicSet.title}</h1>
+          <p className="mt-2 text-body text-muted lg:mt-3 lg:max-w-[54ch] lg:text-lg">{publicSet.description}</p>
+          <FactLine
+            facts={[`Published by ${publicSet.publisherName}`, 'Not yet checked', cardCountLabel(publicSet.cardCount)]}
+            className="pt-6 text-support font-medium lg:mt-6 lg:border-t lg:border-line lg:pt-4 lg:text-muted"
+          />
+        </article>
+      </Screen>
+    </div>
   );
 }
 
 function TrialAction({ publicSet }: { publicSet: PublicSet }) {
+  const className = `${primaryButton} w-full sm:w-auto lg:min-h-14 lg:gap-3 lg:px-6 lg:text-lg`;
   if (!publicSet.trialAvailable) {
     return (
       <div>
-        <button type="button" disabled className={`${primaryButton} w-full sm:w-auto`}>
+        <button type="button" disabled className={className}>
           Try 5 cards
         </button>
         <p className="mt-2 text-support text-muted">
@@ -100,11 +103,10 @@ function TrialAction({ publicSet }: { publicSet: PublicSet }) {
   }
   return (
     <div>
-      <Link to={trialPath(publicSet.setKey)} className={`${primaryButton} w-full sm:w-auto`}>
+      <Link to={trialPath(publicSet.setKey)} className={className}>
         Try 5 cards
         <ArrowRight aria-hidden="true" size={20} strokeWidth={2} />
       </Link>
-      <p className="mt-2 text-support text-muted">This practice isn’t saved.</p>
     </div>
   );
 }

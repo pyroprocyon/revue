@@ -7,11 +7,11 @@ type NextReviewPanelProps = {
 /** The coral-tinted "comes back" panel with a small calendar, on the landing page's sample card. */
 export function NextReviewPanel({ label, when, note }: NextReviewPanelProps) {
   return (
-    <div className="flex flex-wrap items-center gap-4 rounded-control bg-highlight-soft p-4 lg:gap-6 lg:p-6">
+    <div className="flex flex-wrap items-center gap-2 rounded-control bg-highlight-soft p-3 lg:gap-6 lg:p-6">
       <div className="min-w-0 flex-[1_1_10rem]">
-        <p className="text-label font-bold lg:text-[1.1875rem]">{label}</p>
-        <p className="text-[1.625rem] leading-tight font-extrabold tracking-[-0.01em] lg:text-[2.125rem]">{when}</p>
-        <p className="text-support text-muted lg:text-[1.0625rem]">{note}</p>
+        <p className="text-[0.8125rem] font-bold max-lg:leading-tight lg:text-[1.1875rem]">{label}</p>
+        <p className="text-section leading-tight font-extrabold tracking-[-0.01em] lg:text-[2.125rem]">{when}</p>
+        <p className="text-[0.8125rem] text-muted max-lg:leading-tight lg:text-[1.0625rem]">{note}</p>
       </div>
       <CalendarArt />
     </div>
@@ -27,7 +27,7 @@ const CALENDAR_DAYS = Array.from({ length: 12 }, (_, day) => ({
 
 function CalendarArt() {
   return (
-    <svg aria-hidden="true" viewBox="0 0 88 80" fill="none" className="h-14 w-16 shrink-0 lg:h-20 lg:w-22">
+    <svg aria-hidden="true" viewBox="0 0 88 80" fill="none" className="h-10 w-11 shrink-0 lg:h-20 lg:w-22">
       <rect x="3" y="9" width="82" height="68" rx="10" className="fill-surface stroke-ink" strokeWidth="3" />
       <path d="M3 25h82M24 3v12M64 3v12" className="stroke-ink" strokeWidth="3" strokeLinecap="round" />
       {CALENDAR_DAYS.map((day) => (

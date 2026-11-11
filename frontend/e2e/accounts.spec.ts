@@ -130,26 +130,39 @@ test('two browsers keep separate accounts and a duplicate username leaves its in
   } finally { await otherContext.close(); }
 });
 
-test('the landing footer is removed and other public pages retain support without account cookies', async ({ page, context }) => {
+test('public account and policy pages keep one contact route without account cookies', async ({ page, context }) => {
   for (const width of [360, 1280]) {
     await page.setViewportSize({ width, height: 800 });
     await page.goto('/');
     await expect(page.getByRole('navigation', { name: 'Help and policies' })).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Sign in', exact: true })).toBeVisible();
-    for (const route of ['/sign-in', '/privacy', '/terms']) {
+    for (const route of ['/sign-in', '/register', '/privacy', '/terms']) {
       await page.goto(route);
-      const support = page.getByRole('navigation', { name: 'Help and policies' }).getByRole('link', { name: 'Support' });
-      await expect(support).toHaveAttribute('href', 'mailto:revuetayo@gmail.com');
+      const support = route === '/privacy'
+        ? page.getByRole('link', { name: 'Contact us', exact: true })
+        : page.locator('a[href="mailto:revuetayo@gmail.com"]');
+      await expect(support).toHaveCount(1);
+      await expect(support).toHaveAttribute('href', route === '/privacy' ? '/terms#help-and-corrections' : 'mailto:revuetayo@gmail.com');
       await expect(support).toBeVisible();
       const size = await page.evaluate(() => ({ width: innerWidth, content: document.documentElement.scrollWidth }));
       expect(size.content).toBeLessThanOrEqual(size.width);
+      if (route === '/privacy') {
+        await support.click();
+        await expect(page).toHaveURL(/\/terms#help-and-corrections$/);
+        await expect(page.locator('#help-and-corrections')).toBeInViewport();
+      }
+      if (route === '/privacy' || route === '/terms') {
+        await page.getByRole('link', { name: 'Back to sign in', exact: true }).click();
+        await expect(page).toHaveURL(/\/sign-in$/);
+        await expect(page.getByRole('heading', { name: 'Welcome back', exact: true })).toBeVisible();
+      }
     }
   }
   expect(await context.cookies()).toHaveLength(0);
 });
 
 
-test('keyboard users can reach and scroll the privacy notice on a phone layout', async ({ page }) => {
+test('privacy details and contact remain reachable with a keyboard and enlarged text', async ({ page }) => {
   await page.goto('/privacy');
   const details = page.locator('details');
   await expect(details).not.toHaveAttribute('open');
@@ -164,6 +177,11 @@ test('keyboard users can reach and scroll the privacy notice on a phone layout',
   const before = await content.evaluate(element => element.scrollTop);
   await page.keyboard.press('PageDown');
   await expect.poll(() => content.evaluate(element => element.scrollTop)).toBeGreaterThan(before);
+  await page.setViewportSize({ width: 320, height: 800 });
+  await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
+  await page.getByRole('link', { name: 'Contact us', exact: true }).click();
+  await expect(page).toHaveURL(/\/terms#help-and-corrections$/);
+  await expect(page.locator('#help-and-corrections')).toBeInViewport();
 });
 
 

@@ -38,7 +38,7 @@ export function AccountPage() {
   return <Screen top={<HomeLink />} actions={<Link to={SETS_PATH} className={`${primaryButton} w-full`}>Browse sets</Link>}>
     <section className="pt-6">
       <h1 className="text-title font-extrabold tracking-tight">{profile ? `You’re signed in, ${profile.username}` : 'Your account'}</h1>
-      {profile && <><p className="mt-4 text-body text-muted">Your account is ready. Saving sets and study progress is coming next.</p>
+      {profile && <><p className="mt-4 text-body text-muted">Saving sets and study progress is planned.</p>
         <button type="button" className={`${secondaryButton} mt-6`} disabled={busy} onClick={() => void signOut()}>{busy ? 'Signing out…' : 'Sign out'}</button></>}
       {error && <p role="alert" className="mt-4 text-body">{error}</p>}
     </section>

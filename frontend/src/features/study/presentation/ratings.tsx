@@ -45,7 +45,7 @@ export function RecallMeter({ rating }: { rating: Rating }) {
 export function RatingTag({ rating }: { rating: Rating }) {
   const { label, meaning, tint } = RATINGS[rating];
   return (
-    <p className={`inline-flex items-center gap-2.5 rounded-control px-3 py-2 ${tint}`}>
+    <p className={`inline-flex items-center gap-2 rounded-control px-2 py-1 max-lg:text-label lg:gap-2.5 lg:px-3 lg:py-2 ${tint}`}>
       <RecallMeter rating={rating} />
       <span>
         <span className="sr-only">Rated </span>

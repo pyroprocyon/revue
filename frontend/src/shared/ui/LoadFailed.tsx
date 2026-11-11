@@ -17,7 +17,7 @@ export function LoadFailed({ onRetry, retrying }: LoadFailedProps) {
   );
   return (
     <MessageScreen title="We couldn't load this page." action={retryButton}>
-      <p>Check your connection, then try again.</p>
+      <p>Check your connection.</p>
     </MessageScreen>
   );
 }

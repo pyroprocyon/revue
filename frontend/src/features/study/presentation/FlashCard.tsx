@@ -1,3 +1,4 @@
+import { Lightbulb } from 'lucide-react';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import type { DemoCard } from '../../catalog/application/publicContent';
 import { primaryButton } from '../../../shared/ui/buttonStyles';
@@ -48,9 +49,15 @@ export function FlashCard({ card, publisherName, onRate }: FlashCardProps) {
           footer={
             <div>
               {!answerShown && (
-                <p id={recallHintId} className="mb-3 text-support text-muted">
-                  Try answering in your head before you check.
-                </p>
+                <div id={recallHintId} className="mb-3 flex items-start gap-3 rounded-control bg-highlight-soft/60 p-3 text-left sm:p-4">
+                  <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-inset bg-surface/80 text-accent">
+                    <Lightbulb className="size-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-label font-semibold">Try to remember</p>
+                    <p className="mt-0.5 text-support text-pretty text-muted">Even a few words are a good start.</p>
+                  </div>
+                </div>
               )}
               <button
                 type="button"
@@ -139,10 +146,10 @@ function RatingButtons({ onRate }: { onRate: (rating: Rating) => void }) {
   return (
     <div role="group" aria-labelledby={promptId} className="@container text-left">
       <p id={promptId} className="text-label font-semibold">
-        How well did you remember?
+        Rate your answer
       </p>
-      {/* Two columns once two 9rem buttons fit, so the four ratings always read as a 2 by 2 grid. */}
-      <div className="mt-2 grid auto-rows-fr grid-cols-1 gap-2 @min-[18.5rem]:grid-cols-2">
+      {/* Two columns when two 8.75rem buttons and the gap fit inside the card. */}
+      <div className="mt-2 grid auto-rows-fr grid-cols-1 gap-2 @min-[18rem]:grid-cols-2">
         {RATINGS_IN_ORDER.map((rating) => (
           <button
             key={rating}
@@ -150,7 +157,7 @@ function RatingButtons({ onRate }: { onRate: (rating: Rating) => void }) {
             onClick={() => onRate(rating)}
             // A direct name, so screen readers don't run the label into the meaning.
             aria-label={`${RATINGS[rating].label}: ${RATINGS[rating].meaning}`}
-            className={`pressable flex min-h-14 flex-col items-start justify-center rounded-control px-3 py-2 text-left shadow-control ${RATINGS[rating].tint}`}
+            className={`pressable flex min-h-14 flex-col items-start rounded-control p-3 text-left shadow-control ${RATINGS[rating].tint}`}
           >
             <span className="flex w-full items-center justify-between gap-2">
               <span className="text-body font-bold">{RATINGS[rating].label}</span>
