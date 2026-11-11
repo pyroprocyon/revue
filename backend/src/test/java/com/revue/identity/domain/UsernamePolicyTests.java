@@ -31,7 +31,7 @@ class UsernamePolicyTests {
     @Test
     void usernameAccountsNeedNoEmailAndNeverExpireAsUnverifiedRegistrations() {
         Instant now = Instant.parse("2026-11-09T00:00:00Z");
-        Account account = Account.registerUsername(UUID.randomUUID(), new Username("kanji_student"), "pilot-v1", now);
+        Account account = Account.registerUsername(UUID.randomUUID(), new Username("kanji_student"), now);
         assertThat(account.email()).isNull();
         assertThat(account.emailVerifiedAt()).isNull();
         assertThat(account.accessAt(now.plus(Duration.ofDays(30)))).isEqualTo(Account.Access.ACTIVE);

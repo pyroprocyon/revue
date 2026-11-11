@@ -14,7 +14,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-@SpringBootTest(properties = "revue.content.load-on-startup=false")
+@SpringBootTest(properties = "revue.content.publish=false")
 @Import(TestcontainersConfiguration.class)
 class AccountMigrationTests {
     @Autowired
@@ -54,7 +54,10 @@ class AccountMigrationTests {
             .load()
             .migrate();
 
-        assertThat(migration.migrationsExecuted).isEqualTo(3);
+        assertThat(migration.migrationsExecuted).isEqualTo(5);
+        assertThat(jdbc.queryForObject("select revision from " + schema + ".catalog_publication", Long.class)).isZero();
+        assertThat(jdbc.queryForObject("select count(*) from " + schema + ".authentication_attempts", Integer.class))
+            .isZero();
         assertThat(jdbc.queryForMap("select * from " + schema + ".sets where id = 1")).isEqualTo(setBefore);
         assertThat(
             jdbc.queryForMap(

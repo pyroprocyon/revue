@@ -4,17 +4,12 @@ import com.revue.identity.domain.Account;
 import com.revue.identity.domain.PasswordPolicy;
 import com.revue.identity.domain.TokenHash;
 import com.revue.identity.domain.Username;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
-import java.util.HexFormat;
 import org.springframework.stereotype.Service;
 
 /** Coordinates invited registration, password verification and learner sessions. */
 @Service
 public class AccountService {
-    public static final String PRIVACY_VERSION = "pilot-2026-11-09";
     private final AccountQueries accounts;
     private final RegistrationCommit registration;
     private final LoginCommit login;
@@ -22,6 +17,7 @@ public class AccountService {
     private final AuthenticationAdmission admission;
     private final AccountSession session;
     private final Clock clock;
+    private final PilotInvitation pilotInvitation;
 
     /** Creates the account use cases with their persistence, hashing and session ports. */
     public AccountService(
@@ -31,7 +27,8 @@ public class AccountService {
         PasswordHasher hasher,
         AuthenticationAdmission admission,
         AccountSession session,
-        Clock clock) {
+        Clock clock,
+        PilotInvitation pilotInvitation) {
         this.accounts = accounts;
         this.registration = registration;
         this.login = login;
@@ -39,28 +36,25 @@ public class AccountService {
         this.admission = admission;
         this.session = session;
         this.clock = clock;
+        this.pilotInvitation = pilotInvitation;
     }
 
-    /** Validates signup, hashes the password and atomically redeems the invitation. */
-    public Profile register(String rawUsername, String password, String invitation, boolean privacy, boolean adult) {
+    /** Validates signup, hashes the password and creates an account using a valid invitation. */
+    public Profile register(String rawUsername, String password, String invitation) {
         Username username = new Username(rawUsername);
         PasswordPolicy.validate(password);
-        if (!privacy || !adult) {
-            throw new IllegalArgumentException("Confirm the privacy notice and that you are at least 18");
-        }
-        TokenHash invite = inviteHash(invitation);
+        TokenHash invite = PilotInvitation.hash(invitation);
         try (var permit = admission.enter(username.value())) {
-            if (!accounts.inviteAvailable(invite, clock.instant())) {
+            boolean available = pilotInvitation.isConfigured()
+                ? pilotInvitation.accepts(invite)
+                : accounts.inviteAvailable(invite);
+            if (!available) {
                 throw new IllegalArgumentException(
                     "Use a valid invitation link. If you already registered, sign in instead");
             }
-            // The transaction starts only after hashing; invitations are locked and rechecked inside it.
+            // Hashing precedes the transaction; database invitations are locked and rechecked inside it.
             var result = registration.registerUsername(
-                new RegistrationCommit.UsernameRegistration(
-                    username,
-                    hasher.encode(password),
-                    invite,
-                    PRIVACY_VERSION));
+                new RegistrationCommit.UsernameRegistration(username, hasher.encode(password), invite));
             session.establish(new AccountSession.Identity(result.accountId(), result.credentialVersion()));
             return current();
         }
@@ -108,20 +102,6 @@ public class AccountService {
     /** Returns CSRF credentials through the session port. */
     public AccountSession.Csrf csrf() {
         return session.csrf();
-    }
-
-    private static TokenHash inviteHash(String invitation) {
-        if (invitation == null || !invitation.matches("(?:[A-Za-z0-9_-]{8}|[A-Za-z0-9_-]{22}|[A-Za-z0-9_-]{43})")) {
-            throw new IllegalArgumentException("Use your invitation link to create an account");
-        }
-        try {
-            return new TokenHash(
-                HexFormat.of()
-                    .formatHex(
-                        MessageDigest.getInstance("SHA-256").digest(invitation.getBytes(StandardCharsets.UTF_8))));
-        } catch (NoSuchAlgorithmException unavailable) {
-            throw new IllegalStateException("SHA-256 is unavailable", unavailable);
-        }
     }
 
     /** Public account details returned to the signed-in learner. */

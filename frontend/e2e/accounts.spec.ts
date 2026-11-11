@@ -10,15 +10,12 @@ async function register(page: Page, name: string) {
   await page.getByRole('textbox', { name: 'Username' }).fill(name);
   await page.getByLabel(/^Password/).fill(PASSWORD);
   await page.getByLabel('Confirm password', { exact: true }).fill(PASSWORD);
-  await page.getByRole('checkbox', { name: /at least 18/ }).check();
-  await page.getByRole('checkbox', { name: /privacy notice/ }).check();
   const response = page.waitForResponse(result => result.url().endsWith('/api/v1/auth/register') && result.request().method() === 'POST');
   await page.getByRole('button', { name: 'Create account' }).click();
   return response;
 }
 
 async function signIn(page: Page, name: string, password = PASSWORD) {
-  await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
   await page.getByRole('textbox', { name: 'Username' }).fill(name);
   await page.getByLabel(/^Password/).fill(password);
   const response = page.waitForResponse(result => result.url().endsWith('/api/v1/auth/login') && result.request().method() === 'POST');
@@ -30,9 +27,11 @@ test('invited learner registers with six characters, reloads, signs out and sign
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Review before it’s due.' })).toBeVisible();
   expect(await context.cookies()).toHaveLength(0);
-  await page.goto(pilot.invitation());
-  await expect(page).not.toHaveURL(/#invite=/);
+  await page.goto(pilot.invitation().replace('/register#invite=', '/i#'));
+  await expect(page).not.toHaveURL(/#/);
   await expect(page.getByRole('textbox', { name: /email/i })).toHaveCount(0);
+  await expect(page.getByRole('checkbox')).toHaveCount(0);
+  await expect(page.getByRole('link', { name: /privacy/i })).toHaveCount(0);
   const notice = context.waitForEvent('page');
   await page.getByRole('link', { name: 'Terms (opens in a new tab)' }).click();
   const terms = await notice;
@@ -97,6 +96,7 @@ test('existing learners keep their shared-set destination when switching to sign
   invitation.searchParams.set('returnTo', '/sets/philippine-history');
   await page.goto(invitation.href);
   await page.getByRole('link', { name: 'Sign in', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Welcome back', exact: true })).toBeVisible();
   await signIn(page, name);
   await expect(page).toHaveURL(/\/sets\/philippine-history$/);
   await expect(page.getByRole('heading', { name: 'Philippine History', exact: true })).toBeVisible();
@@ -266,8 +266,6 @@ test('signup checks the confirmation locally and sends only one password after c
   const confirmation = page.getByLabel('Confirm password', { exact: true });
   await password.fill(PASSWORD);
   await confirmation.fill(PASSWORD + 'x');
-  await page.getByRole('checkbox', { name: /at least 18/ }).check();
-  await page.getByRole('checkbox', { name: /privacy notice/ }).check();
   await page.getByRole('button', { name: 'Create account' }).click();
   await expect(page.getByRole('alert')).toHaveText('Passwords don’t match.');
   expect(requests).toHaveLength(0);
@@ -283,6 +281,6 @@ test('signup checks the confirmation locally and sends only one password after c
   await expect(page.getByRole('heading', { name: `You’re signed in, ${name}` })).toBeVisible();
   expect(requests).toHaveLength(1);
   const sent = new URLSearchParams(requests[0]);
-  expect([...sent.keys()].sort()).toEqual(['adult', 'invitation', 'password', 'privacy', 'username']);
+  expect([...sent.keys()].sort()).toEqual(['invitation', 'password', 'username']);
   expect(sent.get('password')).toBe(PASSWORD);
 });

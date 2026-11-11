@@ -45,11 +45,10 @@ public record Account(
         return new Account(id, email, now, null, null, 0, false, now, privacyVersion, now, null, null);
     }
 
-    /** Creates an active username account with recorded pilot consent. */
-    public static Account registerUsername(UUID id, Username username, String privacyVersion, Instant now) {
+    /** Creates an active username account. */
+    public static Account registerUsername(UUID id, Username username, Instant now) {
         Objects.requireNonNull(username);
-        Objects.requireNonNull(privacyVersion);
-        return new Account(id, null, now, null, null, 0, false, now, privacyVersion, now, null, username);
+        return new Account(id, null, now, null, null, 0, false, null, null, null, null, username);
     }
 
     /** Determines whether the account may be used at the supplied time. */
@@ -64,7 +63,7 @@ public record Account(
         if (username == null && emailVerifiedAt == null) {
             return registrationExpiredAt(now) ? Access.REGISTRATION_EXPIRED : Access.EMAIL_UNVERIFIED;
         }
-        if (privacyAcceptedAt == null || adultConfirmedAt == null) {
+        if (username == null && (privacyAcceptedAt == null || adultConfirmedAt == null)) {
             return Access.AGREEMENTS_REQUIRED;
         }
         if (credentialResetRequired) {

@@ -28,18 +28,16 @@ function setup(register = true, entry = '/register') {
 beforeEach(() => { window.history.replaceState({}, '', '/register'); });
 
 describe('pilot account forms', () => {
-  it.each([8, 22])('accepts a %i-character invitation and removes its fragment before registration', async (length) => {
+  it.each([8, 22, 43])('accepts a %i-character invitation and removes its fragment before registration', async (length) => {
     const invitation = 'a'.repeat(length);
     window.history.replaceState({}, '', `/i#${invitation}`);
     const gateway = setup();
     fireEvent.change(screen.getByRole('textbox', { name: /^Username/ }), { target: { value: 'student' } });
     fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: testPassword } });
     fireEvent.change(screen.getByLabelText('Confirm password'), { target: { value: testPassword } });
-    fireEvent.click(screen.getByRole('checkbox', { name: /at least 18/ }));
-    fireEvent.click(screen.getByRole('checkbox', { name: /privacy notice/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
     await waitFor(() => expect(gateway.register).toHaveBeenCalledWith({
-      username: 'student', password: testPassword, invitation, adult: true, privacy: true,
+      username: 'student', password: testPassword, invitation,
     }));
     expect(window.location.hash).toBe('');
   });
@@ -55,11 +53,9 @@ describe('pilot account forms', () => {
     fireEvent.change(username, { target: { value: 'student' } });
     fireEvent.change(password, { target: { value: testPassword } });
     fireEvent.change(screen.getByLabelText('Confirm password'), { target: { value: testPassword } });
-    fireEvent.click(screen.getByRole('checkbox', { name: /at least 18/ }));
-    fireEvent.click(screen.getByRole('checkbox', { name: /privacy notice/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
     await screen.findByText('Account ready');
-    expect(gateway.register).toHaveBeenCalledWith({ username: 'student', password: testPassword, invitation: invite, adult: true, privacy: true });
+    expect(gateway.register).toHaveBeenCalledWith({ username: 'student', password: testPassword, invitation: invite });
     expect(window.location.hash).toBe('');
   });
 
@@ -79,11 +75,9 @@ describe('pilot account forms', () => {
     expect((screen.getByRole('textbox', { name: /Username/ }) as HTMLInputElement).value).toBe('student');
     expect((screen.getByLabelText(/^Password/) as HTMLInputElement).value).toBe(testPassword);
     expect((screen.getByRole('button', { name: 'Create account' }) as HTMLButtonElement).disabled).toBe(false);
-    fireEvent.click(screen.getByRole('checkbox', { name: /at least 18/ }));
-    fireEvent.click(screen.getByRole('checkbox', { name: /privacy notice/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
     await screen.findByText('Original set');
-    expect(gateway.register).toHaveBeenCalledWith({ username: 'student', password: testPassword, invitation, adult: true, privacy: true });
+    expect(gateway.register).toHaveBeenCalledWith({ username: 'student', password: testPassword, invitation });
   });
 
   it('opens policy notices separately so reading them keeps the invitation form mounted', () => {
@@ -128,8 +122,6 @@ describe('pilot account forms', () => {
     fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'student' } });
     fireEvent.change(password, { target: { value: testPassword } });
     fireEvent.change(confirmation, { target: { value: testPassword + 'x' } });
-    fireEvent.click(screen.getByRole('checkbox', { name: /at least 18/ }));
-    fireEvent.click(screen.getByRole('checkbox', { name: /privacy notice/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
     expect(gateway.register).not.toHaveBeenCalled();
     expect((await screen.findByRole('alert')).textContent).toBe('Passwords don’t match.');
@@ -139,7 +131,7 @@ describe('pilot account forms', () => {
     expect(screen.queryByRole('alert')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
     await screen.findByText('Account ready');
-    expect(gateway.register).toHaveBeenCalledExactlyOnceWith({ username: 'student', password: testPassword, invitation, adult: true, privacy: true });
+    expect(gateway.register).toHaveBeenCalledExactlyOnceWith({ username: 'student', password: testPassword, invitation });
   });
 
   it('clears both signup passwords after a server rejection while preserving the username', async () => {
@@ -149,8 +141,6 @@ describe('pilot account forms', () => {
     fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'student' } });
     fireEvent.change(screen.getByLabelText('Password'), { target: { value: testPassword } });
     fireEvent.change(screen.getByLabelText('Confirm password'), { target: { value: testPassword } });
-    fireEvent.click(screen.getByRole('checkbox', { name: /at least 18/ }));
-    fireEvent.click(screen.getByRole('checkbox', { name: /privacy notice/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
     await screen.findByRole('alert');
     expect((screen.getByLabelText('Password') as HTMLInputElement).value).toBe('');

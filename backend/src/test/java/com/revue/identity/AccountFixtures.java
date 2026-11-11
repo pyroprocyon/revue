@@ -39,9 +39,7 @@ public final class AccountFixtures {
                     .header("X-XSRF-TOKEN", csrf.getValue())
                     .param("username", UUID.randomUUID().toString().replace("-", ""))
                     .param("password", "kanjii")
-                    .param("invitation", token)
-                    .param("privacy", "true")
-                    .param("adult", "true"))
+                    .param("invitation", token))
             .andReturn()
             .getResponse();
         assertThat(response.getStatus()).isEqualTo(200);

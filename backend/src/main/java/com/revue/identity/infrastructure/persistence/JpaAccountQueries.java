@@ -4,7 +4,6 @@ import com.revue.identity.application.AccountQueries;
 import com.revue.identity.domain.TokenHash;
 import com.revue.identity.domain.Username;
 import jakarta.persistence.EntityManager;
-import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.stereotype.Repository;
@@ -49,10 +48,11 @@ public class JpaAccountQueries implements AccountQueries {
     }
 
     @Override
-    public boolean inviteAvailable(TokenHash hash, Instant now) {
-        return !entityManager.createQuery("""
-            select i.id from SignupInvite i where i.tokenHash = :hash and i.revokedAt is null
-            \tand (i.reusable = true or i.redeemedAt is null) and i.createdAt <= :now and i.expiresAt > :now
-            """, UUID.class).setParameter("hash", hash.value()).setParameter("now", now).getResultList().isEmpty();
+    public boolean inviteAvailable(TokenHash hash) {
+        return !entityManager.createNativeQuery("""
+            select id from signup_invites where token_hash = :hash and revoked_at is null
+            \tand (reusable or redeemed_at is null)
+            \tand created_at <= statement_timestamp() and expires_at > statement_timestamp()
+            """, UUID.class).setParameter("hash", hash.value()).getResultList().isEmpty();
     }
 }

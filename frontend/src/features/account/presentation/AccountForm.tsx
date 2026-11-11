@@ -26,8 +26,6 @@ export function AccountForm({ register = false }: { register?: boolean }) {
   const [password, setPassword] = useState('');
   const [passwordConfirmation, setPasswordConfirmation] = useState('');
   const [invitation, setInvitation] = useState(() => invitationFromFragment() ?? '');
-  const [adult, setAdult] = useState(false);
-  const [privacy, setPrivacy] = useState(false);
   const [show, setShow] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -63,7 +61,7 @@ export function AccountForm({ register = false }: { register?: boolean }) {
     setBusy(true);
     setError('');
     try {
-      if (register) await gateway.register({ username, password, invitation, adult, privacy });
+      if (register) await gateway.register({ username, password, invitation });
       else await gateway.signIn(username, password);
       setPassword('');
       setPasswordConfirmation('');
@@ -118,7 +116,7 @@ export function AccountForm({ register = false }: { register?: boolean }) {
               </div>
               {register && <span id="password-help" className="mt-1 block text-support text-muted">6–64 characters. Spaces are welcome.</span>}
             </div>
-            {register && <>
+            {register && (
               <div>
                 <label htmlFor="confirm-password" className="text-label font-semibold">Confirm password</label>
                 <div className="relative mt-2">
@@ -134,20 +132,18 @@ export function AccountForm({ register = false }: { register?: boolean }) {
                   </button>
                 </div>
               </div>
-              <label className="flex min-h-12 items-start gap-3 text-body"><input className="mt-1 size-5 shrink-0 accent-accent" type="checkbox" required checked={adult} onChange={(event) => setAdult(event.target.checked)} />I’m at least 18 years old.</label>
-              <label className="flex min-h-12 items-start gap-3 text-body"><input className="mt-1 size-5 shrink-0 accent-accent" type="checkbox" required checked={privacy} onChange={(event) => setPrivacy(event.target.checked)} /><span>I’ve read the <Link to="/privacy" target="_blank" rel="noreferrer" className={textLink}>privacy notice<span className="sr-only"> (opens in a new tab)</span></Link>.</span></label>
-            </>}
+            )}
             {error && <p id="account-error" ref={errorRef} tabIndex={-1} role="alert" className="rounded-inset bg-highlight-soft p-4 text-support text-ink focus-visible:outline-2 focus-visible:outline-accent">{error}</p>}
             <button className={`${primaryButton} w-full`} type="submit" disabled={busy || needsInvitation}>
               {actionLabel}
             </button>
           </form>
           <p className="mt-6 text-center text-support text-muted">
-            {register ? <>Already registered? <Link to={signInPath} className={textLink}>Sign in</Link>.</> : <>Forgot your password? <SupportLink>Contact support</SupportLink>.</>}
+            {register ? <>Already have an account? <Link to={signInPath} className={textLink}>Sign in</Link>.</> : <>Forgot your password? <SupportLink>Contact support</SupportLink>.</>}
           </p>
         </div>
         <div className="flex justify-center">
-          <PolicyLinks newTab={register} showSupport={register} />
+          <PolicyLinks newTab={register} showPrivacy={!register} showSupport={register} />
         </div>
       </section>
     </Screen>
@@ -156,6 +152,6 @@ export function AccountForm({ register = false }: { register?: boolean }) {
 
 function invitationFromFragment(): string | null {
   const fragment = window.location.hash.slice(1);
-  if (/^(?:[A-Za-z0-9_-]{8}|[A-Za-z0-9_-]{22})$/.test(fragment)) return fragment;
+  if (/^(?:[A-Za-z0-9_-]{8}|[A-Za-z0-9_-]{22}|[A-Za-z0-9_-]{43})$/.test(fragment)) return fragment;
   return new URLSearchParams(fragment).get('invite');
 }

@@ -7,6 +7,7 @@ import com.revue.identity.domain.SignupInvite;
 import com.revue.identity.domain.TokenHash;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
+import java.time.Instant;
 import java.util.Optional;
 import org.springframework.stereotype.Repository;
 
@@ -33,11 +34,17 @@ public class JpaRegistrationStore implements RegistrationStore {
     }
 
     @Override
+    public Instant currentTime() {
+        // Transaction-start time would ignore time spent waiting for the invitation lock.
+        return (Instant) entityManager.createNativeQuery("select clock_timestamp()", Instant.class).getSingleResult();
+    }
+
+    @Override
     public boolean insertUsernameAccount(Account account, PasswordHash passwordHash) {
         return entityManager.createNativeQuery("""
             insert into users (id, username, password_hash, created_at, credential_version,
-            \tcredential_reset_required, privacy_accepted_at, privacy_notice_version, adult_confirmed_at)
-            values (:id, :username, :password, :created, :version, false, :privacy, :notice, :adult)
+            \tcredential_reset_required)
+            values (:id, :username, :password, :created, :version, false)
             on conflict (username) do nothing
             """)
             .setParameter("id", account.id())
@@ -45,9 +52,6 @@ public class JpaRegistrationStore implements RegistrationStore {
             .setParameter("password", passwordHash.value())
             .setParameter("created", account.createdAt())
             .setParameter("version", account.credentialVersion())
-            .setParameter("privacy", account.privacyAcceptedAt())
-            .setParameter("notice", account.privacyNoticeVersion())
-            .setParameter("adult", account.adultConfirmedAt())
             .executeUpdate() == 1;
     }
 
