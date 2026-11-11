@@ -14,7 +14,7 @@ export function NotFoundPage() {
   );
   return (
     <MessageScreen title="Page not found." action={homeButton}>
-      <p>This page doesn't exist. Check the link, or start from the home page.</p>
+      <p>Check the link for typos.</p>
     </MessageScreen>
   );
 }

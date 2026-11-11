@@ -2,6 +2,8 @@ import { Link2, Share2 } from 'lucide-react';
 import { useState } from 'react';
 import { secondaryButton } from './buttonStyles';
 
+const shareButton = `${secondaryButton} lg:min-h-14 lg:border lg:border-line lg:bg-transparent lg:px-4 lg:shadow-none`;
+
 type ShareLinksProps = {
   title: string;
   path: string;
@@ -37,15 +39,15 @@ export function ShareLinks({ title, path }: ShareLinksProps) {
   }
 
   return (
-    <div>
+    <div className="min-w-0">
       <div className="grid grid-cols-[repeat(auto-fit,minmax(min(9rem,100%),1fr))] gap-3 sm:flex sm:flex-wrap">
         {canShare && (
-          <button type="button" onClick={share} className={secondaryButton}>
+          <button type="button" onClick={share} className={shareButton}>
             <Share2 aria-hidden="true" size={20} strokeWidth={2} />
             Share
           </button>
         )}
-        <button type="button" onClick={copyLink} className={secondaryButton}>
+        <button type="button" onClick={copyLink} className={shareButton}>
           <Link2 aria-hidden="true" size={20} strokeWidth={2} />
           Copy link
         </button>

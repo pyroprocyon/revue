@@ -2,8 +2,9 @@ import { ChevronLeft } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import { HOME_PATH, SETS_PATH, SIGN_IN_PATH } from '../navigation/paths';
 import { BrandMark } from './BrandMark';
+import { accountOutlinedButton } from './buttonStyles';
 
-/** The logo and wordmark, linking home, at the same size on every page. */
+/** The shared home link, with the Revue mark and name at every screen width. */
 export function HomeLink() {
   return (
     <Link
@@ -11,7 +12,7 @@ export function HomeLink() {
       className="pressable -ml-2 inline-flex min-h-12 items-center gap-2 rounded-control px-2 text-[1.5rem] font-extrabold tracking-tight lg:text-[2.1875rem]"
     >
       <BrandMark className="size-8 lg:size-12" />
-      Revue
+      <span>Revue</span>
     </Link>
   );
 }
@@ -63,8 +64,17 @@ export function BackButton({ label, fallbackPath }: BackButtonProps) {
   );
 }
 
-export function SignInLink() {
+export function SignInLink({ appearance = 'text' }: { appearance?: 'text' | 'account' }) {
   const location = useLocation();
-  return <Link to={`${SIGN_IN_PATH}?returnTo=${encodeURIComponent(location.pathname)}`}
-    className="pressable -mr-2 ml-auto inline-flex min-h-12 items-center rounded-control px-2 text-label font-semibold text-accent">Sign in</Link>;
+  const className = appearance === 'account'
+    ? accountOutlinedButton
+    : 'pressable -mr-2 ml-auto inline-flex min-h-12 items-center rounded-control px-2 text-label font-semibold text-accent';
+  return (
+    <Link
+      to={`${SIGN_IN_PATH}?returnTo=${encodeURIComponent(location.pathname)}`}
+      className={className}
+    >
+      Sign in
+    </Link>
+  );
 }

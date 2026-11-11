@@ -4,6 +4,8 @@ import { publicContentKeys } from '../../catalog/application/publicContentQuerie
 import { historyCards, historySet } from '../../../test/fixtures';
 import { jsonResponse, renderApp, stubApi, stubFetch } from '../../../test/renderApp';
 
+const recallHintText = /Even a few words are a good start/;
+
 function click(name: string) {
   fireEvent.click(screen.getByRole('button', { name }));
 }
@@ -33,11 +35,9 @@ describe('Five-card trial', () => {
     expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Question 1?' }));
     expect(screen.queryByText('Answer 1.')).toBeNull();
     expect(screen.queryByText(/^Source:/)).toBeNull();
-    expect(screen.queryByRole('group', { name: 'How well did you remember?' })).toBeNull();
-    const checkAnswer = screen.getByRole('button', { name: 'Check answer' });
-    const hint = screen.getByText('Try answering in your head before you check.');
-    expect(checkAnswer.getAttribute('aria-describedby')).toBe(hint.id);
-    expect(screen.getByRole('heading', { name: 'Question 1?' }).getAttribute('aria-describedby')).toBe(hint.id);
+    expect(screen.queryByRole('group', { name: 'Rate your answer' })).toBeNull();
+    const checkAnswer = screen.getByRole('button', { name: 'Check answer', description: recallHintText });
+    expect(screen.getByRole('heading', { name: 'Question 1?', description: recallHintText })).toBeDefined();
     expect(within(checkAnswer.closest('section')!).getAllByRole('button')).toHaveLength(1);
     expect(screen.queryByRole('button', { name: 'Flip card' })).toBeNull();
   });
@@ -53,7 +53,7 @@ describe('Five-card trial', () => {
     expect(screen.getByText('Note 1.')).toBeDefined();
     expect(screen.getByText('Source: Grade 6 book, page 45')).toBeDefined();
     expect(screen.getByText('Published by Revue')).toBeDefined();
-    const ratings = within(screen.getByRole('group', { name: 'How well did you remember?' }))
+    const ratings = within(screen.getByRole('group', { name: 'Rate your answer' }))
       .getAllByRole('button')
       .map((button) => button.getAttribute('aria-label'));
     expect(ratings).toEqual([
@@ -93,16 +93,16 @@ describe('Five-card trial', () => {
     click('Back to question');
 
     expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Question 1?' }));
-    expect(screen.queryByRole('group', { name: 'How well did you remember?' })).toBeNull();
+    expect(screen.queryByRole('group', { name: 'Rate your answer' })).toBeNull();
 
     fireEvent.click(screen.getByRole('heading', { name: 'Question 1?' }));
     expect(screen.queryByRole('heading', { name: 'Answer 1.' })).toBeNull();
-    expect(screen.queryByText('Try answering in your head before you check.')).toBeNull();
+    expect(screen.queryByText(recallHintText)).toBeNull();
 
     click('Back to answer');
 
     expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Answer 1.' }));
-    expect(screen.getByRole('group', { name: 'How well did you remember?' })).toBeDefined();
+    expect(screen.getByRole('group', { name: 'Rate your answer' })).toBeDefined();
   });
 
   it('keeps the answer hidden when the question or card surface is tapped', async () => {
@@ -114,7 +114,7 @@ describe('Five-card trial', () => {
     expect(screen.queryByText('Answer 1.')).toBeNull();
     fireEvent.click(question.closest('section')!);
     expect(screen.queryByText('Answer 1.')).toBeNull();
-    expect(screen.queryByRole('group', { name: 'How well did you remember?' })).toBeNull();
+    expect(screen.queryByRole('group', { name: 'Rate your answer' })).toBeNull();
   });
 
   it('moves straight to the next card after a rating', async () => {
@@ -125,7 +125,7 @@ describe('Five-card trial', () => {
     expect(screen.getByText('Card 2 of 5')).toBeDefined();
     expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Question 2?' }));
     expect(screen.queryByText('Answer 2.')).toBeNull();
-    expect(screen.getByText('Try answering in your head before you check.')).toBeDefined();
+    expect(screen.getByText(recallHintText)).toBeDefined();
     expect(screen.getByRole('button', { name: 'Check answer' })).toBeDefined();
   });
 
@@ -205,7 +205,7 @@ describe('Five-card trial', () => {
 
     const heading = screen.getByRole('heading', { level: 1, name: 'You practiced 5 cards.' });
     expect(document.activeElement).toBe(heading);
-    expect(screen.getByText('Example timing, soonest first.')).toBeDefined();
+    expect(screen.getByText('Example schedule, soonest first.')).toBeDefined();
     expect(screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)).toEqual([
       'Tomorrow', 'In a few days', 'In a week or more',
     ]);

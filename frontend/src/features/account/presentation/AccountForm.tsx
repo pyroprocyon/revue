@@ -90,13 +90,9 @@ export function AccountForm({ register = false }: { register?: boolean }) {
       <section className="mx-auto w-full max-w-[28rem] py-6 sm:py-10 lg:py-14">
         <div className="rounded-card bg-surface p-4 shadow-card sm:p-8">
           <h1 className="text-title font-extrabold tracking-tight">{register ? 'Create your account' : 'Welcome back'}</h1>
-          <p className="mt-2 text-body text-muted">
-            {register ? 'Choose a username and a password you’ll remember.' : 'Sign in to your Revue account.'}
-          </p>
           {needsInvitation && (
             <p role="status" className="mt-5 rounded-inset bg-subtle p-4 text-body">
-              Open the invitation link from the person who invited you. Already registered?{' '}
-              <Link className={textLink} to={signInPath}>Sign in</Link>.
+              Open your invitation link to continue.
             </p>
           )}
           <form id="account-form" onSubmit={(event) => void submit(event)} className="mt-7 grid gap-5" aria-busy={busy}>
@@ -151,7 +147,7 @@ export function AccountForm({ register = false }: { register?: boolean }) {
           </p>
         </div>
         <div className="flex justify-center">
-          <PolicyLinks newTab={register} />
+          <PolicyLinks newTab={register} showSupport={register} />
         </div>
       </section>
     </Screen>

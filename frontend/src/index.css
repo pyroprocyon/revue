@@ -151,7 +151,7 @@
     -webkit-tap-highlight-color: transparent;
   }
 
-  /* "How it works" on the landing page glides to its section, unless reduced motion is on. */
+  /* In-page links scroll smoothly when reduced motion is off. */
   @media (prefers-reduced-motion: no-preference) {
     html {
       scroll-behavior: smooth;

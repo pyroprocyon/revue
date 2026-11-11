@@ -34,13 +34,35 @@ describe('App', () => {
     renderApp('/');
 
     expect(screen.getByRole('heading', { level: 1, name: 'Review before it’s due.' })).toBeDefined();
-    expect(screen.getByText('You focus on remembering. Revue handles the timing.')).toBeDefined();
+    expect(screen.getByText('You do the thinking. Revue handles the timing.')).toBeDefined();
     // Phones pin the button at the bottom and desktops show it in the hero; CSS shows one of them.
     const browseLinks = screen.getAllByRole('link', { name: 'Browse sets' });
     expect(browseLinks.map((link) => link.getAttribute('href'))).toEqual(['/sets', '/sets']);
-    expect(screen.getAllByText('No account needed. Practice isn’t saved.').length).toBeGreaterThan(0);
     expect(screen.queryByText(/free/i)).toBeNull();
     expect(screen.queryByRole('navigation', { name: 'Help and policies' })).toBeNull();
+  });
+
+  it('opens the invitation explanation from home and lets visitors continue browsing', async () => {
+    stubFetch(200, [historySet, natureSet]);
+    renderApp('/');
+
+    // CSS chooses the phone or desktop action group in a real browser.
+    fireEvent.click(screen.getAllByRole('link', { name: 'Create account' })[0]);
+    expect(screen.getByRole('heading', { name: 'You’ll need an invitation' })).toBeDefined();
+    expect(screen.queryByRole('textbox')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Create account' })).toBeNull();
+    fireEvent.click(screen.getByRole('link', { name: 'Browse sets' }));
+    expect(await screen.findByRole('heading', { name: 'Practice sets' })).toBeDefined();
+  });
+
+  it('lets returning learners sign in from a direct visit to the invitation explanation', () => {
+    const fetchMock = stubFetch(404);
+    renderApp('/join');
+
+    expect(screen.getByRole('heading', { name: 'You’ll need an invitation' })).toBeDefined();
+    fireEvent.click(screen.getByRole('link', { name: 'Sign in' }));
+    expect(screen.getByRole('heading', { name: 'Welcome back' })).toBeDefined();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('says "review" only in the headline, using practice, set and comes back elsewhere', () => {
@@ -60,16 +82,17 @@ describe('App', () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/v1/public-sets', expect.anything()));
   });
 
-  it('has one How it works link, for phones, pointing at the steps on the same page', () => {
+  it('offers the guide inline on desktop and opens the separate page from the phone link', async () => {
     stubFetch(200, [historySet, natureSet]);
     renderApp('/');
 
-    // jsdom applies no CSS, so this checks the link count; the desktop screenshots check it is hidden there.
-    expect(screen.getByRole('link', { name: 'How it works' }).getAttribute('href')).toBe('#how-it-works');
-    const section = document.getElementById('how-it-works');
-    expect(section?.textContent).toContain('How Revue decides when cards come back');
-    expect(section?.textContent).toContain('Try to remember.');
-    expect(section?.textContent).toContain('That’s spaced repetition.');
+    expect(screen.getByRole('heading', { level: 2, name: 'How spaced repetition works' }).closest('section')?.id).toBe('how-it-works');
+    fireEvent.click(screen.getByRole('link', { name: 'How it works' }));
+
+    expect(screen.getByRole('heading', { level: 1, name: 'How spaced repetition works' })).toBeDefined();
+    expect(screen.getByText('Answer from memory.')).toBeDefined();
+    fireEvent.click(screen.getByRole('link', { name: 'Browse sets' }));
+    expect(await screen.findByRole('heading', { name: 'Practice sets' })).toBeDefined();
   });
 
   it('shows a sample card from the sets with the real rating look, and nothing to press', () => {

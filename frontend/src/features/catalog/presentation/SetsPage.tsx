@@ -23,17 +23,21 @@ export function SetsPage() {
   if (publicSets.data.length === 0) {
     return (
       <MessageScreen title="No sets are available right now.">
-        <p>Please check again later.</p>
+        <p>Check back later.</p>
       </MessageScreen>
     );
   }
   return (
     <Screen top={<><HomeLink /><SignInLink /></>}>
       <section className="pt-2">
-        <h1 className="text-title font-extrabold tracking-tight">Choose a set</h1>
-        <p className="mt-2 text-body text-muted">
-          Each set has 5 cards to try. Practice isn’t saved.
-        </p>
+        <h1 className="text-title font-extrabold tracking-tight">Practice sets</h1>
+        <p className="mt-2 text-body text-muted">Choose a set to try 5 cards.</p>
+        <div className="mt-4 rounded-inset bg-highlight-soft p-4">
+          <p className="text-body font-semibold text-ink">Practice only. Nothing is saved.</p>
+          <p className="mt-1 text-support text-muted">
+            That includes your progress and ratings, even when you’re signed in.
+          </p>
+        </div>
         <ul className="mt-6 grid gap-3">
           {publicSets.data.map((publicSet) => (
             <li key={publicSet.setKey} className="min-w-0">

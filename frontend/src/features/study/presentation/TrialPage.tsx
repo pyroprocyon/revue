@@ -32,7 +32,7 @@ export function TrialPage() {
         title="The 5-card trial isn't available right now."
         action={<SetLinks setKey={setKey} primary="back-to-set" />}
       >
-        <p>Please check again later, or choose another set.</p>
+        <p>Check back later.</p>
       </MessageScreen>
     );
   }
@@ -104,7 +104,7 @@ function TrialFinished({ setKey, cards, ratings }: TrialFinishedProps) {
       icon={finishedIcon}
       action={<SetLinks setKey={setKey} primary="another-set" />}
     >
-      <p>Example timing, soonest first.</p>
+      <p>Example schedule, soonest first.</p>
       <div className="space-y-6">
         {groups.map((group, index) => (
           <ReviewTimingGroup key={group.when} when={group.when} cards={group.cards} first={index === 0} />

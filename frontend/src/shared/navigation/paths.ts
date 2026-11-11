@@ -1,6 +1,7 @@
 // Browser routes. Only the home page, the set list and each set's preview may appear in search
 // results; the backend's BrowserRouteFilter sends noindex for every other route.
 export const HOME_PATH = '/';
+export const HOW_IT_WORKS_PATH = '/how-it-works';
 export const SETS_PATH = '/sets';
 export const SET_ROUTE = '/sets/:setKey';
 export const SET_SHARE_ROUTE = '/s/:shareCode';
@@ -21,4 +22,5 @@ export function trialPath(setKey: string): string {
 
 export const SIGN_IN_PATH = '/sign-in';
 export const REGISTER_PATH = '/register';
+export const JOIN_PATH = '/join';
 export const ACCOUNT_PATH = '/account';

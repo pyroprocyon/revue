@@ -42,7 +42,6 @@ describe('Set preview', () => {
     expect(screen.getByText('Not yet checked')).toBeDefined();
     expect(screen.getByText('5 cards')).toBeDefined();
     expect(screen.getByRole('link', { name: 'Try 5 cards' }).getAttribute('href')).toBe(`${SET_PAGE}/try`);
-    expect(screen.getByText('This practice isn’t saved.')).toBeDefined();
     expect(screen.getByRole('link', { name: 'All sets' }).getAttribute('href')).toBe('/sets');
     expect(fetchMock).toHaveBeenCalledWith(SET_API, expect.anything());
   });

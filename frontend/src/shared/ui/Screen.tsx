@@ -19,7 +19,7 @@ type ScreenProps = {
 export function Screen({ top, actions, actionsOnPhonesOnly = false, wide = false, children }: ScreenProps) {
   const column = `mx-auto w-full pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] ${wide ? 'max-w-wide' : 'max-w-page'}`;
   return (
-    <div className="app-screen flex h-dvh flex-col lg:h-auto lg:min-h-dvh">
+    <div className="app-screen flex h-dvh flex-col px-1 lg:h-auto lg:min-h-dvh lg:px-2 lg:pt-4">
       <header className={`${column} flex min-h-14 shrink-0 flex-wrap items-center gap-x-3 pt-[env(safe-area-inset-top)]`}>
         {top}
       </header>
