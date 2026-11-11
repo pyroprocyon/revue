@@ -9,8 +9,8 @@ public interface PublicSetQueries {
     record Overview(long id, String setKey, String title, String description, String publisherName, long cardCount) {
     }
 
-    /** Lists the available sets and their active card counts. */
-    List<Overview> list();
+    /** Lists at most limit sets after the alphabetical cursor, with active card counts. */
+    List<Overview> list(String afterTitle, long afterId, int limit);
 
     /** Finds an available set by its stable key. */
     Optional<Overview> summary(String setKey);
@@ -19,5 +19,5 @@ public interface PublicSetQueries {
     Optional<Overview> summaryById(long id);
 
     /** Loads at most the requested number of active trial cards. */
-    Optional<DemoCards> demoCards(String setKey, int limit);
+    Optional<TrialCards> trialCards(String setKey, int limit);
 }

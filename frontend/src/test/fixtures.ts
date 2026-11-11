@@ -1,4 +1,4 @@
-import type { DemoCard, DemoCards, PublicSet } from '../features/catalog/application/publicContent';
+import type { TrialCard, TrialCards, PublicSet } from '../features/catalog/application/publicContent';
 
 export const historySet: PublicSet = {
   setKey: 'philippine-history',
@@ -26,7 +26,7 @@ const SOURCES: Record<number, string> = {
   3: 'Class handout: https://example.com/handout-3',
 };
 
-function demoCard(number: number): DemoCard {
+function trialCard(number: number): TrialCard {
   return {
     key: `card-${number}`,
     question: `Question ${number}?`,
@@ -36,8 +36,8 @@ function demoCard(number: number): DemoCard {
   };
 }
 
-export const historyCards: DemoCards = {
+export const historyCards: TrialCards = {
   setTitle: 'Philippine History',
   publisherName: 'Revue',
-  cards: [1, 2, 3, 4, 5].map(demoCard),
+  cards: [1, 2, 3, 4, 5].map(trialCard),
 };

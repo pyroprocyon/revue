@@ -21,7 +21,7 @@ export function SetPage() {
   const publicSet = useQuery({
     ...publicSetQuery(shareCode ?? setKey, shareCode === undefined ? 'key' : 'share'),
     // Coming from the set list, the summary is already known, so the page shows it at once.
-    placeholderData: () => queryClient.getQueryData(publicSetsQuery.queryKey)?.find((set) => shareCode === undefined ? set.setKey === setKey : set.shareCode === shareCode),
+    placeholderData: () => queryClient.getQueryData(publicSetsQuery.queryKey)?.items.find((set) => shareCode === undefined ? set.setKey === setKey : set.shareCode === shareCode),
   });
 
   if (publicSet.isPending) {
@@ -48,15 +48,15 @@ export function SetPage() {
 }
 
 function SetDetails({ publicSet }: { publicSet: PublicSet }) {
-  const { demoCardsQuery } = usePublicContentQueries();
+  const { trialCardsQuery } = usePublicContentQueries();
   const queryClient = useQueryClient();
 
   // Visitors usually try the cards next, so load them now and the trial opens without waiting.
   useEffect(() => {
     if (publicSet.trialAvailable) {
-      void queryClient.prefetchQuery(demoCardsQuery(publicSet.setKey));
+      void queryClient.prefetchQuery(trialCardsQuery(publicSet.setKey));
     }
-  }, [queryClient, publicSet.setKey, publicSet.trialAvailable, demoCardsQuery]);
+  }, [queryClient, publicSet.setKey, publicSet.trialAvailable, trialCardsQuery]);
 
   const actions = (
     <div className="grid gap-3 lg:flex lg:flex-wrap lg:items-start lg:justify-between lg:gap-4">

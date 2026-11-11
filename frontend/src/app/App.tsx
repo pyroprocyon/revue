@@ -17,7 +17,7 @@ import { SetsPage } from '../features/catalog/presentation/SetsPage';
 import { TrialPage } from '../features/study/presentation/TrialPage';
 import { HOME_PATH, HOW_IT_WORKS_PATH, SETS_PATH, SET_ROUTE, TRIAL_ROUTE, SIGN_IN_PATH, REGISTER_PATH, ACCOUNT_PATH, INVITE_PATH, SET_SHARE_ROUTE, JOIN_PATH } from '../shared/navigation/paths';
 
-/** Each page draws its own phone-height screen (components/Screen), so the routes are flat. */
+/** Each page draws its own phone-height screen (shared/ui/Screen), so the routes are flat. */
 export function App() {
   return (
     <AccountProvider gateway={httpAccount}>
@@ -30,7 +30,7 @@ export function App() {
         <Route path={SET_ROUTE} element={<SetPage />} />
         <Route path={SET_SHARE_ROUTE} element={<SetPage />} />
         <Route path={INVITE_PATH} element={<AccountForm key="signup" register />} />
-        <Route path={TRIAL_ROUTE} element={<TrialPage />} />
+        <Route path={TRIAL_ROUTE} element={<TrialPage reader={httpPublicContent} />} />
         <Route path={SIGN_IN_PATH} element={<AccountForm key="sign-in" />} />
         <Route path={JOIN_PATH} element={<JoinPage />} />
         <Route path={REGISTER_PATH} element={<AccountForm key="signup" register />} />

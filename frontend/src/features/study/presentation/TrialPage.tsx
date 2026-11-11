@@ -3,8 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Check } from 'lucide-react';
 import { useId, useState } from 'react';
 import { Link, useParams } from 'react-router';
-import type { DemoCard, DemoCards } from '../../catalog/application/publicContent';
-import { usePublicContentQueries } from '../../catalog/presentation/PublicContentProvider';
+import type { PublicContentReader, TrialCard, TrialCards } from '../../catalog/application/publicContent';
+import { trialCardsQuery } from '../../catalog/application/publicContentQueries';
 import { primaryButton, secondaryButton } from '../../../shared/ui/buttonStyles';
 import { BackButton } from '../../../shared/ui/HeaderLinks';
 import { LoadFailed } from '../../../shared/ui/LoadFailed';
@@ -15,18 +15,17 @@ import { FlashCard } from './FlashCard';
 import { RATINGS, RecallMeter, type Rating } from './ratings';
 
 /** "Try 5 cards": a set's first five cards, practiced in the browser and never saved. */
-export function TrialPage() {
-  const { demoCardsQuery } = usePublicContentQueries();
+export function TrialPage({ reader }: { reader: Pick<PublicContentReader, 'trialCards'> }) {
   const { setKey = '' } = useParams();
-  const demoCards = useQuery(demoCardsQuery(setKey));
+  const trialCards = useQuery(trialCardsQuery(reader, setKey));
 
-  if (demoCards.isPending) {
+  if (trialCards.isPending) {
     return <LoadingScreen text="Loading the cards…" />;
   }
-  if (demoCards.isLoadingError) {
-    return <LoadFailed onRetry={() => void demoCards.refetch()} retrying={demoCards.isFetching} />;
+  if (trialCards.isLoadingError) {
+    return <LoadFailed onRetry={() => void trialCards.refetch()} retrying={trialCards.isFetching} />;
   }
-  if (demoCards.data === null) {
+  if (trialCards.data === null) {
     return (
       <MessageScreen
         title="The 5-card trial isn't available right now."
@@ -36,28 +35,32 @@ export function TrialPage() {
       </MessageScreen>
     );
   }
-  return <Trial setKey={setKey} demoCards={demoCards.data} />;
+  return <Trial key={setKey} setKey={setKey} initialContent={trialCards.data} />;
 }
 
-function Trial({ setKey, demoCards }: { setKey: string; demoCards: DemoCards }) {
-  // One rating per card practiced so far, so the next card is the one at that position.
-  const [session, setSession] = useState(() => startTrial(demoCards.cards.length));
+function Trial({ setKey, initialContent }: { setKey: string; initialContent: TrialCards }) {
+  // A running trial keeps its starting batch, even when the query refreshes for the next visit.
+  const [trial, setTrial] = useState(() => ({
+    content: initialContent,
+    session: startTrial(initialContent.cards.length),
+  }));
+  const { content, session } = trial;
   const { ratings } = session;
-  const cardCount = demoCards.cards.length;
+  const cardCount = content.cards.length;
   const cardIndex = ratings.length;
 
   if (cardIndex === cardCount) {
-    return <TrialFinished setKey={setKey} cards={demoCards.cards} ratings={ratings} />;
+    return <TrialFinished setKey={setKey} cards={content.cards} ratings={ratings} />;
   }
-  const card = demoCards.cards[cardIndex];
+  const card = content.cards[cardIndex];
 
   function rate(rating: Rating) {
-    setSession(rateTrial(session, rating));
+    setTrial((current) => ({ ...current, session: rateTrial(current.session, rating) }));
   }
 
   const top = (
     <>
-      <BackButton label={demoCards.setTitle} fallbackPath={setPath(setKey)} />
+      <BackButton label={content.setTitle} fallbackPath={setPath(setKey)} />
       <p aria-live="polite" className="ml-auto shrink-0 text-support text-muted">
         Card {cardIndex + 1} of {cardCount}
       </p>
@@ -68,7 +71,7 @@ function Trial({ setKey, demoCards }: { setKey: string; demoCards: DemoCards }) 
       <h1 className="sr-only">Try {cardCount} cards</h1>
       <TrialProgress position={cardIndex + 1} cardCount={cardCount} />
       {/* A new key per card, so each card starts on its front instead of turning back over. */}
-      <FlashCard key={card.key} card={card} publisherName={demoCards.publisherName} onRate={rate} />
+      <FlashCard key={card.key} card={card} publisherName={content.publisherName} onRate={rate} />
     </Screen>
   );
 }
@@ -86,7 +89,7 @@ function TrialProgress({ position, cardCount }: { position: number; cardCount: n
 
 type TrialFinishedProps = {
   setKey: string;
-  cards: DemoCard[];
+  cards: TrialCard[];
   ratings: readonly Rating[];
 };
 
@@ -116,7 +119,7 @@ function TrialFinished({ setKey, cards, ratings }: TrialFinishedProps) {
 }
 
 type ReviewedCard = {
-  card: DemoCard;
+  card: TrialCard;
   rating: Rating;
 };
 

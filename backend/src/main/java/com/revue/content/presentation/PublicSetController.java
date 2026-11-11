@@ -1,15 +1,19 @@
 package com.revue.content.presentation;
 
-import com.revue.content.application.DemoCards;
 import com.revue.content.application.PublicSetService;
 import com.revue.content.application.PublicSetSummary;
+import com.revue.content.application.TrialCards;
 import java.util.List;
+import org.jspecify.annotations.Nullable;
 import org.springframework.http.CacheControl;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 /**
  * The public, read-only endpoints behind the set list, each set's preview and its trial (plan section 10). They work
@@ -29,8 +33,22 @@ class PublicSetController {
     }
 
     @GetMapping
-    ResponseEntity<List<PublicSetSummary>> list() {
-        return ok(publicSets.list());
+    ResponseEntity<List<PublicSetSummary>> list(
+        @RequestParam(required = false) @Nullable String after,
+        @RequestParam(defaultValue = "20") int limit) {
+        try {
+            var page = publicSets.list(after, limit);
+            var response = ResponseEntity.ok().cacheControl(CacheControl.noStore());
+            if (page.nextCursor() != null) {
+                response.header("X-Next-Cursor", page.nextCursor());
+                response.header(
+                    "Link",
+                    "</api/v1/public-sets?limit=" + limit + "&after=" + page.nextCursor() + ">; rel=\"next\"");
+            }
+            return response.body(page.items());
+        } catch (IllegalArgumentException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid catalog page");
+        }
     }
 
     @GetMapping("/{setKey}")
@@ -46,8 +64,8 @@ class PublicSetController {
     }
 
     @GetMapping("/{setKey}/demo-cards")
-    ResponseEntity<DemoCards> demoCards(@PathVariable String setKey) {
-        return publicSets.demoCards(setKey).map(PublicSetController::ok).orElseGet(PublicSetController::notFound);
+    ResponseEntity<TrialCards> trialCards(@PathVariable String setKey) {
+        return publicSets.trialCards(setKey).map(PublicSetController::ok).orElseGet(PublicSetController::notFound);
     }
 
     private static <T> ResponseEntity<T> ok(T body) {
