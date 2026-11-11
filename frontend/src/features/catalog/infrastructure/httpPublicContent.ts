@@ -1,10 +1,15 @@
-import type { DemoCards, PublicContentReader, PublicSet } from '../application/publicContent';
+import type { TrialCards, PublicContentReader, PublicSet } from '../application/publicContent';
 
 export const httpPublicContent: PublicContentReader = {
-  list: async () => (await getJsonOrNull<PublicSet[]>('/api/v1/public-sets')) ?? [],
+  list: async (after) => {
+    const path = after ? `/api/v1/public-sets?after=${encodeURIComponent(after)}` : '/api/v1/public-sets';
+    const response = await fetch(path, { headers: { Accept: 'application/json' } });
+    if (!response.ok) throw new Error(`GET ${path} answered ${response.status}`);
+    return { items: (await response.json()) as PublicSet[], nextCursor: response.headers.get('X-Next-Cursor') };
+  },
   sharedSummary: (code) => getJsonOrNull<PublicSet>(`/api/v1/public-sets/share/${encodeURIComponent(code)}/summary`),
   summary: (key) => getJsonOrNull<PublicSet>(`/api/v1/public-sets/${encodeURIComponent(key)}`),
-  demoCards: (key) => getJsonOrNull<DemoCards>(`/api/v1/public-sets/${encodeURIComponent(key)}/demo-cards`),
+  trialCards: (key) => getJsonOrNull<TrialCards>(`/api/v1/public-sets/${encodeURIComponent(key)}/demo-cards`),
 };
 
 async function getJsonOrNull<T>(path: string): Promise<T | null> {

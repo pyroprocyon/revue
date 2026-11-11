@@ -9,7 +9,7 @@ export type PublicSet = {
 };
 
 /** A flashcard: the question on the front, the answer and its optional note and source on the back. */
-export type DemoCard = {
+export type TrialCard = {
   key: string;
   question: string;
   answer: string;
@@ -18,16 +18,18 @@ export type DemoCard = {
   source: string | null;
 };
 
-export type DemoCards = {
+export type TrialCards = {
   setTitle: string;
   publisherName: string;
-  cards: DemoCard[];
+  cards: TrialCard[];
 };
 
-/** The UI supplies this read port; HTTP belongs to the infrastructure adapter. */
+export type PublicSetPage = { items: PublicSet[]; nextCursor: string | null };
+
+/** Application read port; App supplies its HTTP implementation to the screens. */
 export interface PublicContentReader {
-  list(): Promise<PublicSet[]>;
+  list(after?: string): Promise<PublicSetPage>;
   sharedSummary(code: string): Promise<PublicSet | null>;
   summary(setKey: string): Promise<PublicSet | null>;
-  demoCards(setKey: string): Promise<DemoCards | null>;
+  trialCards(setKey: string): Promise<TrialCards | null>;
 }

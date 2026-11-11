@@ -1,7 +1,7 @@
 package com.revue.content.application;
 
-import java.util.List;
 import java.util.Optional;
+import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,8 +18,19 @@ public class PublicSetService {
     }
 
     /** Lists the currently available published sets. */
-    public List<PublicSetSummary> list() {
-        return queries.list().stream().map(PublicSetService::summaryOf).toList();
+    public CatalogPage list(@Nullable String after, int limit) {
+        if (limit < 1 || limit > 100) {
+            throw new IllegalArgumentException("Page size must be between 1 and 100");
+        }
+        var cursor = CatalogCursor.parse(after);
+        var rows = queries.list(cursor.title(), cursor.id(), limit + 1);
+        var visible = rows.stream().limit(limit).toList();
+        String next = null;
+        if (rows.size() > limit) {
+            var last = visible.getLast();
+            next = new CatalogCursor(last.title(), last.id()).encode();
+        }
+        return new CatalogPage(visible.stream().map(PublicSetService::summaryOf).toList(), next);
     }
 
     /** Finds a public summary for an available set key. */
@@ -44,8 +55,8 @@ public class PublicSetService {
     }
 
     /** Returns a trial only when the set has the full required number of cards. */
-    public Optional<DemoCards> demoCards(String setKey) {
-        return queries.demoCards(setKey, TRIAL_CARD_COUNT).filter(result -> result.cards().size() == TRIAL_CARD_COUNT);
+    public Optional<TrialCards> trialCards(String setKey) {
+        return queries.trialCards(setKey, TRIAL_CARD_COUNT).filter(result -> result.cards().size() == TRIAL_CARD_COUNT);
     }
 
     private static PublicSetSummary summaryOf(PublicSetQueries.Overview set) {

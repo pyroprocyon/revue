@@ -16,10 +16,10 @@ interface JpaCardRepository extends JpaRepository<CardRow, Long> {
     @Query("select count(c) from Card c where c.sharedSet = :set and c.retiredAt is null")
     long countActiveInSet(SharedSetRow set);
 
-    /** One row per set that has active cards, so a list of sets needs one count query in total. */
-    @Query("select c.sharedSet.id as setId, count(c) as cardCount from Card c where c.retiredAt is null"
-        + " group by c.sharedSet.id")
-    List<ActiveCardCount> countActiveCardsBySet();
+    /** One row per set that has active cards, restricted to the requested page. */
+    @Query("select c.sharedSet.id as setId, count(c) as cardCount from Card c where c.retiredAt is null and"
+        + " c.sharedSet.id in :setIds group by c.sharedSet.id")
+    List<ActiveCardCount> countActiveCardsBySet(List<Long> setIds);
 
     interface ActiveCardCount {
 

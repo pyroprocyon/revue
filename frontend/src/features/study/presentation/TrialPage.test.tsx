@@ -1,5 +1,8 @@
-import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Link, MemoryRouter, Route, Routes } from 'react-router';
+import { TrialPage } from './TrialPage';
 import { publicContentKeys } from '../../catalog/application/publicContentQueries';
 import { historyCards, historySet } from '../../../test/fixtures';
 import { jsonResponse, renderApp, stubApi, stubFetch } from '../../../test/renderApp';
@@ -249,4 +252,76 @@ describe('Five-card trial', () => {
     expect(await screen.findByRole('heading', { name: "The 5-card trial isn't available right now." })).toBeDefined();
     expect(screen.getByRole('link', { name: 'Back to the set' }).getAttribute('href')).toBe('/sets/philippine-history');
   });
+  it('keeps the starting questions, answers, credit and ratings when refreshed cards change', async () => {
+    const fetchMock = stubFetch(200, historyCards);
+    const view = renderApp('/sets/philippine-history/try');
+    const queryKey = publicContentKeys.trial('philippine-history');
+    await screen.findByRole('heading', { name: 'Question 1?' });
+    showAnswerAndRate('Missed');
+    click('Check answer');
+
+    const replacement = {
+      ...historyCards,
+      publisherName: 'Another publisher',
+      cards: historyCards.cards.map((card) => ({
+        ...card, key: `replacement-${card.key}`, question: `New ${card.question}`, answer: `New ${card.answer}`,
+      })).reverse(),
+    };
+    fetchMock.mockImplementation(async () => jsonResponse(200, replacement));
+    act(() => { void view.queryClient.refetchQueries({ queryKey }); });
+    await waitFor(() => expect(view.queryClient.getQueryData(queryKey)).toEqual(replacement));
+
+    expect(screen.getByRole('heading', { name: 'Answer 2.' })).toBeDefined();
+    expect(screen.getByText('Published by Revue')).toBeDefined();
+    rate('Easy');
+    for (let card = 3; card <= 5; card++) showAnswerAndRate('Good');
+    expect(within(screen.getByRole('list', { name: 'Tomorrow' })).getByText('Question 1?')).toBeDefined();
+    expect(within(screen.getByRole('list', { name: 'In a week or more' })).getByText('Question 2?')).toBeDefined();
+    expect(screen.queryByText('New Question 5?')).toBeNull();
+
+    view.unmount();
+    renderApp('/sets/philippine-history/try');
+    expect(await screen.findByRole('heading', { name: 'New Question 5?' })).toBeDefined();
+    expect(screen.getByText('Card 1 of 5')).toBeDefined();
+  });
+
+  it('ends an active trial when a refresh says its content is unavailable', async () => {
+    const fetchMock = stubFetch(200, historyCards);
+    const { queryClient } = renderApp('/sets/philippine-history/try');
+    await screen.findByRole('heading', { name: 'Question 1?' });
+    showAnswerAndRate('Good');
+    fetchMock.mockResolvedValue(jsonResponse(404));
+    await act(async () => {
+      await queryClient.refetchQueries({ queryKey: publicContentKeys.trial('philippine-history') });
+    });
+    expect(await screen.findByRole('heading', { name: "The 5-card trial isn't available right now." })).toBeDefined();
+    expect(screen.queryByRole('button', { name: 'Check answer' })).toBeNull();
+  });
+
+  it('uses its supplied reader without a catalog provider and starts fresh when the set changes', async () => {
+    const otherCards = {
+      ...historyCards,
+      cards: historyCards.cards.map((card) => ({ ...card, question: `Other ${card.question}` })),
+    };
+    const reader = { trialCards: async (key: string) => key === 'other-set' ? otherCards : historyCards };
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    queryClient.setQueryData(publicContentKeys.trial('philippine-history'), historyCards);
+    queryClient.setQueryData(publicContentKeys.trial('other-set'), otherCards);
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={['/sets/philippine-history/try']}>
+          <Link to="/sets/other-set/try">Next trial</Link>
+          <Routes>
+            <Route path="/sets/:setKey/try" element={<TrialPage reader={reader} />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    await screen.findByRole('heading', { name: 'Question 1?' });
+    showAnswerAndRate('Missed');
+    fireEvent.click(screen.getByRole('link', { name: 'Next trial' }));
+    expect(await screen.findByRole('heading', { name: 'Other Question 1?' })).toBeDefined();
+    expect(screen.getByText('Card 1 of 5')).toBeDefined();
+  });
+
 });

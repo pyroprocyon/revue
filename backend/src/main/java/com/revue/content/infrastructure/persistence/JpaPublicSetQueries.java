@@ -1,7 +1,7 @@
 package com.revue.content.infrastructure.persistence;
 
-import com.revue.content.application.DemoCards;
 import com.revue.content.application.PublicSetQueries;
+import com.revue.content.application.TrialCards;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,15 +20,19 @@ class JpaPublicSetQueries implements PublicSetQueries {
     }
 
     @Override
-    public List<Overview> list() {
+    public List<Overview> list(String afterTitle, long afterId, int limit) {
+        var page = afterId == 0
+            ? sets.findFirstPage(Limit.of(limit))
+            : sets.findAfterTitle(afterTitle, afterId, Limit.of(limit));
+        if (page.isEmpty()) {
+            return List.of();
+        }
         Map<Long, Long> counts = new HashMap<>();
-        for (JpaCardRepository.ActiveCardCount row : cards.countActiveCardsBySet()) {
+        for (JpaCardRepository.ActiveCardCount row : cards
+            .countActiveCardsBySet(page.stream().map(SharedSetRow::id).toList())) {
             counts.put(row.getSetId(), row.getCardCount());
         }
-        return sets.findAllActiveByTitle()
-            .stream()
-            .map(set -> overview(set, counts.getOrDefault(set.id(), 0L)))
-            .toList();
+        return page.stream().map(set -> overview(set, counts.getOrDefault(set.id(), 0L))).toList();
     }
 
     @Override
@@ -42,19 +46,19 @@ class JpaPublicSetQueries implements PublicSetQueries {
     }
 
     @Override
-    public Optional<DemoCards> demoCards(String setKey, int limit) {
+    public Optional<TrialCards> trialCards(String setKey, int limit) {
         return sets.findActiveBySetKey(setKey).map(set -> {
-            List<DemoCards.DemoCard> selected = cards.findActiveInSetOrdered(set, Limit.of(limit))
+            List<TrialCards.TrialCard> selected = cards.findActiveInSetOrdered(set, Limit.of(limit))
                 .stream()
                 .map(
-                    card -> new DemoCards.DemoCard(
+                    card -> new TrialCards.TrialCard(
                         card.contentKey(),
                         card.question(),
                         card.answer(),
                         card.explanation(),
                         card.source()))
                 .toList();
-            return new DemoCards(set.title(), set.publisherName(), selected);
+            return new TrialCards(set.title(), set.publisherName(), selected);
         });
     }
 

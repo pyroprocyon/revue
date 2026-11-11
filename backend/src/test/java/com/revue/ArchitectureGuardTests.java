@@ -15,7 +15,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
-/** Run the production rules against test-only classes in a context without a production domain yet. */
+/** Run the production rules against test-only examples of allowed and forbidden dependencies. */
 class ArchitectureGuardTests {
 
     @Test

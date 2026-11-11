@@ -1,6 +1,6 @@
 import { Lightbulb } from 'lucide-react';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import type { DemoCard } from '../../catalog/application/publicContent';
+import type { TrialCard } from '../../catalog/application/publicContent';
 import { primaryButton } from '../../../shared/ui/buttonStyles';
 import { CardSource } from '../../../shared/ui/CardSource';
 import { RATINGS, RATINGS_IN_ORDER, RecallMeter, type Rating } from './ratings';
@@ -10,7 +10,7 @@ import { RATINGS, RATINGS_IN_ORDER, RecallMeter, type Rating } from './ratings';
 // explicit buttons let the student reread either side. Both sides share one grid cell.
 
 type FlashCardProps = {
-  card: DemoCard;
+  card: TrialCard;
   publisherName: string;
   onRate: (rating: Rating) => void;
 };

@@ -13,7 +13,9 @@ import com.revue.TestcontainersConfiguration;
 import com.revue.content.application.ContentLoader;
 import com.revue.content.domain.CardDefinition;
 import com.revue.content.domain.SetDefinition;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,7 +30,7 @@ import org.springframework.test.web.servlet.MockMvc;
  * The public set endpoints (plan sections 4 and 13), signed out, against PostgreSQL 18.6. Each test loads the content
  * it needs. A load is a complete source, so it also retires whatever an earlier test loaded.
  */
-@SpringBootTest(properties = "revue.content.load-on-startup=false")
+@SpringBootTest(properties = "revue.content.publish=false")
 @AutoConfigureMockMvc
 @Import(TestcontainersConfiguration.class)
 class PublicSetEndpointsTests {
@@ -43,6 +45,39 @@ class PublicSetEndpointsTests {
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @Test
+    void cursorsWithEmbeddedNullsInTheirTitlesAreBadInput() throws Exception {
+        String cursor = Base64.getUrlEncoder()
+            .withoutPadding()
+            .encodeToString(("bad\0title\0" + "1").getBytes(StandardCharsets.UTF_8));
+        mvc.perform(get(PUBLIC_SETS).param("after", cursor)).andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void pagesUseStableTitleAndIdOrderingAndBoundedCounts() throws Exception {
+        loader.load(
+            List.of(
+                set("page-a", "Same", cards("page-a-card")),
+                set("page-b", "Same", cards("page-b-card", "page-b-card-2")),
+                set("page-c", "Zebra", cards("page-c-card"))));
+        var first = mvc.perform(get(PUBLIC_SETS).param("limit", "1"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$", hasSize(1)))
+            .andExpect(jsonPath("$[0].setKey").value("page-a"))
+            .andExpect(jsonPath("$[0].cardCount").value(1))
+            .andReturn()
+            .getResponse();
+        String cursor = first.getHeader("X-Next-Cursor");
+        assertThat(cursor).isNotBlank();
+        mvc.perform(get(PUBLIC_SETS).param("limit", "2").param("after", cursor))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[*].setKey", contains("page-b", "page-c")))
+            .andExpect(jsonPath("$[0].cardCount").value(2))
+            .andExpect(header().doesNotExist("X-Next-Cursor"));
+        mvc.perform(get(PUBLIC_SETS).param("limit", "101")).andExpect(status().isBadRequest());
+        mvc.perform(get(PUBLIC_SETS).param("after", "invalid")).andExpect(status().isBadRequest());
+    }
 
     @Test
     void shortShareCodesResolveOnlyActiveSetsAndRemainStableAcrossContentUpdates() throws Exception {

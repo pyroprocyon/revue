@@ -36,15 +36,15 @@ function violations(file: string, source: string): string[] {
     return [`${file}: domain code must use .ts so the no-DOM compilation checks it`];
   }
   return dependencies(file, source).filter((dependency) => {
-    const target = dependency.startsWith('.')
-      ? new URL(dependency, new URL(file, 'https://architecture.test/')).pathname
-      : dependency;
-    const targetLayer = /^\/features\/[^/]+\/(domain|application|infrastructure|presentation)(\/|$)/.exec(target)?.[1];
+    const target = importTarget(file, dependency);
+    const targetFeature = /^\/features\/([^/]+)\/(domain|application|infrastructure|presentation)(\/|$)/.exec(target);
+    const targetLayer = targetFeature?.[2];
     const compositionRoot = target === '/app' || target.startsWith('/app/') || /^\/main(?:\.[jt]sx?)?$/.test(target);
     if (isTestCode(target)) return true;
     if (shared) return target.startsWith('/features/') || compositionRoot;
     if (!feature) return false;
     const [, featureName, layer] = feature;
+    if (targetFeature && targetFeature[1] !== featureName && targetLayer !== 'application') return true;
     if (layer === 'domain') {
       const ownDomain = `/features/${featureName}/domain/`;
       return target !== ownDomain.slice(0, -1) && !target.startsWith(ownDomain);
@@ -62,6 +62,46 @@ function violations(file: string, source: string): string[] {
   }).map((dependency) => `${file} -> ${dependency}`);
 }
 
+function importTarget(file: string, dependency: string): string {
+  return dependency.startsWith('.')
+    ? new URL(dependency, new URL(file, 'https://architecture.test/')).pathname
+    : dependency;
+}
+
+/** A feature may consume another feature's application API, but the dependencies must stay acyclic. */
+function featureCycles(production: [string, string][]): string[] {
+  const graph = new Map<string, Set<string>>();
+  const featureName = (file: string) => /^\.?\/features\/([^/]+)\//.exec(file)?.[1];
+  for (const [file, source] of production) {
+    const from = featureName(file);
+    if (!from) continue;
+    const targets = graph.get(from) ?? new Set<string>();
+    graph.set(from, targets);
+    for (const dependency of dependencies(file, source)) {
+      const to = featureName(importTarget(file, dependency));
+      if (to && to !== from) targets.add(to);
+    }
+  }
+
+  const checked = new Set<string>();
+  const path: string[] = [];
+  const cycles: string[] = [];
+  function visit(feature: string) {
+    const cycleStart = path.indexOf(feature);
+    if (cycleStart !== -1) {
+      cycles.push([...path.slice(cycleStart), feature].join(' -> '));
+      return;
+    }
+    if (checked.has(feature)) return;
+    path.push(feature);
+    for (const target of graph.get(feature) ?? []) visit(target);
+    path.pop();
+    checked.add(feature);
+  }
+  for (const feature of graph.keys()) visit(feature);
+  return cycles;
+}
+
 function isTestCode(file: string): boolean {
   const path = file.startsWith('./') ? file.slice(1) : file;
   return path === '/test' || path.startsWith('/test/') || /\.(test|spec)(\.[cm]?[jt]sx?)?$/.test(path);
@@ -72,6 +112,7 @@ describe('frontend architecture', () => {
     const production = Object.entries(sources).filter(([file]) => !isTestCode(file));
     expect(production.length).toBeGreaterThan(0);
     expect(production.flatMap(([file, source]) => violations(file, source))).toEqual([]);
+    expect(featureCycles(production)).toEqual([]);
   });
 
   it('detects framework imports, type imports and dynamic adapter imports', () => {
@@ -84,7 +125,7 @@ describe('frontend architecture', () => {
     ['application', "type Client = import('../infrastructure/http').Client;"],
     ['presentation', "type Client = typeof import('../infrastructure/http');"],
     ['domain', "type Component = import('react').ReactNode;"],
-  ])('checks inline type imports in a future account %s layer', (layer, source) => {
+  ])('checks inline type imports in a account %s layer', (layer, source) => {
     expect(violations(`./features/account/${layer}/example.ts`, source)).toHaveLength(1);
   });
 
@@ -110,7 +151,7 @@ describe('frontend architecture', () => {
     ['application', "import type { AccountId } from '../domain/account';"],
     ['infrastructure', "import type { AccountCommands } from '../application/commands';"],
     ['presentation', "import type { AccountCommands } from '../application/commands';"],
-  ])('allows inward dependencies in a future account %s layer', (layer, source) => {
+  ])('allows inward dependencies in a account %s layer', (layer, source) => {
     expect(violations(`./features/account/${layer}/example.ts`, source)).toEqual([]);
   });
 
@@ -152,4 +193,36 @@ describe('frontend architecture', () => {
   it('allows a domain to import its own directory index', () => {
     expect(violations('./features/account/domain/example.ts', "import type { AccountId } from '../domain';")).toEqual([]);
   });
+  it.each(['domain', 'infrastructure', 'presentation'])('rejects another feature’s %s internals', (layer) => {
+    expect(violations('./features/study/presentation/example.ts', `import '../../catalog/${layer}';`)).toHaveLength(1);
+  });
+
+  it('allows another feature’s application contract', () => {
+    expect(violations('./features/study/presentation/example.ts', "import type { PublicContentReader } from '../../catalog/application/publicContent';"))
+      .toEqual([]);
+  });
+
+  it('rejects a cycle through otherwise allowed application imports', () => {
+    expect(featureCycles([
+      ['./features/study/application/trial.ts', "import '../../catalog/application/publicContent';"],
+      ['./features/catalog/application/publicContent.ts', "export * from '../../study/application/trial';"],
+    ])).toEqual(['study -> catalog -> study']);
+  });
+
+  it('finds indirect feature cycles, including literal dynamic imports', () => {
+    expect(featureCycles([
+      ['./features/study/application/trial.ts', "import('../../catalog/application/publicContent');"],
+      ['./features/catalog/application/publicContent.ts', "import '../../account/application/account';"],
+      ['./features/account/application/account.ts', "import '../../study/application/trial';"],
+    ])).toEqual(['study -> catalog -> account -> study']);
+  });
+
+  it('allows multiple features to use the same application API without a cycle', () => {
+    expect(featureCycles([
+      ['./features/study/application/trial.ts', "import '../../catalog/application/publicContent';"],
+      ['./features/account/application/account.ts', "import '../../catalog/application/publicContent';"],
+      ['./features/catalog/application/publicContent.ts', 'export type SetKey = string;'],
+    ])).toEqual([]);
+  });
+
 });
