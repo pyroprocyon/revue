@@ -52,8 +52,8 @@ public class HttpAccountSession implements AccountSession {
     @Override
     public Optional<Identity> current() {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.getPrincipal() instanceof Principal principal) {
-            return Optional.of(new Identity(principal.accountId(), principal.version()));
+        if (authentication != null && authentication.getPrincipal() instanceof Principal(var accountId, var version)) {
+            return Optional.of(new Identity(accountId, version));
         }
         return Optional.empty();
     }

@@ -97,7 +97,7 @@ public final class PublicContent {
         String description;
         try {
             description = resource.getURL().toString();
-        } catch (IOException ex) {
+        } catch (IOException _) {
             description = String.valueOf(resource.getFilename());
         }
         int root = description.lastIndexOf(ROOT_MARKER);

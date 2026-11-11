@@ -15,7 +15,7 @@ type MessageScreenProps = {
  * A page-level message, such as an error, an unavailable set or the end of the trial. Its
  * heading takes focus when it appears, because it usually replaces the control that had focus.
  */
-export function MessageScreen({ title, icon, action, children }: MessageScreenProps) {
+export function MessageScreen({ title, icon, action, children }: Readonly<MessageScreenProps>) {
   const headingRef = useFocusOnMount<HTMLHeadingElement>();
   return (
     <Screen top={<HomeLink />} actions={action}>
@@ -30,13 +30,13 @@ export function MessageScreen({ title, icon, action, children }: MessageScreenPr
   );
 }
 
-export function LoadingScreen({ text }: { text: string }) {
+export function LoadingScreen({ text }: Readonly<{ text: string }>) {
   return (
     <Screen top={<HomeLink />}>
-      <div role="status" className="my-auto flex items-center gap-3 rounded-card bg-surface p-4 text-body text-muted shadow-card sm:p-6 lg:my-6">
+      <output className="my-auto flex items-center gap-3 rounded-card bg-surface p-4 text-body text-muted shadow-card sm:p-6 lg:my-6">
         <LoaderCircle aria-hidden="true" className="size-6 shrink-0 animate-spin text-accent motion-reduce:animate-none" />
-        <p>{text}</p>
-      </div>
+        <span>{text}</span>
+      </output>
     </Screen>
   );
 }

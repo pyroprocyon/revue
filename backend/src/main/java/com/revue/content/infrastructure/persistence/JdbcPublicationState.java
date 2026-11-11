@@ -21,7 +21,7 @@ class JdbcPublicationState implements PublicationState {
     }
 
     @Override
-    public void record(long revision, String digest) {
+    public void recordSuccess(long revision, String digest) {
         jdbc.update(
             "UPDATE catalog_publication SET revision = ?, digest = ?, published_at = clock_timestamp() WHERE"
                 + " singleton",

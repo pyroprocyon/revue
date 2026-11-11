@@ -31,7 +31,7 @@ final class CurrentAccountFilter extends OncePerRequestFilter {
         throws ServletException, IOException {
         try {
             request.setAttribute(AccountService.Profile.class.getName(), accounts.current());
-        } catch (AccountProblem rejected) {
+        } catch (AccountProblem _) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             return;
         }

@@ -15,7 +15,7 @@ import { FlashCard } from './FlashCard';
 import { RATINGS, RecallMeter, type Rating } from './ratings';
 
 /** "Try 5 cards": a set's first five cards, practiced in the browser and never saved. */
-export function TrialPage({ reader }: { reader: Pick<PublicContentReader, 'trialCards'> }) {
+export function TrialPage({ reader }: Readonly<{ reader: Pick<PublicContentReader, 'trialCards'> }>) {
   const { setKey = '' } = useParams();
   const trialCards = useQuery(trialCardsQuery(reader, setKey));
 
@@ -38,7 +38,7 @@ export function TrialPage({ reader }: { reader: Pick<PublicContentReader, 'trial
   return <Trial key={setKey} setKey={setKey} initialContent={trialCards.data} />;
 }
 
-function Trial({ setKey, initialContent }: { setKey: string; initialContent: TrialCards }) {
+function Trial({ setKey, initialContent }: Readonly<{ setKey: string; initialContent: TrialCards }>) {
   // A running trial keeps its starting batch, even when the query refreshes for the next visit.
   const [trial, setTrial] = useState(() => ({
     content: initialContent,
@@ -76,7 +76,7 @@ function Trial({ setKey, initialContent }: { setKey: string; initialContent: Tri
   );
 }
 
-function TrialProgress({ position, cardCount }: { position: number; cardCount: number }) {
+function TrialProgress({ position, cardCount }: Readonly<{ position: number; cardCount: number }>) {
   return (
     <div aria-hidden="true" className="mb-3 h-1.5 overflow-hidden rounded-full bg-subtle">
       <div
@@ -94,7 +94,7 @@ type TrialFinishedProps = {
 };
 
 /** The end of the trial: each card with its rating and when an account would show it again. */
-function TrialFinished({ setKey, cards, ratings }: TrialFinishedProps) {
+function TrialFinished({ setKey, cards, ratings }: Readonly<TrialFinishedProps>) {
   const groups = trialSummary(cards, ratings);
   const finishedIcon = (
     <span className="mb-3 grid size-10 place-items-center rounded-full bg-accent-soft text-accent-strong">
@@ -129,7 +129,7 @@ type ReviewTimingGroupProps = {
   first: boolean;
 };
 
-function ReviewTimingGroup({ when, cards, first }: ReviewTimingGroupProps) {
+function ReviewTimingGroup({ when, cards, first }: Readonly<ReviewTimingGroupProps>) {
   const headingId = useId();
   return (
     <section aria-labelledby={headingId}>
@@ -148,7 +148,7 @@ function ReviewTimingGroup({ when, cards, first }: ReviewTimingGroupProps) {
   );
 }
 
-function SummaryCardRow({ question, rating }: { question: string; rating: Rating }) {
+function SummaryCardRow({ question, rating }: Readonly<{ question: string; rating: Rating }>) {
   return (
     <li className="flex items-start gap-3 py-3">
       <span className={`mt-0.5 grid size-8 shrink-0 place-items-center rounded-inset ${RATINGS[rating].tint}`}>
@@ -168,7 +168,7 @@ type SetLinksProps = {
   primary: 'another-set' | 'back-to-set';
 };
 
-function SetLinks({ setKey, primary }: SetLinksProps) {
+function SetLinks({ setKey, primary }: Readonly<SetLinksProps>) {
   return (
     <ActionRow>
       <Link to={SETS_PATH} className={primary === 'another-set' ? primaryButton : secondaryButton}>

@@ -16,7 +16,7 @@ type ScreenProps = {
  * retains a usable minimum height even when enlarged actions need page scrolling. Short viewports
  * and screens from 1024 pixels wide use ordinary page scrolling.
  */
-export function Screen({ top, actions, actionsOnPhonesOnly = false, wide = false, children }: ScreenProps) {
+export function Screen({ top, actions, actionsOnPhonesOnly = false, wide = false, children }: Readonly<ScreenProps>) {
   const column = `mx-auto w-full pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] ${wide ? 'max-w-wide' : 'max-w-page'}`;
   return (
     <div className="app-screen flex h-dvh flex-col px-1 lg:h-auto lg:min-h-dvh lg:px-2 lg:pt-4">
@@ -38,6 +38,6 @@ export function Screen({ top, actions, actionsOnPhonesOnly = false, wide = false
 }
 
 /** Full-width stacked buttons on phones, side by side from 640 pixels. */
-export function ActionRow({ children }: { children: ReactNode }) {
+export function ActionRow({ children }: Readonly<{ children: ReactNode }>) {
   return <div className="grid gap-3 sm:flex sm:flex-wrap sm:items-center">{children}</div>;
 }

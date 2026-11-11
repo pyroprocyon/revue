@@ -38,7 +38,7 @@ type BackButtonProps = {
  * Goes back one page, like the phone's back gesture. On the first page of a visit, such as a page
  * opened from a shared link, there is nothing to go back to, so it opens `fallbackPath` instead.
  */
-export function BackButton({ label, fallbackPath }: BackButtonProps) {
+export function BackButton({ label, fallbackPath }: Readonly<BackButtonProps>) {
   const navigate = useNavigate();
   const location = useLocation();
   // React Router gives the first page of a visit the key "default".
@@ -64,7 +64,7 @@ export function BackButton({ label, fallbackPath }: BackButtonProps) {
   );
 }
 
-export function SignInLink({ appearance = 'text' }: { appearance?: 'text' | 'account' }) {
+export function SignInLink({ appearance = 'text' }: Readonly<{ appearance?: 'text' | 'account' }>) {
   const location = useLocation();
   const className = appearance === 'account'
     ? accountOutlinedButton

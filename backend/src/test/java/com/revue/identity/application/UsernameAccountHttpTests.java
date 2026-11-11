@@ -259,7 +259,7 @@ class UsernameAccountHttpTests {
         String name = username();
         assertThat(browser.send(signup(name, "kanjii", invitation())).getResponse().getStatus()).isEqualTo(200);
         browser.csrf();
-        try (var permit = admission.enter("other-operation")) {
+        try (var _ = admission.enter("other-operation")) {
             var rejected = browser.send(login(name, "kanjii")).getResponse();
             assertThat(rejected.getStatus()).isEqualTo(429);
             assertThat(rejected.getHeader("Retry-After")).isEqualTo("60");

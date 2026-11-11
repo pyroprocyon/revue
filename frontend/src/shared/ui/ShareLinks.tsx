@@ -15,7 +15,7 @@ type CopyResult = 'not-copied' | 'copied' | 'failed';
  * Share and Copy link for a public page. The link carries nothing about the visitor. Share opens
  * the phone's share sheet and appears only where the browser has one; Copy link always appears.
  */
-export function ShareLinks({ title, path }: ShareLinksProps) {
+export function ShareLinks({ title, path }: Readonly<ShareLinksProps>) {
   const [copyResult, setCopyResult] = useState<CopyResult>('not-copied');
   const link = new URL(path, window.location.origin).href;
   const canShare = typeof navigator.share === 'function';
@@ -52,9 +52,9 @@ export function ShareLinks({ title, path }: ShareLinksProps) {
           Copy link
         </button>
       </div>
-      <p role="status" className="mt-2 wrap-anywhere text-support text-muted">
+      <output className="mt-2 block wrap-anywhere text-support text-muted">
         {copyMessage(copyResult, link)}
-      </p>
+      </output>
     </div>
   );
 }

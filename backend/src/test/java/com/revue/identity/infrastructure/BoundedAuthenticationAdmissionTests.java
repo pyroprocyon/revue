@@ -28,7 +28,7 @@ class BoundedAuthenticationAdmissionTests {
         verify(store, times(1)).tryAcquire(anyString());
         first.close();
         first.close();
-        try (var second = admission.enter("second")) {
+        try (var _ = admission.enter("second")) {
             assertThatThrownBy(() -> admission.enter("third")).isInstanceOf(AccountProblem.class);
         }
         verify(store, never()).tryAcquire("first");
@@ -41,7 +41,7 @@ class BoundedAuthenticationAdmissionTests {
             .thenReturn(true);
         assertThatThrownBy(() -> admission.enter("first")).isInstanceOf(AccountProblem.class);
         assertThatThrownBy(() -> admission.enter("first")).isInstanceOf(AccountProblem.class);
-        try (var permit = admission.enter("first")) {
+        try (var _ = admission.enter("first")) {
             /* The third attempt can acquire local capacity. */
         }
     }

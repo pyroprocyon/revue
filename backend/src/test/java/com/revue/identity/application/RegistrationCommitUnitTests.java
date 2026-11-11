@@ -42,7 +42,8 @@ class RegistrationCommitUnitTests {
             new Username("student"),
             new PasswordHash("{test}encoded-placeholder"),
             hash);
-        assertThatThrownBy(() -> new RegistrationCommit(store, new PilotInvitation("")).registerUsername(command))
+        var registration = new RegistrationCommit(store, new PilotInvitation(""));
+        assertThatThrownBy(() -> registration.registerUsername(command))
             .isInstanceOf(RegistrationUnavailableException.class);
         verify(store, never()).insertUsernameAccount(any(), any());
         verify(store, never()).saveRedemption(any());

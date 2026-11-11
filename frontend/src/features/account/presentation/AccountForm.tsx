@@ -15,7 +15,7 @@ const PASSWORD_MISMATCH = 'Passwords don’t match.';
 
 const inputStyle = 'min-h-14 w-full rounded-control border border-field-edge bg-surface px-4 text-body text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent';
 
-export function AccountForm({ register = false }: { register?: boolean }) {
+export function AccountForm({ register = false }: Readonly<{ register?: boolean }>) {
   const gateway = useAccountGateway();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -25,7 +25,6 @@ export function AccountForm({ register = false }: { register?: boolean }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [passwordConfirmation, setPasswordConfirmation] = useState('');
-  const [invitation, setInvitation] = useState(() => invitationFromFragment() ?? '');
   const [show, setShow] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -34,22 +33,10 @@ export function AccountForm({ register = false }: { register?: boolean }) {
   useEffect(() => {
     if (error) errorRef.current?.focus();
   }, [error]);
+  const invitation = useInvitation(register);
   const needsInvitation = register && invitation === '';
   const idleAction = register ? 'Create account' : 'Sign in';
   const actionLabel = busy ? 'Please wait…' : idleAction;
-
-  useEffect(() => {
-    if (!register) return;
-    function receiveInvitation() {
-      if (window.location.hash === '') return;
-      const incoming = invitationFromFragment();
-      if (incoming !== null) setInvitation(incoming);
-      window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search);
-    }
-    receiveInvitation();
-    window.addEventListener('hashchange', receiveInvitation);
-    return () => window.removeEventListener('hashchange', receiveInvitation);
-  }, [register]);
 
   async function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -67,10 +54,10 @@ export function AccountForm({ register = false }: { register?: boolean }) {
       setPasswordConfirmation('');
       queryClient.clear();
       await navigate(returnPath ?? ACCOUNT_PATH, { replace: true });
-    } catch (failure) {
+    } catch (error_) {
       setPassword('');
       setPasswordConfirmation('');
-      setError(failure instanceof Error ? failure.message : 'Please try again.');
+      setError(error_ instanceof Error ? error_.message : 'Please try again.');
     } finally {
       setBusy(false);
     }
@@ -89,9 +76,9 @@ export function AccountForm({ register = false }: { register?: boolean }) {
         <div className="rounded-card bg-surface p-4 shadow-card sm:p-8">
           <h1 className="text-title font-extrabold tracking-tight">{register ? 'Create your account' : 'Welcome back'}</h1>
           {needsInvitation && (
-            <p role="status" className="mt-5 rounded-inset bg-subtle p-4 text-body">
+            <output className="mt-5 block rounded-inset bg-subtle p-4 text-body">
               Open your invitation link to continue.
-            </p>
+            </output>
           )}
           <form id="account-form" onSubmit={(event) => void submit(event)} className="mt-7 grid gap-5" aria-busy={busy}>
             <div>
@@ -108,11 +95,7 @@ export function AccountForm({ register = false }: { register?: boolean }) {
                 <input id={passwordId} className={`${inputStyle} block pr-[56px]`} name="password" type={show ? 'text' : 'password'}
                   required minLength={6} autoComplete={register ? 'new-password' : 'current-password'} value={password}
                   onChange={(event) => { setPassword(event.target.value); clearPasswordMismatch(); }} aria-describedby={register ? 'password-help' : undefined} />
-                <button type="button" aria-label={show ? 'Hide password' : 'Show password'}
-                  aria-controls={passwordId} onClick={() => setShow(!show)}
-                  className="pressable absolute inset-y-0 right-0 inline-flex min-h-12 w-[48px] items-center justify-center rounded-control text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
-                  {show ? <EyeOff aria-hidden="true" size={20} /> : <Eye aria-hidden="true" size={20} />}
-                </button>
+                <PasswordVisibilityToggle fieldId={passwordId} label="password" show={show} onToggle={() => setShow(!show)} />
               </div>
               {register && <span id="password-help" className="mt-1 block text-support text-muted">6–64 characters. Spaces are welcome.</span>}
             </div>
@@ -125,11 +108,8 @@ export function AccountForm({ register = false }: { register?: boolean }) {
                     value={passwordConfirmation}
                     onChange={(event) => { setPasswordConfirmation(event.target.value); clearPasswordMismatch(); }}
                     aria-invalid={confirmationMismatch || undefined} aria-describedby={confirmationMismatch ? 'account-error' : undefined} />
-                  <button type="button" aria-label={showConfirmation ? 'Hide confirmation password' : 'Show confirmation password'}
-                    aria-controls="confirm-password" onClick={() => setShowConfirmation(!showConfirmation)}
-                    className="pressable absolute inset-y-0 right-0 inline-flex min-h-12 w-[48px] items-center justify-center rounded-control text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
-                    {showConfirmation ? <EyeOff aria-hidden="true" size={20} /> : <Eye aria-hidden="true" size={20} />}
-                  </button>
+                  <PasswordVisibilityToggle fieldId="confirm-password" label="confirmation password"
+                    show={showConfirmation} onToggle={() => setShowConfirmation(!showConfirmation)} />
                 </div>
               </div>
             )}
@@ -148,6 +128,39 @@ export function AccountForm({ register = false }: { register?: boolean }) {
       </section>
     </Screen>
   );
+}
+
+function PasswordVisibilityToggle({ fieldId, label, show, onToggle }: Readonly<{
+  fieldId: string;
+  label: string;
+  show: boolean;
+  onToggle: () => void;
+}>) {
+  const action = show ? 'Hide' : 'Show';
+  const Icon = show ? EyeOff : Eye;
+  return (
+    <button type="button" aria-label={`${action} ${label}`} aria-controls={fieldId} onClick={onToggle}
+      className="pressable absolute inset-y-0 right-0 inline-flex min-h-12 w-[48px] items-center justify-center rounded-control text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+      <Icon aria-hidden="true" size={20} />
+    </button>
+  );
+}
+
+function useInvitation(register: boolean) {
+  const [invitation, setInvitation] = useState(() => invitationFromFragment() ?? '');
+  useEffect(() => {
+    if (!register) return;
+    function receiveInvitation() {
+      if (window.location.hash === '') return;
+      const incoming = invitationFromFragment();
+      if (incoming !== null) setInvitation(incoming);
+      window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search);
+    }
+    receiveInvitation();
+    window.addEventListener('hashchange', receiveInvitation);
+    return () => window.removeEventListener('hashchange', receiveInvitation);
+  }, [register]);
+  return invitation;
 }
 
 function invitationFromFragment(): string | null {

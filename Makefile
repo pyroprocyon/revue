@@ -25,7 +25,7 @@ NODE_RUN := $(abspath scripts/with-node.sh)
 # Every Compose target needs a local .env file and a running Docker engine.
 PREREQS := .env check-docker
 
-.PHONY: format-java e2e invite lint install-hooks tooling-test quality sonar help start stop up down restart rebuild rebuild-clean logs ps db db-shell reset test check build frontend-install check-docker check-java smoke
+.PHONY: format-java e2e invite lint install-hooks tooling-test quality quality-local sonar sonar-ide sonar-ide-check help start stop up down restart rebuild rebuild-clean logs ps db db-shell reset test check build frontend-install check-docker check-java smoke
 
 help: ## Show this list
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z_-]+:.*## / {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -121,12 +121,21 @@ tooling-test: ## Check that analysis cannot silently omit application code or te
 quality: check e2e ## Run all checks, browser journeys and SonarQube (requires Docker)
 	python3 scripts/check-sonar.py
 
+quality-local: quality ## Run the required local pre-PR checks, including SonarQube for IDE
+	$(MAKE) sonar-ide-check
+
 e2e: check-docker frontend-install ## Test pilot account journeys against a disposable production app and database
 	cd "$(FRONTEND_DIR)" && bash "$(NODE_RUN)" npx --no-install playwright install --only-shell chromium
 	cd "$(FRONTEND_DIR)" && bash "$(NODE_RUN)" npm run test:e2e
 
 sonar: check-docker check-java ## Analyze already compiled Java and installed frontend sources
 	python3 scripts/check-sonar.py
+
+sonar-ide: check-java ## Run the IntelliJ SonarQube plugin engine and save its findings
+	bash "$(NODE_RUN)" bash scripts/scan-sonar-ide.sh
+
+sonar-ide-check: sonar-ide ## Check the fresh IDE report for unresolved findings
+	python3 scripts/check-sonar-ide.py
 
 smoke: up ## Check Vite and its proxy, and the production build served by the backend
 	@frontend=$$($(COMPOSE) port frontend 5173); backend=$$($(COMPOSE) port backend 8080); \

@@ -12,7 +12,7 @@ type PolicyPageProps = {
   children: ReactNode;
 };
 
-export function PolicyPageLayout({ title, updated, children }: PolicyPageProps) {
+export function PolicyPageLayout({ title, updated, children }: Readonly<PolicyPageProps>) {
   return (
     <Screen
       top={<div className="mx-auto"><HomeLink /></div>}
@@ -32,7 +32,7 @@ export function PolicyPageLayout({ title, updated, children }: PolicyPageProps) 
   );
 }
 
-export function PolicySection({ id, title, children }: { id?: string; title: string; children: ReactNode }) {
+export function PolicySection({ id, title, children }: Readonly<{ id?: string; title: string; children: ReactNode }>) {
   return (
     <section id={id} className="space-y-2">
       <h2 className="text-section font-bold tracking-tight">{title}</h2>

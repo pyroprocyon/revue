@@ -90,11 +90,7 @@ class AcceptEncodingFilter extends OncePerRequestFilter {
             }
         }
         if (wildcardAccepted) {
-            for (String coding : SERVED_CODINGS) {
-                if (!named.contains(coding)) {
-                    accepted.add(coding);
-                }
-            }
+            SERVED_CODINGS.stream().filter(coding -> !named.contains(coding)).forEach(accepted::add);
         }
         return accepted.isEmpty() ? null : String.join(", ", accepted);
     }
@@ -105,7 +101,7 @@ class AcceptEncodingFilter extends OncePerRequestFilter {
             if (parameter.regionMatches(true, 0, "q=", 0, 2)) {
                 try {
                     return Double.parseDouble(parameter.substring(2).trim()) > 0;
-                } catch (NumberFormatException ex) {
+                } catch (NumberFormatException _) {
                     return false;
                 }
             }

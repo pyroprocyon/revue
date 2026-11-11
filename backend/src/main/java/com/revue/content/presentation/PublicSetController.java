@@ -46,7 +46,7 @@ class PublicSetController {
                     "</api/v1/public-sets?limit=" + limit + "&after=" + page.nextCursor() + ">; rel=\"next\"");
             }
             return response.body(page.items());
-        } catch (IllegalArgumentException ex) {
+        } catch (IllegalArgumentException _) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid catalog page");
         }
     }

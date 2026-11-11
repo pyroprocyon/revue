@@ -15,7 +15,7 @@ type FlashCardProps = {
   onRate: (rating: Rating) => void;
 };
 
-export function FlashCard({ card, publisherName, onRate }: FlashCardProps) {
+export function FlashCard({ card, publisherName, onRate }: Readonly<FlashCardProps>) {
   const [answerShown, setAnswerShown] = useState(false);
   const [showingBack, setShowingBack] = useState(false);
   const recallHintId = useId();
@@ -124,7 +124,7 @@ type CardSideProps = {
  * One side of the card: its label, the text centered in the space left, and its buttons at the
  * bottom. The side facing away is inert, so it can't be read or focused.
  */
-function CardSide({ label, hidden, back = false, headerAction, footer, children }: CardSideProps) {
+function CardSide({ label, hidden, back = false, headerAction, footer, children }: Readonly<CardSideProps>) {
   return (
     <section
       inert={hidden}
@@ -141,13 +141,12 @@ function CardSide({ label, hidden, back = false, headerAction, footer, children 
   );
 }
 
-function RatingButtons({ onRate }: { onRate: (rating: Rating) => void }) {
-  const promptId = useId();
+function RatingButtons({ onRate }: Readonly<{ onRate: (rating: Rating) => void }>) {
   return (
-    <div role="group" aria-labelledby={promptId} className="@container text-left">
-      <p id={promptId} className="text-label font-semibold">
+    <fieldset className="@container min-w-0 text-left">
+      <legend className="text-label font-semibold">
         Rate your answer
-      </p>
+      </legend>
       {/* Two columns when two 8.75rem buttons and the gap fit inside the card. */}
       <div className="mt-2 grid auto-rows-fr grid-cols-1 gap-2 @min-[18rem]:grid-cols-2">
         {RATINGS_IN_ORDER.map((rating) => (
@@ -167,6 +166,6 @@ function RatingButtons({ onRate }: { onRate: (rating: Rating) => void }) {
           </button>
         ))}
       </div>
-    </div>
+    </fieldset>
   );
 }

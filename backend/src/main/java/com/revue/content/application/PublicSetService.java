@@ -49,7 +49,7 @@ public class PublicSetService {
                 return Optional.empty();
             }
             return queries.summaryById(id).map(PublicSetService::summaryOf);
-        } catch (NumberFormatException invalid) {
+        } catch (NumberFormatException _) {
             return Optional.empty();
         }
     }

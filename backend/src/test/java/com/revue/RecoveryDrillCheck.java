@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.revue.content.application.ContentLoader;
 import com.revue.content.infrastructure.files.PublicContent;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
@@ -60,7 +61,7 @@ class RecoveryDrillCheck {
             "-f",
             "/tmp/recovery.dump");
         assertThat(backup.getExitCode()).as(backup.getStderr()).isZero();
-        byte[] dump = postgres.copyFileFromContainer("/tmp/recovery.dump", input -> input.readAllBytes());
+        byte[] dump = postgres.copyFileFromContainer("/tmp/recovery.dump", InputStream::readAllBytes);
         try (var restored = new PostgreSQLContainer("postgres:18.6")) {
             restored.start();
             final long start = System.nanoTime();

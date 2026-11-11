@@ -162,7 +162,8 @@ class RegistrationCommitTests {
                 invite.value()))
             .containsEntry("redeemed_by_user_id", null)
             .doesNotContainEntry("redeemed_at", null);
-        assertThatThrownBy(() -> registration.registerUsername(usernamePrepared(username(), invite)))
+        var retry = usernamePrepared(username(), invite);
+        assertThatThrownBy(() -> registration.registerUsername(retry))
             .isInstanceOf(RegistrationUnavailableException.class);
     }
 
@@ -177,7 +178,8 @@ class RegistrationCommitTests {
         jdbc.update("update signup_invites set revoked_at = now() where token_hash = ?", revoked.value());
         for (TokenHash invalid : List.of(hash(), expired, revoked)) {
             String name = username();
-            assertThatThrownBy(() -> registration.registerUsername(usernamePrepared(name, invalid)))
+            var attempt = usernamePrepared(name, invalid);
+            assertThatThrownBy(() -> registration.registerUsername(attempt))
                 .isInstanceOf(RegistrationUnavailableException.class);
             assertThat(jdbc.queryForObject("select count(*) from users where username = ?", Integer.class, name))
                 .isZero();
@@ -212,7 +214,7 @@ class RegistrationCommitTests {
             try {
                 input.call();
                 return true;
-            } catch (RegistrationUnavailableException expected) {
+            } catch (RegistrationUnavailableException _) {
                 return false;
             } catch (AccountProblem problem) {
                 if (problem.kind() != AccountProblem.Kind.UNAVAILABLE_USERNAME) {

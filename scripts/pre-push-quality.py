@@ -173,7 +173,7 @@ def main():
     require_clean()
     if git("rev-parse", "HEAD") != head:
         raise RuntimeError("HEAD changed during scanning; run the push again from the intended commit.")
-    subprocess.run(["make", "quality"], env=quality_environment(), check=True)
+    subprocess.run(["make", "quality-local"], env=quality_environment(), check=True)
     require_clean()
     if git("rev-parse", "HEAD") != head:
         raise RuntimeError("HEAD changed during verification; run the push again from the intended commit.")
