@@ -7,8 +7,8 @@ import org.springframework.data.jpa.repository.Query;
 
 interface JpaCardRepository extends JpaRepository<CardRow, Long> {
 
-    @Query("select c from Card c join fetch c.sharedSet order by c.position, c.id")
-    List<CardRow> findAllWithSet();
+    @Query("select c from Card c where c.sharedSet = :set order by c.position, c.id")
+    List<CardRow> findInSetOrdered(SharedSetRow set, Limit limit);
 
     @Query("select c from Card c where c.sharedSet = :set and c.retiredAt is " + "null order by c.position, c.id")
     List<CardRow> findActiveInSetOrdered(SharedSetRow set, Limit limit);

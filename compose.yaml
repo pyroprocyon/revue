@@ -26,6 +26,18 @@ services:
       start_period: 30s
       start_interval: 1s
 
+  publisher:
+    build: .
+    command: ["--revue.content.publish=true", "--server.address=127.0.0.1", "--server.port=0"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+
   backend:
     build:
       context: .
@@ -33,6 +45,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      publisher:
+        condition: service_completed_successfully
     environment:
       # The image defaults to the production profile. Local development runs over plain HTTP,
       # so it must not mark the session cookie Secure or trust X-Forwarded headers.

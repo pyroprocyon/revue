@@ -12,19 +12,16 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Starting the app loads every public set file into the database, so the sets exist without any manual step after a
- * deploy.
- */
-@SpringBootTest
+/** The explicit publication job loads the bundled source in file order. */
+@SpringBootTest(properties = "revue.content.publish=true")
 @Import(TestcontainersConfiguration.class)
-class PublicContentStartupTests {
+class PublicContentPublicationTests {
 
     @Autowired
     private JdbcTemplate jdbc;
 
     @Test
-    void startupLoadsEveryPublicSetWithItsCardsInFileOrder() {
+    void explicitJobLoadsEveryPublicSetWithItsCardsInFileOrder() {
         List<SetDefinition> setFiles = PublicContent.readAndCheck();
 
         for (SetDefinition setFile : setFiles) {

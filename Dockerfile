@@ -77,7 +77,7 @@ RUN java -XX:AOTCacheOutput=app.aot -XX:MaxRAM=512m -Xms64m -XX:MaxRAMPercentage
       -Dspring.datasource.hikari.initialization-fail-timeout=-1 \
       -Dspring.datasource.hikari.connection-timeout=250 \
       -Dspring.flyway.enabled=false \
-      -Drevue.content.load-on-startup=false \
+      -Drevue.content.publish=false \
       -Dspring.jpa.hibernate.ddl-auto=none \
       -Dspring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect \
       -Dspring.jpa.properties.hibernate.boot.allow_jdbc_metadata_access=false \
