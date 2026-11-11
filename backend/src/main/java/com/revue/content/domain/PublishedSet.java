@@ -19,13 +19,13 @@ public final class PublishedSet {
     private final Map<String, PublishedCard> cards = new LinkedHashMap<>();
 
     private PublishedSet(
-            String key,
-            String title,
-            String description,
-            String publisherName,
-            String subject,
-            @Nullable Instant retiredAt,
-            List<PublishedCard> cards) {
+        String key,
+        String title,
+        String description,
+        String publisherName,
+        String subject,
+        @Nullable Instant retiredAt,
+        List<PublishedCard> cards) {
         this.key = key;
         this.title = title;
         this.description = description;
@@ -45,29 +45,30 @@ public final class PublishedSet {
             cards.add(PublishedCard.publish(definition.cards().get(position), position));
         }
         return new PublishedSet(
-                definition.setKey(),
-                definition.title(),
-                definition.description(),
-                definition.publisher(),
-                definition.subject(),
-                null,
-                cards);
+            definition.setKey(),
+            definition.title(),
+            definition.description(),
+            definition.publisher(),
+            definition.subject(),
+            null,
+            cards);
     }
 
     /** Reconstitutes the aggregate without publishing or changing versions. */
     public static PublishedSet restore(
-            String key,
-            String title,
-            String description,
-            String publisherName,
-            String subject,
-            @Nullable Instant retiredAt,
-            List<PublishedCard> cards) {
+        String key,
+        String title,
+        String description,
+        String publisherName,
+        String subject,
+        @Nullable Instant retiredAt,
+        List<PublishedCard> cards) {
         return new PublishedSet(key, title, description, publisherName, subject, retiredAt, cards);
     }
 
     /** Counts the changes made while reconciling one published set. */
-    public record Changes(boolean restored, int cardsAdded, int cardsChanged, int cardsRetired, int cardsRestored) {}
+    public record Changes(boolean restored, int cardsAdded, int cardsChanged, int cardsRetired, int cardsRestored) {
+    }
 
     /** Applies a validated revision while preserving card identity and retirement history. */
     public Changes synchronize(SetDefinition definition, Instant now) {

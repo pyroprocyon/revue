@@ -25,9 +25,10 @@ class JpaPublicSetQueries implements PublicSetQueries {
         for (JpaCardRepository.ActiveCardCount row : cards.countActiveCardsBySet()) {
             counts.put(row.getSetId(), row.getCardCount());
         }
-        return sets.findAllActiveByTitle().stream()
-                .map(set -> overview(set, counts.getOrDefault(set.id(), 0L)))
-                .toList();
+        return sets.findAllActiveByTitle()
+            .stream()
+            .map(set -> overview(set, counts.getOrDefault(set.id(), 0L)))
+            .toList();
     }
 
     @Override
@@ -42,22 +43,19 @@ class JpaPublicSetQueries implements PublicSetQueries {
 
     @Override
     public Optional<DemoCards> demoCards(String setKey, int limit) {
-        return sets.findActiveBySetKey(setKey)
+        return sets.findActiveBySetKey(setKey).map(set -> {
+            List<DemoCards.DemoCard> selected = cards.findActiveInSetOrdered(set, Limit.of(limit))
+                .stream()
                 .map(
-                        set -> {
-                            List<DemoCards.DemoCard> selected =
-                                    cards.findActiveInSetOrdered(set, Limit.of(limit)).stream()
-                                            .map(
-                                                    card ->
-                                                            new DemoCards.DemoCard(
-                                                                    card.contentKey(),
-                                                                    card.question(),
-                                                                    card.answer(),
-                                                                    card.explanation(),
-                                                                    card.source()))
-                                            .toList();
-                            return new DemoCards(set.title(), set.publisherName(), selected);
-                        });
+                    card -> new DemoCards.DemoCard(
+                        card.contentKey(),
+                        card.question(),
+                        card.answer(),
+                        card.explanation(),
+                        card.source()))
+                .toList();
+            return new DemoCards(set.title(), set.publisherName(), selected);
+        });
     }
 
     private static Overview overview(SharedSetRow set, long count) {

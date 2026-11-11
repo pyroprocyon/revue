@@ -23,23 +23,30 @@ class RegistrationCommitUnitTests {
     void lockWaitDoesNotExtendInviteValidity() {
         Instant expires = Instant.parse("2026-11-09T00:00:00Z");
         TokenHash hash = new TokenHash("a".repeat(64));
-        SignupInvite invite =
-                new SignupInvite(UUID.randomUUID(), hash, expires.minusSeconds(60), expires, null, null, null, false);
+        SignupInvite invite = new SignupInvite(
+            UUID.randomUUID(),
+            hash,
+            expires.minusSeconds(60),
+            expires,
+            null,
+            null,
+            null,
+            false);
         var time = new AtomicReference<>(expires.minusSeconds(1));
         Clock clock = mock(Clock.class);
         when(clock.instant()).thenAnswer(ignored -> time.get());
         RegistrationStore store = mock(RegistrationStore.class);
-        when(store.lockInvite(hash))
-                .thenAnswer(
-                        ignored -> {
-                            time.set(expires); // The transaction acquired its lock only after the invite expired.
-                            return Optional.of(invite);
-                        });
-        var command =
-                new RegistrationCommit.UsernameRegistration(
-                        new Username("student"), new PasswordHash("{test}encoded-placeholder"), hash, "pilot-v1");
+        when(store.lockInvite(hash)).thenAnswer(ignored -> {
+            time.set(expires); // The transaction acquired its lock only after the invite expired.
+            return Optional.of(invite);
+        });
+        var command = new RegistrationCommit.UsernameRegistration(
+            new Username("student"),
+            new PasswordHash("{test}encoded-placeholder"),
+            hash,
+            "pilot-v1");
         assertThatThrownBy(() -> new RegistrationCommit(store, clock).registerUsername(command))
-                .isInstanceOf(RegistrationUnavailableException.class);
+            .isInstanceOf(RegistrationUnavailableException.class);
         verify(store, never()).insertUsernameAccount(any(), any());
         verify(store, never()).saveRedemption(any());
     }

@@ -6,7 +6,8 @@ import java.util.Optional;
 /** Read port: projections avoid loading entire publication aggregates for public browsing. */
 public interface PublicSetQueries {
     /** Public set metadata with its active card count. */
-    record Overview(long id, String setKey, String title, String description, String publisherName, long cardCount) {}
+    record Overview(long id, String setKey, String title, String description, String publisherName, long cardCount) {
+    }
 
     /** Lists the available sets and their active card counts. */
     List<Overview> list();

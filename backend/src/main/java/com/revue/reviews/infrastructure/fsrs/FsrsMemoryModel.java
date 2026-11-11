@@ -14,14 +14,13 @@ public final class FsrsMemoryModel implements MemoryModel {
 
     /** Creates the FSRS adapter with the configured interval-fuzzing choice. */
     public FsrsMemoryModel(boolean fuzzIntervals) {
-        scheduler =
-                Scheduler.builder()
-                        .desiredRetention(0.9)
-                        .learningSteps(new Duration[0])
-                        .relearningSteps(new Duration[0])
-                        .maximumInterval(36500)
-                        .enableFuzzing(fuzzIntervals)
-                        .build();
+        scheduler = Scheduler.builder()
+            .desiredRetention(0.9)
+            .learningSteps(new Duration[0])
+            .relearningSteps(new Duration[0])
+            .maximumInterval(36500)
+            .enableFuzzing(fuzzIntervals)
+            .build();
     }
 
     @Override
@@ -35,13 +34,12 @@ public final class FsrsMemoryModel implements MemoryModel {
     }
 
     private Prediction review(Card card, ReviewRating rating, Instant modelTime) {
-        Rating modelRating =
-                switch (rating) {
-                    case AGAIN -> Rating.AGAIN;
-                    case HARD -> Rating.HARD;
-                    case GOOD -> Rating.GOOD;
-                    case EASY -> Rating.EASY;
-                };
+        Rating modelRating = switch (rating) {
+            case AGAIN -> Rating.AGAIN;
+            case HARD -> Rating.HARD;
+            case GOOD -> Rating.GOOD;
+            case EASY -> Rating.EASY;
+        };
         Card updated = scheduler.reviewCard(card, modelRating, modelTime).card();
         return new Prediction(updated.toJson(), updated.getDue());
     }

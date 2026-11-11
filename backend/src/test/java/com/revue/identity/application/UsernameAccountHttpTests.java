@@ -38,28 +38,32 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 @AutoConfigureMockMvc
 @Import(TestcontainersConfiguration.class)
 class UsernameAccountHttpTests {
-    @Autowired MockMvc mvc;
+    @Autowired
+    MockMvc mvc;
 
-    @Autowired JdbcTemplate jdbc;
+    @Autowired
+    JdbcTemplate jdbc;
 
-    @MockitoSpyBean AccountQueries accounts;
-    @MockitoSpyBean PasswordHasher hasher;
-    @MockitoSpyBean AccountSession session;
-    @Autowired AuthenticationAdmission admission;
+    @MockitoSpyBean
+    AccountQueries accounts;
+    @MockitoSpyBean
+    PasswordHasher hasher;
+    @MockitoSpyBean
+    AccountSession session;
+    @Autowired
+    AuthenticationAdmission admission;
 
     @ParameterizedTest
     @ValueSource(ints = {6, 16})
     void theSharedPilotInvitationAdmitsDifferentAccountsUntilRevokedOrExpired(int tokenBytes) throws Exception {
-        String token =
-                Base64.getUrlEncoder()
-                        .withoutPadding()
-                        .encodeToString(
-                                UUID.randomUUID().toString().substring(0, tokenBytes).getBytes(StandardCharsets.UTF_8));
+        String token = Base64.getUrlEncoder()
+            .withoutPadding()
+            .encodeToString(UUID.randomUUID().toString().substring(0, tokenBytes).getBytes(StandardCharsets.UTF_8));
         jdbc.update(
-                "insert into signup_invites (id, token_hash, created_at, expires_at, reusable) "
-                        + "values (?, ?, now() - interval '1 minute', now() + interval '1 hour', true)",
-                UUID.randomUUID(),
-                hash(token));
+            "insert into signup_invites (id, token_hash, created_at, expires_at, reusable) "
+                + "values (?, ?, now() - interval '1 minute', now() + interval '1 hour', true)",
+            UUID.randomUUID(),
+            hash(token));
         try {
             for (int attempt = 0; attempt < 2; attempt++) {
                 Browser learner = new Browser();
@@ -69,19 +73,19 @@ class UsernameAccountHttpTests {
                 assertThat(learner.send(get("/api/v1/me")).getResponse().getContentAsString()).contains(name);
             }
             assertThat(
-                            jdbc.queryForMap(
-                                    "select redeemed_at, redeemed_by_user_id from signup_invites where token_hash = ?",
-                                    hash(token)))
-                    .containsEntry("redeemed_at", null)
-                    .containsEntry("redeemed_by_user_id", null);
+                jdbc.queryForMap(
+                    "select redeemed_at, redeemed_by_user_id from signup_invites where token_hash = ?",
+                    hash(token)))
+                .containsEntry("redeemed_at", null)
+                .containsEntry("redeemed_by_user_id", null);
             Browser rejected = new Browser();
             rejected.csrf();
             jdbc.update("update signup_invites set revoked_at = now() where token_hash = ?", hash(token));
             assertThat(rejected.send(signup(username(), "kanjii", token)).getResponse().getStatus()).isEqualTo(400);
             jdbc.update(
-                    "update signup_invites set revoked_at = null, expires_at = now() - interval '1 second' where"
-                            + " token_hash = ?",
-                    hash(token));
+                "update signup_invites set revoked_at = null, expires_at = now() - interval '1 second' where"
+                    + " token_hash = ?",
+                hash(token));
             assertThat(rejected.send(signup(username(), "kanjii", token)).getResponse().getStatus()).isEqualTo(400);
             assertThat(rejected.send(get("/api/v1/me")).getResponse().getStatus()).isEqualTo(401);
         } finally {
@@ -101,9 +105,8 @@ class UsernameAccountHttpTests {
         assertThat(row).containsEntry("email", null).containsEntry("email_verified_at", null);
         assertThat(row.get("password_hash").toString()).startsWith("{argon2id}$argon2id$").doesNotContain("kanjii");
         assertThat(
-                        jdbc.queryForObject(
-                                "select count(*) from auth_challenges where user_id = ?", Integer.class, row.get("id")))
-                .isZero();
+            jdbc.queryForObject("select count(*) from auth_challenges where user_id = ?", Integer.class, row.get("id")))
+            .isZero();
     }
 
     @Test
@@ -152,7 +155,7 @@ class UsernameAccountHttpTests {
         Cookie firstCsrf = browser.cookies.get("XSRF-TOKEN");
         assertThat(firstCsrf.isHttpOnly()).isTrue();
         assertThat(browser.send(login(username.toUpperCase(java.util.Locale.ROOT), "kanjii")).getResponse().getStatus())
-                .isEqualTo(200);
+            .isEqualTo(200);
         assertThat(browser.cookies.get("SESSION").getValue()).isNotEqualTo(firstSession.getValue());
         browser.csrf();
         assertThat(browser.cookies.get("XSRF-TOKEN").getValue()).isNotEqualTo(firstCsrf.getValue());
@@ -162,14 +165,9 @@ class UsernameAccountHttpTests {
 
     @Test
     void staleVersionsSuspendedAndDeletedAccountsLosePrivateAccess() throws Exception {
-        for (String change :
-                new String[] {
-                    "credential_version = credential_version + 1",
-                    "suspended_at = now()",
-                    "credential_reset_required = true",
-                    "deletion_request_id = gen_random_uuid(), deletion_requested_at = "
-                            + "now(), purge_after = now() + interval '7 days'"
-                }) {
+        for (String change : new String[] {"credential_version = credential_version + 1", "suspended_at = now()",
+            "credential_reset_required = true", "deletion_request_id = gen_random_uuid(), deletion_requested_at = "
+                + "now(), purge_after = now() + interval '7 days'"}) {
             String username = username();
             Browser browser = new Browser();
             browser.csrf();
@@ -187,18 +185,13 @@ class UsernameAccountHttpTests {
         assertThat(owner.send(signup(name, "kanjii", invitation())).getResponse().getStatus()).isEqualTo(200);
         Browser returning = new Browser();
         returning.csrf();
-        doAnswer(
-                        invocation -> {
-                            Object matched = invocation.callRealMethod();
-                            // Commit a credential change after hashing but before the login transaction checks the
-                            // version.
-                            jdbc.update(
-                                    "update users set credential_version = credential_version + 1 where username = ?",
-                                    name);
-                            return matched;
-                        })
-                .when(hasher)
-                .matches(anyString(), any());
+        doAnswer(invocation -> {
+            Object matched = invocation.callRealMethod();
+            // Commit a credential change after hashing but before the login transaction checks the
+            // version.
+            jdbc.update("update users set credential_version = credential_version + 1 where username = ?", name);
+            return matched;
+        }).when(hasher).matches(anyString(), any());
         try {
             assertThat(returning.send(login(name, "kanjii")).getResponse().getStatus()).isEqualTo(401);
         } finally {
@@ -215,16 +208,11 @@ class UsernameAccountHttpTests {
         String name = username();
         assertThat(browser.send(signup(name, "kanjii", invitation())).getResponse().getStatus()).isEqualTo(200);
         browser.csrf();
-        doAnswer(
-                        invocation -> {
-                            invocation.callRealMethod();
-                            jdbc.update(
-                                    "update users set credential_version = credential_version + 1 where username = ?",
-                                    name);
-                            return null;
-                        })
-                .when(session)
-                .establish(any());
+        doAnswer(invocation -> {
+            invocation.callRealMethod();
+            jdbc.update("update users set credential_version = credential_version + 1 where username = ?", name);
+            return null;
+        }).when(session).establish(any());
         try {
             assertThat(browser.send(login(name, "kanjii")).getResponse().getStatus()).isEqualTo(401);
         } finally {
@@ -251,14 +239,14 @@ class UsernameAccountHttpTests {
     @Test
     void missingCsrfAndShortOrCommonPasswordsCannotRegister() throws Exception {
         assertThat(mvc.perform(signup(username(), "kanjii", invitation())).andReturn().getResponse().getStatus())
-                .isEqualTo(403);
+            .isEqualTo(403);
         Browser browser = new Browser();
         browser.csrf();
         for (String password : new String[] {"short", "123456", "a".repeat(65)}) {
             String username = username();
             assertThat(browser.send(signup(username, password, invitation())).getResponse().getStatus()).isEqualTo(400);
             assertThat(jdbc.queryForObject("select count(*) from users where username = ?", Integer.class, username))
-                    .isZero();
+                .isZero();
         }
     }
 
@@ -274,13 +262,13 @@ class UsernameAccountHttpTests {
         assertThat(rejected.getResponse().getCookie("SESSION")).isNull();
         assertThat(browser.send(get("/api/v1/me")).getResponse().getStatus()).isEqualTo(401);
         assertThat(jdbc.queryForObject("select count(*) from users where username = ?", Integer.class, username))
-                .isZero();
+            .isZero();
         assertThat(
-                        jdbc.queryForMap(
-                                "select redeemed_at, redeemed_by_user_id from signup_invites where token_hash = ?",
-                                hash(invite)))
-                .containsEntry("redeemed_at", null)
-                .containsEntry("redeemed_by_user_id", null);
+            jdbc.queryForMap(
+                "select redeemed_at, redeemed_by_user_id from signup_invites where token_hash = ?",
+                hash(invite)))
+            .containsEntry("redeemed_at", null)
+            .containsEntry("redeemed_by_user_id", null);
         // Accepting both confirmations can still use the original invitation and username.
         assertThat(browser.send(signup(username, "kanjii", invite)).getResponse().getStatus()).isEqualTo(200);
     }
@@ -297,7 +285,7 @@ class UsernameAccountHttpTests {
         assertThat(other.send(signup(username, "different", extra)).getResponse().getStatus()).isEqualTo(409);
         assertThat(other.send(get("/api/v1/me")).getResponse().getStatus()).isEqualTo(401);
         assertThat(jdbc.queryForMap("select redeemed_at from signup_invites where token_hash = ?", hash(extra)))
-                .containsEntry("redeemed_at", null);
+            .containsEntry("redeemed_at", null);
     }
 
     private MockHttpServletRequestBuilder signup(String username, String password, String invite) {
@@ -305,41 +293,40 @@ class UsernameAccountHttpTests {
     }
 
     private MockHttpServletRequestBuilder signup(
-            String username, String password, String invite, boolean privacy, boolean adult) {
-        return post("/api/v1/auth/register")
-                .contentType("application/x-www-form-urlencoded")
-                .param("username", username)
-                .param("password", password)
-                .param("invitation", invite)
-                .param("privacy", Boolean.toString(privacy))
-                .param("adult", Boolean.toString(adult));
+        String username,
+        String password,
+        String invite,
+        boolean privacy,
+        boolean adult) {
+        return post("/api/v1/auth/register").contentType("application/x-www-form-urlencoded")
+            .param("username", username)
+            .param("password", password)
+            .param("invitation", invite)
+            .param("privacy", Boolean.toString(privacy))
+            .param("adult", Boolean.toString(adult));
     }
 
     private MockHttpServletRequestBuilder login(String username, String password) {
-        return post("/api/v1/auth/login")
-                .contentType("application/x-www-form-urlencoded")
-                .param("username", username)
-                .param("password", password);
+        return post("/api/v1/auth/login").contentType("application/x-www-form-urlencoded")
+            .param("username", username)
+            .param("password", password);
     }
 
     private String invitation() throws Exception {
-        String token =
-                Base64.getUrlEncoder()
-                        .withoutPadding()
-                        .encodeToString(
-                                (UUID.randomUUID().toString()).substring(0, 32).getBytes(StandardCharsets.UTF_8));
+        String token = Base64.getUrlEncoder()
+            .withoutPadding()
+            .encodeToString((UUID.randomUUID().toString()).substring(0, 32).getBytes(StandardCharsets.UTF_8));
         jdbc.update(
-                "insert into signup_invites (id, token_hash, created_at, "
-                        + "expires_at) values (?, ?, now() - interval '1 minute', now() + "
-                        + "interval '1 hour')",
-                UUID.randomUUID(),
-                hash(token));
+            "insert into signup_invites (id, token_hash, created_at, "
+                + "expires_at) values (?, ?, now() - interval '1 minute', now() + " + "interval '1 hour')",
+            UUID.randomUUID(),
+            hash(token));
         return token;
     }
 
     private String hash(String token) throws Exception {
         return HexFormat.of()
-                .formatHex(MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8)));
+            .formatHex(MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8)));
     }
 
     private String username() {

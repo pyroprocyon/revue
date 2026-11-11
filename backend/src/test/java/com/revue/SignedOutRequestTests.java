@@ -23,9 +23,11 @@ import org.springframework.test.web.servlet.MockMvc;
 @Import(TestcontainersConfiguration.class)
 class SignedOutRequestTests {
 
-    @Autowired private MockMvc mvc;
+    @Autowired
+    private MockMvc mvc;
 
-    @Autowired private JdbcTemplate jdbc;
+    @Autowired
+    private JdbcTemplate jdbc;
 
     @Test
     void protectedRoutesAnswer401() throws Exception {
@@ -39,11 +41,11 @@ class SignedOutRequestTests {
 
         // A bot probing for a file. Files outside /api are public, so a missing one is a plain 404.
         mvc.perform(get("/wp-login.php").header(HttpHeaders.ACCEPT, "text/html"))
-                .andExpect(status().isNotFound())
-                .andExpect(header().doesNotExist(HttpHeaders.SET_COOKIE));
+            .andExpect(status().isNotFound())
+            .andExpect(header().doesNotExist(HttpHeaders.SET_COOKIE));
         mvc.perform(get("/api/v1/me"))
-                .andExpect(status().isUnauthorized())
-                .andExpect(header().doesNotExist(HttpHeaders.SET_COOKIE));
+            .andExpect(status().isUnauthorized())
+            .andExpect(header().doesNotExist(HttpHeaders.SET_COOKIE));
 
         assertThat(countSessions()).isEqualTo(sessionsBefore);
     }

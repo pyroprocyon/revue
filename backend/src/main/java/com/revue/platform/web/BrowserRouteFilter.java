@@ -43,7 +43,7 @@ class BrowserRouteFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
-            throws ServletException, IOException {
+        throws ServletException, IOException {
         if (!isIndexable(pathOf(request))) {
             response.setHeader("X-Robots-Tag", "noindex");
         }

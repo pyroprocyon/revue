@@ -18,7 +18,8 @@ public interface AccountSession {
     Csrf csrf();
 
     /** Account identity and the credential version proved when the session was established. */
-    record Identity(UUID accountId, long credentialVersion) {}
+    record Identity(UUID accountId, long credentialVersion) {
+    }
 
     /** CSRF token and request header with redacted diagnostic output. */
     record Csrf(String token, String headerName) {

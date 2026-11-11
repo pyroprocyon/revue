@@ -21,17 +21,22 @@ public final class ArchitectureApplicationFixtures {
     }
 
     /** Application fixture with a forbidden infrastructure dependency. */
-    public record InfrastructureLeak(SecurityConfig configuration) {}
+    public record InfrastructureLeak(SecurityConfig configuration) {
+    }
 
     /** Application fixture with a forbidden persistence dependency. */
-    public record PersistenceLeak(EntityManager entityManager) {}
+    public record PersistenceLeak(EntityManager entityManager) {
+    }
 
     /** Application fixture with a forbidden security dependency. */
-    public record SecurityLeak(Authentication authentication) {}
+    public record SecurityLeak(Authentication authentication) {
+    }
 
     /** Application fixture with a forbidden HTTP transport dependency. */
-    public record TransportLeak(ResponseEntity<String> response) {}
+    public record TransportLeak(ResponseEntity<String> response) {
+    }
 
     /** Application fixture with a forbidden foreign application dependency. */
-    public record ForeignApplicationLeak(PublicSetService publicSets) {}
+    public record ForeignApplicationLeak(PublicSetService publicSets) {
+    }
 }

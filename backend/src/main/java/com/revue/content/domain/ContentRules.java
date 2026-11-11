@@ -40,7 +40,8 @@ public final class ContentRules {
 
     private static final int MAX_SOURCE = 500;
 
-    private ContentRules() {}
+    private ContentRules() {
+    }
 
     /** Adds every rule each set breaks to {@code problems}. */
     public static void check(List<SetDefinition> sets, List<String> problems) {
@@ -96,7 +97,7 @@ public final class ContentRules {
     private static void checkKey(String key, String label, List<String> problems) {
         if (!KEY.matcher(key).matches()) {
             problems.add(
-                    label + " must be lowercase letters and digits joined by hyphens, such as " + "why-sweating-cools");
+                label + " must be lowercase letters and digits joined by hyphens, such as " + "why-sweating-cools");
         }
     }
 
@@ -131,12 +132,8 @@ public final class ContentRules {
                 String owner = ownerByCard.get(card.key());
                 if (owner != null && !owner.equals(file.setKey())) {
                     problems.add(
-                            file.sourceName()
-                                    + ", card "
-                                    + card.key()
-                                    + ": key belongs to set "
-                                    + owner
-                                    + "; a card can't move between sets");
+                        file.sourceName() + ", card " + card.key() + ": key belongs to set " + owner
+                            + "; a card can't move between sets");
                 }
             }
         }

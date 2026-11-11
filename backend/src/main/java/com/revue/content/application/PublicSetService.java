@@ -50,12 +50,12 @@ public class PublicSetService {
 
     private static PublicSetSummary summaryOf(PublicSetQueries.Overview set) {
         return new PublicSetSummary(
-                set.setKey(),
-                set.title(),
-                set.description(),
-                set.publisherName(),
-                set.cardCount(),
-                set.cardCount() >= TRIAL_CARD_COUNT,
-                Long.toString(set.id(), 36));
+            set.setKey(),
+            set.title(),
+            set.description(),
+            set.publisherName(),
+            set.cardCount(),
+            set.cardCount() >= TRIAL_CARD_COUNT,
+            Long.toString(set.id(), 36));
     }
 }

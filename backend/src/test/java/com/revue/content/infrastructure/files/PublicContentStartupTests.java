@@ -20,7 +20,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @Import(TestcontainersConfiguration.class)
 class PublicContentStartupTests {
 
-    @Autowired private JdbcTemplate jdbc;
+    @Autowired
+    private JdbcTemplate jdbc;
 
     @Test
     void startupLoadsEveryPublicSetWithItsCardsInFileOrder() {
@@ -28,13 +29,12 @@ class PublicContentStartupTests {
 
         for (SetDefinition setFile : setFiles) {
             List<String> expectedKeys = setFile.cards().stream().map(CardDefinition::key).toList();
-            List<String> loadedKeys =
-                    jdbc.queryForList(
-                            "SELECT c.content_key FROM cards c JOIN sets s ON s.id = c.set_id"
-                                    + " WHERE s.set_key = ? AND s.retired_at IS NULL AND c.retired_at IS NULL"
-                                    + " ORDER BY c.position, c.id",
-                            String.class,
-                            setFile.setKey());
+            List<String> loadedKeys = jdbc.queryForList(
+                "SELECT c.content_key FROM cards c JOIN sets s ON s.id = c.set_id"
+                    + " WHERE s.set_key = ? AND s.retired_at IS NULL AND c.retired_at IS NULL"
+                    + " ORDER BY c.position, c.id",
+                String.class,
+                setFile.setKey());
             assertThat(loadedKeys).as(setFile.setKey()).isEqualTo(expectedKeys);
         }
     }

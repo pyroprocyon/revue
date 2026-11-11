@@ -13,5 +13,10 @@ public record DemoCards(String setTitle, String publisherName, List<DemoCard> ca
 
     /** One flashcard: the question on the front, the answer and its optional note and source on the back. */
     public record DemoCard(
-            String key, String question, String answer, @Nullable String explanation, @Nullable String source) {}
+        String key,
+        String question,
+        String answer,
+        @Nullable String explanation,
+        @Nullable String source) {
+    }
 }

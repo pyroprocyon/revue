@@ -41,23 +41,25 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @Import(TestcontainersConfiguration.class)
 class ContentLoaderTests {
 
-    @Autowired private ContentLoader loader;
+    @Autowired
+    private ContentLoader loader;
 
-    @Autowired private JdbcTemplate jdbc;
+    @Autowired
+    private JdbcTemplate jdbc;
 
-    @Autowired private EntityManagerFactory entityManagerFactory;
+    @Autowired
+    private EntityManagerFactory entityManagerFactory;
 
     @Test
     void theFirstLoadAddsTheSetAndItsCardsInFileOrder() {
-        ContentLoader.Result result =
-                loader.load(
-                        List.of(
-                                set(
-                                        "first-load",
-                                        "First Load",
-                                        card("first-load-a", "Question A?"),
-                                        card("first-load-b", "Question B?"),
-                                        card("first-load-c", "Question C?"))));
+        ContentLoader.Result result = loader.load(
+            List.of(
+                set(
+                    "first-load",
+                    "First Load",
+                    card("first-load-a", "Question A?"),
+                    card("first-load-b", "Question B?"),
+                    card("first-load-c", "Question C?"))));
 
         assertThat(result.setsAdded()).isEqualTo(1);
         assertThat(result.cardsAdded()).isEqualTo(3);
@@ -73,13 +75,8 @@ class ContentLoaderTests {
 
     @Test
     void loadingTheSameFilesTwiceChangesNothing() {
-        List<SetDefinition> files =
-                List.of(
-                        set(
-                                "same-twice",
-                                "Same Twice",
-                                card("same-twice-a", "Question A?"),
-                                card("same-twice-b", "Question B?")));
+        List<SetDefinition> files = List.of(
+            set("same-twice", "Same Twice", card("same-twice-a", "Question A?"), card("same-twice-b", "Question B?")));
         loader.load(files);
         Timestamp setUpdated = (Timestamp) setRow("same-twice").get("updated_at");
         Timestamp cardUpdated = (Timestamp) cardRow("same-twice-a").get("updated_at");
@@ -95,22 +92,13 @@ class ContentLoaderTests {
     @ParameterizedTest
     @ValueSource(ints = {1, 20})
     void republishingReadsTheCatalogOnlyOnce(int cardsPerSet) {
-        List<SetDefinition> source =
-                IntStream.range(0, 2)
-                        .mapToObj(
-                                setIndex -> {
-                                    String key = "catalog-reads-" + cardsPerSet + "-" + setIndex;
-                                    CardDefinition[] cards =
-                                            IntStream.range(0, cardsPerSet)
-                                                    .mapToObj(
-                                                            cardIndex ->
-                                                                    card(
-                                                                            key + "-" + cardIndex,
-                                                                            "Question " + cardIndex + "?"))
-                                                    .toArray(CardDefinition[]::new);
-                                    return set(key, "Catalog reads", cards);
-                                })
-                        .toList();
+        List<SetDefinition> source = IntStream.range(0, 2).mapToObj(setIndex -> {
+            String key = "catalog-reads-" + cardsPerSet + "-" + setIndex;
+            CardDefinition[] cards = IntStream.range(0, cardsPerSet)
+                .mapToObj(cardIndex -> card(key + "-" + cardIndex, "Question " + cardIndex + "?"))
+                .toArray(CardDefinition[]::new);
+            return set(key, "Catalog reads", cards);
+        }).toList();
         loader.load(source);
         var statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
         boolean statisticsWereEnabled = statistics.isStatisticsEnabled();
@@ -131,15 +119,14 @@ class ContentLoaderTests {
         CardDefinition b = card("wording-b", "Question B?");
         loader.load(List.of(set("wording", "Wording", a, b)));
         long idBefore = cardId("wording-b");
-        CardDefinition fixedB =
-                new CardDefinition(
-                        b.key(),
-                        b.question(),
-                        b.answer(),
-                        b.keyIdeas(),
-                        "A clearer explanation.",
-                        b.memoryHook(),
-                        b.source());
+        CardDefinition fixedB = new CardDefinition(
+            b.key(),
+            b.question(),
+            b.answer(),
+            b.keyIdeas(),
+            "A clearer explanation.",
+            b.memoryHook(),
+            b.source());
 
         ContentLoader.Result result = loader.load(List.of(set("wording", "Wording", a, fixedB)));
 
@@ -158,11 +145,11 @@ class ContentLoaderTests {
     @ParameterizedTest(name = "{0}")
     @MethodSource("oneFieldCorrections")
     void theCorrectionToAnyOneFieldIsSavedAndRaisesTheVersionOnce(
-            String field,
-            @Nullable String startingHook,
-            UnaryOperator<CardDefinition> correct,
-            String column,
-            Object expected) {
+        String field,
+        @Nullable String startingHook,
+        UnaryOperator<CardDefinition> correct,
+        String column,
+        Object expected) {
         String key = "fix-" + field.replace(' ', '-');
         CardDefinition original = withHook(card(key, "Question for " + key + "?"), startingHook);
         loader.load(List.of(set(key + "-set", "Fix", original)));
@@ -179,132 +166,109 @@ class ContentLoaderTests {
 
     static Stream<Arguments> oneFieldCorrections() {
         return Stream.of(
-                correction(
-                        "question",
-                        null,
-                        c ->
-                                edit(
-                                        c,
-                                        "A clearer question?",
-                                        c.answer(),
-                                        c.keyIdeas(),
-                                        c.explanation(),
-                                        c.memoryHook(),
-                                        c.source()),
-                        "question",
-                        "A clearer question?"),
-                correction(
-                        "answer",
-                        null,
-                        c ->
-                                edit(
-                                        c,
-                                        c.question(),
-                                        "A corrected answer.",
-                                        c.keyIdeas(),
-                                        c.explanation(),
-                                        c.memoryHook(),
-                                        c.source()),
-                        "answer",
-                        "A corrected answer."),
-                correction(
-                        "explanation",
-                        null,
-                        c ->
-                                edit(
-                                        c,
-                                        c.question(),
-                                        c.answer(),
-                                        c.keyIdeas(),
-                                        "A clearer explanation.",
-                                        c.memoryHook(),
-                                        c.source()),
-                        "explanation",
-                        "A clearer explanation."),
-                correction(
-                        "source",
-                        null,
-                        c ->
-                                edit(
-                                        c,
-                                        c.question(),
-                                        c.answer(),
-                                        c.keyIdeas(),
-                                        c.explanation(),
-                                        c.memoryHook(),
-                                        "A better source."),
-                        "source",
-                        "A better source."),
-                correction(
-                        "memory hook added",
-                        null,
-                        c ->
-                                edit(
-                                        c,
-                                        c.question(),
-                                        c.answer(),
-                                        c.keyIdeas(),
-                                        c.explanation(),
-                                        "A new hook.",
-                                        c.source()),
-                        "memory_hook",
-                        "A new hook."),
-                correction(
-                        "memory hook changed",
-                        "An old hook.",
-                        c ->
-                                edit(
-                                        c,
-                                        c.question(),
-                                        c.answer(),
-                                        c.keyIdeas(),
-                                        c.explanation(),
-                                        "A better hook.",
-                                        c.source()),
-                        "memory_hook",
-                        "A better hook."),
-                correction(
-                        "key idea reworded",
-                        null,
-                        c ->
-                                edit(
-                                        c,
-                                        c.question(),
-                                        c.answer(),
-                                        List.of("First idea", "A clearer second idea"),
-                                        c.explanation(),
-                                        c.memoryHook(),
-                                        c.source()),
-                        "key_ideas",
-                        List.of("First idea", "A clearer second idea")),
-                // Key ideas keep their file order, so reordering them is a change.
-                correction(
-                        "key ideas reordered",
-                        null,
-                        c ->
-                                edit(
-                                        c,
-                                        c.question(),
-                                        c.answer(),
-                                        List.of("Second idea", "First idea"),
-                                        c.explanation(),
-                                        c.memoryHook(),
-                                        c.source()),
-                        "key_ideas",
-                        List.of("Second idea", "First idea")));
+            correction(
+                "question",
+                null,
+                c -> edit(
+                    c,
+                    "A clearer question?",
+                    c.answer(),
+                    c.keyIdeas(),
+                    c.explanation(),
+                    c.memoryHook(),
+                    c.source()),
+                "question",
+                "A clearer question?"),
+            correction(
+                "answer",
+                null,
+                c -> edit(
+                    c,
+                    c.question(),
+                    "A corrected answer.",
+                    c.keyIdeas(),
+                    c.explanation(),
+                    c.memoryHook(),
+                    c.source()),
+                "answer",
+                "A corrected answer."),
+            correction(
+                "explanation",
+                null,
+                c -> edit(
+                    c,
+                    c.question(),
+                    c.answer(),
+                    c.keyIdeas(),
+                    "A clearer explanation.",
+                    c.memoryHook(),
+                    c.source()),
+                "explanation",
+                "A clearer explanation."),
+            correction(
+                "source",
+                null,
+                c -> edit(
+                    c,
+                    c.question(),
+                    c.answer(),
+                    c.keyIdeas(),
+                    c.explanation(),
+                    c.memoryHook(),
+                    "A better source."),
+                "source",
+                "A better source."),
+            correction(
+                "memory hook added",
+                null,
+                c -> edit(c, c.question(), c.answer(), c.keyIdeas(), c.explanation(), "A new hook.", c.source()),
+                "memory_hook",
+                "A new hook."),
+            correction(
+                "memory hook changed",
+                "An old hook.",
+                c -> edit(c, c.question(), c.answer(), c.keyIdeas(), c.explanation(), "A better hook.", c.source()),
+                "memory_hook",
+                "A better hook."),
+            correction(
+                "key idea reworded",
+                null,
+                c -> edit(
+                    c,
+                    c.question(),
+                    c.answer(),
+                    List.of("First idea", "A clearer second idea"),
+                    c.explanation(),
+                    c.memoryHook(),
+                    c.source()),
+                "key_ideas",
+                List.of("First idea", "A clearer second idea")),
+            // Key ideas keep their file order, so reordering them is a change.
+            correction(
+                "key ideas reordered",
+                null,
+                c -> edit(
+                    c,
+                    c.question(),
+                    c.answer(),
+                    List.of("Second idea", "First idea"),
+                    c.explanation(),
+                    c.memoryHook(),
+                    c.source()),
+                "key_ideas",
+                List.of("Second idea", "First idea")));
     }
 
     @Test
     void theSourcedCardWithoutAnExplanationIsSavedAndAddingOrRemovingOneNoteRaisesItsVersion() {
-        CardDefinition plain =
-                new CardDefinition(
-                        "plain-card",
-                        "A plain question?",
-                        "A plain answer.",
-                        List.of(),
-                        null,
-                        null,
-                        "Class notes, page 1.");
+        CardDefinition plain = new CardDefinition(
+            "plain-card",
+            "A plain question?",
+            "A plain answer.",
+            List.of(),
+            null,
+            null,
+            "Class notes, page 1.");
         loader.load(List.of(set("plain-card-set", "Plain", plain)));
 
         Map<String, Object> saved = cardRow("plain-card");
@@ -312,8 +276,14 @@ class ContentLoaderTests {
         assertThat(saved.get("source")).isEqualTo("Class notes, page 1.");
         assertThat(keyIdeas("plain-card")).isEmpty();
 
-        CardDefinition withNote =
-                edit(plain, plain.question(), plain.answer(), List.of(), "A short note.", null, plain.source());
+        CardDefinition withNote = edit(
+            plain,
+            plain.question(),
+            plain.answer(),
+            List.of(),
+            "A short note.",
+            null,
+            plain.source());
         loader.load(List.of(set("plain-card-set", "Plain", withNote)));
         assertThat(cardRow("plain-card").get("explanation")).isEqualTo("A short note.");
         assertThat(cardRow("plain-card").get("content_version")).isEqualTo(2);
@@ -370,8 +340,11 @@ class ContentLoaderTests {
     @Test
     void theSetMissingFromTheSourceIsRetiredButKeepsItsCards() {
         SetDefinition kept = set("kept-set", "Kept", card("kept-a", "Question A?"));
-        SetDefinition dropped =
-                set("dropped-set", "Dropped", card("dropped-a", "Question A?"), card("dropped-b", "Question B?"));
+        SetDefinition dropped = set(
+            "dropped-set",
+            "Dropped",
+            card("dropped-a", "Question A?"),
+            card("dropped-b", "Question B?"));
         loader.load(List.of(kept, dropped));
         final long setId = setId("dropped-set");
 
@@ -406,14 +379,10 @@ class ContentLoaderTests {
 
         SetDefinition from = set("move-from", "From", card("move-b", "Question B?"));
         SetDefinition to = set("move-to", "To", moving);
-        assertThatExceptionOfType(InvalidContentException.class)
-                .isThrownBy(() -> loader.load(List.of(from, to)))
-                .satisfies(
-                        ex ->
-                                assertThat(ex.problems())
-                                        .anySatisfy(
-                                                problem ->
-                                                        assertThat(problem).contains("key belongs to set move-from")));
+        assertThatExceptionOfType(InvalidContentException.class).isThrownBy(() -> loader.load(List.of(from, to)))
+            .satisfies(
+                ex -> assertThat(ex.problems())
+                    .anySatisfy(problem -> assertThat(problem).contains("key belongs to set move-from")));
 
         assertThat(activeCardKeysInOrder("move-from")).containsExactly("move-a", "move-b");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM sets WHERE set_key = 'move-to'", Integer.class)).isZero();
@@ -423,18 +392,17 @@ class ContentLoaderTests {
     void brokenContentChangesNothing() {
         CardDefinition a = card("broken-a", "Question A?");
         loader.load(List.of(set("broken", "Broken", a)));
-        CardDefinition threeIdeas =
-                new CardDefinition(
-                        a.key(),
-                        a.question(),
-                        "A new answer.",
-                        List.of("One", "Two", "Three"),
-                        a.explanation(),
-                        a.memoryHook(),
-                        a.source());
+        CardDefinition threeIdeas = new CardDefinition(
+            a.key(),
+            a.question(),
+            "A new answer.",
+            List.of("One", "Two", "Three"),
+            a.explanation(),
+            a.memoryHook(),
+            a.source());
 
         assertThatExceptionOfType(InvalidContentException.class)
-                .isThrownBy(() -> loader.load(List.of(set("broken", "Broken", threeIdeas))));
+            .isThrownBy(() -> loader.load(List.of(set("broken", "Broken", threeIdeas))));
 
         assertThat(cardRow("broken-a").get("answer")).isEqualTo("Answer for broken-a.");
         assertThat(cardRow("broken-a").get("content_version")).isEqualTo(1);
@@ -444,15 +412,20 @@ class ContentLoaderTests {
     void theSharedCardWithoutSourceCannotReplacePublishedContent() {
         CardDefinition original = card("source-required", "An existing question?");
         loader.load(List.of(set("source-required-set", "Existing Set", original)));
-        CardDefinition unsourced =
-                edit(original, original.question(), "A changed answer.", List.of(), null, null, null);
+        CardDefinition unsourced = edit(
+            original,
+            original.question(),
+            "A changed answer.",
+            List.of(),
+            null,
+            null,
+            null);
 
         assertThatExceptionOfType(InvalidContentException.class)
-                .isThrownBy(() -> loader.load(List.of(set("source-required-set", "Changed Set", unsourced))))
-                .satisfies(
-                        ex ->
-                                assertThat(ex.problems())
-                                        .anySatisfy(problem -> assertThat(problem).contains("source is missing")));
+            .isThrownBy(() -> loader.load(List.of(set("source-required-set", "Changed Set", unsourced))))
+            .satisfies(
+                ex -> assertThat(ex.problems())
+                    .anySatisfy(problem -> assertThat(problem).contains("source is missing")));
 
         assertThat(cardRow(original.key()).get("answer")).isEqualTo(original.answer());
         assertThat(cardRow(original.key()).get("source")).isEqualTo(original.source());
@@ -467,52 +440,64 @@ class ContentLoaderTests {
         long setId = setId("guarded");
 
         assertThatExceptionOfType(DataAccessException.class)
-                .isThrownBy(() -> jdbc.update("DELETE FROM cards WHERE id = ?", cardId));
+            .isThrownBy(() -> jdbc.update("DELETE FROM cards WHERE id = ?", cardId));
         assertThatExceptionOfType(DataAccessException.class)
-                .isThrownBy(() -> jdbc.update("DELETE FROM sets WHERE id = ?", setId));
+            .isThrownBy(() -> jdbc.update("DELETE FROM sets WHERE id = ?", setId));
         assertThat(jdbc.queryForObject("SELECT count(*) FROM cards WHERE id = ?", Integer.class, cardId)).isOne();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM sets WHERE id = ?", Integer.class, setId)).isOne();
     }
 
     private static SetDefinition set(String key, String title, CardDefinition... cards) {
         return new SetDefinition(
-                key + ".yaml", key, title, "A set for tests.", "Revue", "Science", Arrays.asList(cards));
+            key + ".yaml",
+            key,
+            title,
+            "A set for tests.",
+            "Revue",
+            "Science",
+            Arrays.asList(cards));
     }
 
     private static CardDefinition card(String key, String question) {
         return new CardDefinition(
-                key,
-                question,
-                "Answer for " + key + ".",
-                List.of("First idea", "Second idea"),
-                "Explanation for " + key + ".",
-                null,
-                "Source for " + key + ".");
+            key,
+            question,
+            "Answer for " + key + ".",
+            List.of("First idea", "Second idea"),
+            "Explanation for " + key + ".",
+            null,
+            "Source for " + key + ".");
     }
 
     private static Arguments correction(
-            String field,
-            @Nullable String startingHook,
-            UnaryOperator<CardDefinition> correct,
-            String column,
-            Object expected) {
+        String field,
+        @Nullable String startingHook,
+        UnaryOperator<CardDefinition> correct,
+        String column,
+        Object expected) {
         return Arguments.of(field, startingHook, correct, column, expected);
     }
 
     private static CardDefinition edit(
-            CardDefinition card,
-            String question,
-            String answer,
-            List<String> keyIdeas,
-            @Nullable String explanation,
-            @Nullable String memoryHook,
-            @Nullable String source) {
+        CardDefinition card,
+        String question,
+        String answer,
+        List<String> keyIdeas,
+        @Nullable String explanation,
+        @Nullable String memoryHook,
+        @Nullable String source) {
         return new CardDefinition(card.key(), question, answer, keyIdeas, explanation, memoryHook, source);
     }
 
     private static CardDefinition withHook(CardDefinition card, @Nullable String memoryHook) {
         return edit(
-                card, card.question(), card.answer(), card.keyIdeas(), card.explanation(), memoryHook, card.source());
+            card,
+            card.question(),
+            card.answer(),
+            card.keyIdeas(),
+            card.explanation(),
+            memoryHook,
+            card.source());
     }
 
     private Map<String, Object> setRow(String setKey) {
@@ -533,24 +518,24 @@ class ContentLoaderTests {
 
     private List<String> keyIdeas(String contentKey) {
         return jdbc.queryForObject(
-                "SELECT key_ideas FROM cards WHERE content_key = ?",
-                (rs, row) -> Arrays.asList((String[]) rs.getArray(1).getArray()),
-                contentKey);
+            "SELECT key_ideas FROM cards WHERE content_key = ?",
+            (rs, row) -> Arrays.asList((String[]) rs.getArray(1).getArray()),
+            contentKey);
     }
 
     private List<String> cardKeysInOrder(String setKey) {
         return jdbc.queryForList(
-                "SELECT c.content_key FROM cards c JOIN sets s ON s.id = c.set_id"
-                        + " WHERE s.set_key = ? ORDER BY c.position, c.id",
-                String.class,
-                setKey);
+            "SELECT c.content_key FROM cards c JOIN sets s ON s.id = c.set_id"
+                + " WHERE s.set_key = ? ORDER BY c.position, c.id",
+            String.class,
+            setKey);
     }
 
     private List<String> activeCardKeysInOrder(String setKey) {
         return jdbc.queryForList(
-                "SELECT c.content_key FROM cards c JOIN sets s ON s.id = c.set_id"
-                        + " WHERE s.set_key = ? AND c.retired_at IS NULL ORDER BY c.position, c.id",
-                String.class,
-                setKey);
+            "SELECT c.content_key FROM cards c JOIN sets s ON s.id = c.set_id"
+                + " WHERE s.set_key = ? AND c.retired_at IS NULL ORDER BY c.position, c.id",
+            String.class,
+            setKey);
     }
 }

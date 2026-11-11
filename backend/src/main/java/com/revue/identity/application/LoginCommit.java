@@ -23,7 +23,7 @@ public class LoginCommit {
     public AccountSession.Identity confirm(UUID accountId, long provedVersion) {
         Account account = accounts.lock(accountId).orElseThrow(LoginCommit::rejected).account();
         if (account.credentialVersion() != provedVersion
-                || account.accessAt(clock.instant()) != Account.Access.ACTIVE) {
+            || account.accessAt(clock.instant()) != Account.Access.ACTIVE) {
             throw rejected();
         }
         return new AccountSession.Identity(account.id(), provedVersion);

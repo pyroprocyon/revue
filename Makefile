@@ -93,10 +93,10 @@ check: lint test build tooling-test ## Run lint, tests, type checking and the fr
 lint: frontend-install ## Lint frontend code and validate Python/shell tooling syntax
 	cd "$(FRONTEND_DIR)" && bash "$(NODE_RUN)" npm run lint
 	python3 -m py_compile scripts/*.py
-	@for script in scripts/*.sh backend/format-java.sh .githooks/pre-push; do bash -n "$$script"; done
+	@for script in scripts/*.sh .githooks/pre-push; do bash -n "$$script"; done
 
 format-java: check-java ## Apply the four-space, 120-column Java style to production and test Java
-	cd "$(BACKEND_DIR)" && ./mvnw exec:exec -Djava.format.mode=apply
+	cd "$(BACKEND_DIR)" && ./mvnw spotless:apply
 
 invite: ## Create or replace the shared local pilot invitation; copy the link from stdout
 	python3 scripts/issue-pilot-invite.py

@@ -13,31 +13,27 @@ import org.junit.jupiter.params.provider.CsvSource;
 class AcceptEncodingFilterTests {
 
     @ParameterizedTest(name = "\"{0}\" accepts \"{1}\"")
-    @CsvSource(
-            delimiter = '|',
-            nullValues = "none",
-            textBlock =
-                    """
-                    br, gzip                  | br, gzip
-                    gzip, deflate, br, zstd   | gzip, br
-                    gzip;q=0, identity        | none
-                    br;q=0, gzip              | gzip
-                    br;q=0, gzip;q=0.000      | none
-                    br; q=0.001, gzip         | br, gzip
-                    GZIP;Q=0.5                | gzip
-                    x-gzip                    | gzip
-                    gzip;q=not-a-number       | none
-                    identity                  | none
-                    *                         | br, gzip
-                    *;q=1, identity;q=0       | br, gzip
-                    gzip;q=0, *               | br
-                    gzip, *;q=0.5             | gzip, br
-                    *;q=0, br                 | br
-                    identity;q=0, *;q=0       | none
-                    ;                         | none
-                    gzip,;                    | gzip
-                    ''                        | none
-                    """)
+    @CsvSource(delimiter = '|', nullValues = "none", textBlock = """
+        br, gzip                  | br, gzip
+        gzip, deflate, br, zstd   | gzip, br
+        gzip;q=0, identity        | none
+        br;q=0, gzip              | gzip
+        br;q=0, gzip;q=0.000      | none
+        br; q=0.001, gzip         | br, gzip
+        GZIP;Q=0.5                | gzip
+        x-gzip                    | gzip
+        gzip;q=not-a-number       | none
+        identity                  | none
+        *                         | br, gzip
+        *;q=1, identity;q=0       | br, gzip
+        gzip;q=0, *               | br
+        gzip, *;q=0.5             | gzip, br
+        *;q=0, br                 | br
+        identity;q=0, *;q=0       | none
+        ;                         | none
+        gzip,;                    | gzip
+        ''                        | none
+        """)
     void acceptsOnlyServedFormatsWithPositiveWeight(String header, String expected) {
         assertThat(AcceptEncodingFilter.acceptedCodings(header)).isEqualTo(expected);
     }

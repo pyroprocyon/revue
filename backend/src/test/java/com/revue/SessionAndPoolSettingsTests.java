@@ -42,13 +42,17 @@ import org.springframework.test.util.ReflectionTestUtils;
 @Import(TestcontainersConfiguration.class)
 class SessionAndPoolSettingsTests {
 
-    @Autowired private JdbcIndexedSessionRepository sessions;
+    @Autowired
+    private JdbcIndexedSessionRepository sessions;
 
-    @Autowired private CookieSerializer cookieSerializer;
+    @Autowired
+    private CookieSerializer cookieSerializer;
 
-    @Autowired private DataSource dataSource;
+    @Autowired
+    private DataSource dataSource;
 
-    @Autowired private List<ScheduledTaskHolder> scheduledTaskHolders;
+    @Autowired
+    private List<ScheduledTaskHolder> scheduledTaskHolders;
 
     @Test
     void theSessionEndsAfterSevenIdleDays() {
@@ -73,13 +77,12 @@ class SessionAndPoolSettingsTests {
         // an upgrade renames the field, recheck that `spring.session.jdbc.cleanup-cron=-` still works.
         assertThat(ReflectionTestUtils.getField(sessions, "taskScheduler")).isNull();
 
-        List<CronTask> cronTasks =
-                scheduledTaskHolders.stream()
-                        .flatMap(holder -> holder.getScheduledTasks().stream())
-                        .map(ScheduledTask::getTask)
-                        .filter(CronTask.class::isInstance)
-                        .map(CronTask.class::cast)
-                        .toList();
+        List<CronTask> cronTasks = scheduledTaskHolders.stream()
+            .flatMap(holder -> holder.getScheduledTasks().stream())
+            .map(ScheduledTask::getTask)
+            .filter(CronTask.class::isInstance)
+            .map(CronTask.class::cast)
+            .toList();
         assertThat(cronTasks).singleElement().extracting(CronTask::getExpression).isEqualTo("0 0 12 * * *");
 
         // 11:00 in Manila (UTC+8, no daylight saving) is 03:00 UTC; noon there is 04:00 UTC.

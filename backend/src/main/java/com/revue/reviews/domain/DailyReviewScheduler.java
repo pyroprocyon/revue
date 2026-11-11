@@ -16,7 +16,8 @@ public final class DailyReviewScheduler {
     }
 
     /** Serialized memory state and the learner's next local review date. */
-    public record Recommendation(String stateJson, LocalDate reviewDate) {}
+    public record Recommendation(String stateJson, LocalDate reviewDate) {
+    }
 
     /** Schedules the first rating using the learner's local calendar date. */
     public Recommendation firstReview(int modelCardId, ReviewRating rating, Instant reviewedAt, ZoneId studentZone) {

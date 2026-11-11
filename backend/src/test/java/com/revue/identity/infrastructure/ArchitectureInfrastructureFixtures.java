@@ -7,8 +7,10 @@ import com.revue.identity.presentation.ArchitecturePresentationFixtures.UsesAppl
 public final class ArchitectureInfrastructureFixtures {
 
     /** Infrastructure fixture whose application-port dependency is allowed. */
-    public record UsesApplicationPort(OwnDomain application) {}
+    public record UsesApplicationPort(OwnDomain application) {
+    }
 
     /** Infrastructure fixture with a forbidden presentation dependency. */
-    public record PresentationLeak(UsesApplication endpoint) {}
+    public record PresentationLeak(UsesApplication endpoint) {
+    }
 }

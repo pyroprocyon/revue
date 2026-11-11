@@ -15,17 +15,9 @@ class AccountRulesTests {
     @Test
     void emailUsesOneCanonicalKeyWithoutRemovingAliases() {
         assertThat(new EmailAddress(" \tStudent.Name+Kanji@Example.COM\r\n").value())
-                .isEqualTo("student.name+kanji@example.com");
-        for (String invalid :
-                new String[] {
-                    "a..b@example.com",
-                    ".a@example.com",
-                    "a@-example.com",
-                    "a@example..com",
-                    "a b@example.com",
-                    "a@example.com\u0000",
-                    "é@example.com"
-                }) {
+            .isEqualTo("student.name+kanji@example.com");
+        for (String invalid : new String[] {"a..b@example.com", ".a@example.com", "a@-example.com", "a@example..com",
+            "a b@example.com", "a@example.com\u0000", "é@example.com"}) {
             assertThatIllegalArgumentException().isThrownBy(() -> new EmailAddress(invalid));
         }
         assertThatIllegalArgumentException().isThrownBy(() -> new EmailAddress("x".repeat(65) + "@example.com"));
@@ -35,20 +27,12 @@ class AccountRulesTests {
     void canonicalEmailPreservesTheSupportedSyntaxAndBounds() {
         String local = "a".repeat(64);
         assertThat(new EmailAddress(" \t\n\u000b\f\r" + local + "@example.com \t\n\u000b\f\r").value())
-                .isEqualTo(local + "@example.com");
+            .isEqualTo(local + "@example.com");
         assertThat(new EmailAddress("!#$%&'*+-/=?^_`{|}~.student@example.com").value())
-                .isEqualTo("!#$%&'*+-/=?^_`{|}~.student@example.com");
-        for (String invalid :
-                new String[] {
-                    "a.@example.com",
-                    "a\t@example.com",
-                    "\u0000a@example.com",
-                    "a@example.com\u001f",
-                    "\u00a0a@example.com",
-                    "K@example.com",
-                    "a@" + "b".repeat(64) + ".com",
-                    " ".repeat(1025)
-                }) {
+            .isEqualTo("!#$%&'*+-/=?^_`{|}~.student@example.com");
+        for (String invalid : new String[] {"a.@example.com", "a\t@example.com", "\u0000a@example.com",
+            "a@example.com\u001f", "\u00a0a@example.com", "K@example.com", "a@" + "b".repeat(64) + ".com",
+            " ".repeat(1025)}) {
             assertThatIllegalArgumentException().isThrownBy(() -> new EmailAddress(invalid));
         }
     }
@@ -61,53 +45,50 @@ class AccountRulesTests {
         assertThat(account(NOW, null, false, null).accessAt(NOW)).isEqualTo(Account.Access.ACTIVE);
         assertThat(account(NOW, NOW, true, null).accessAt(NOW)).isEqualTo(Account.Access.SUSPENDED);
         assertThat(account(NOW, null, true, null).accessAt(NOW)).isEqualTo(Account.Access.CREDENTIAL_RESET_REQUIRED);
-        Account missingAgreements =
-                new Account(
-                        UUID.randomUUID(),
-                        new EmailAddress("a@example.com"),
-                        NOW,
-                        NOW,
-                        null,
-                        0,
-                        false,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null);
+        Account missingAgreements = new Account(
+            UUID.randomUUID(),
+            new EmailAddress("a@example.com"),
+            NOW,
+            NOW,
+            null,
+            0,
+            false,
+            null,
+            null,
+            null,
+            null,
+            null);
         assertThat(missingAgreements.accessAt(NOW)).isEqualTo(Account.Access.AGREEMENTS_REQUIRED);
     }
 
     @Test
     void eitherMissingAgreementPreventsOrdinaryAccess() {
-        Account missingPrivacy =
-                new Account(
-                        UUID.randomUUID(),
-                        new EmailAddress("student@example.com"),
-                        NOW,
-                        NOW,
-                        null,
-                        0,
-                        false,
-                        null,
-                        null,
-                        NOW,
-                        null,
-                        null);
-        Account missingAdultConfirmation =
-                new Account(
-                        UUID.randomUUID(),
-                        new EmailAddress("student@example.com"),
-                        NOW,
-                        NOW,
-                        null,
-                        0,
-                        false,
-                        NOW,
-                        "pilot-v1",
-                        null,
-                        null,
-                        null);
+        Account missingPrivacy = new Account(
+            UUID.randomUUID(),
+            new EmailAddress("student@example.com"),
+            NOW,
+            NOW,
+            null,
+            0,
+            false,
+            null,
+            null,
+            NOW,
+            null,
+            null);
+        Account missingAdultConfirmation = new Account(
+            UUID.randomUUID(),
+            new EmailAddress("student@example.com"),
+            NOW,
+            NOW,
+            null,
+            0,
+            false,
+            NOW,
+            "pilot-v1",
+            null,
+            null,
+            null);
 
         assertThat(missingPrivacy.accessAt(NOW)).isEqualTo(Account.Access.AGREEMENTS_REQUIRED);
         assertThat(missingAdultConfirmation.accessAt(NOW)).isEqualTo(Account.Access.AGREEMENTS_REQUIRED);
@@ -130,7 +111,7 @@ class AccountRulesTests {
         Account restricted = account(null, NOW, true, null).scheduleDeletion(UUID.randomUUID(), NOW);
         assertThatIllegalStateException().isThrownBy(() -> restricted.cancelDeletion(UUID.randomUUID(), 1, NOW));
         assertThatIllegalStateException()
-                .isThrownBy(() -> restricted.cancelDeletion(restricted.deletion().id(), 0, NOW));
+            .isThrownBy(() -> restricted.cancelDeletion(restricted.deletion().id(), 0, NOW));
         Account cancelled = restricted.cancelDeletion(restricted.deletion().id(), 1, NOW.plusSeconds(1));
         assertThat(cancelled.deletion()).isNull();
         assertThat(cancelled.credentialVersion()).isEqualTo(2);
@@ -138,17 +119,14 @@ class AccountRulesTests {
         assertThat(cancelled.suspendedAt()).isEqualTo(NOW);
         assertThat(cancelled.credentialResetRequired()).isTrue();
         assertThat(cancelled.accessAt(NOW)).isEqualTo(Account.Access.SUSPENDED);
-        assertThatIllegalStateException()
-                .isThrownBy(
-                        () ->
-                                restricted.cancelDeletion(
-                                        restricted.deletion().id(), 1, restricted.deletion().purgeAfter()));
+        assertThatIllegalStateException().isThrownBy(
+            () -> restricted.cancelDeletion(restricted.deletion().id(), 1, restricted.deletion().purgeAfter()));
     }
 
     @Test
     void deletionWindowTakesPrecedenceOverUnverifiedCleanup() {
-        Account scheduled =
-                account(null, null, false, null).scheduleDeletion(UUID.randomUUID(), NOW.plus(Duration.ofDays(6)));
+        Account scheduled = account(null, null, false, null)
+            .scheduleDeletion(UUID.randomUUID(), NOW.plus(Duration.ofDays(6)));
         assertThat(scheduled.purgeEligibleAt(NOW.plus(Duration.ofDays(7)))).isFalse();
         assertThat(scheduled.purgeEligibleAt(NOW.plus(Duration.ofDays(13)))).isTrue();
         Account cancelled = scheduled.cancelDeletion(scheduled.deletion().id(), 1, NOW.plus(Duration.ofDays(8)));
@@ -157,24 +135,37 @@ class AccountRulesTests {
 
     @Test
     void invitationsAreSingleUseAndExpireAtTheDeadline() {
-        SignupInvite invite =
-                new SignupInvite(
-                        UUID.randomUUID(),
-                        new TokenHash("a".repeat(64)),
-                        NOW,
-                        NOW.plusSeconds(60),
-                        null,
-                        null,
-                        null,
-                        false);
+        SignupInvite invite = new SignupInvite(
+            UUID.randomUUID(),
+            new TokenHash("a".repeat(64)),
+            NOW,
+            NOW.plusSeconds(60),
+            null,
+            null,
+            null,
+            false);
         assertThat(invite.redeem(UUID.randomUUID(), NOW).redeemedAt()).isEqualTo(NOW);
         assertThatIllegalStateException().isThrownBy(() -> invite.redeem(UUID.randomUUID(), NOW.plusSeconds(60)));
         assertThatIllegalStateException().isThrownBy(() -> invite.redeem(UUID.randomUUID(), NOW.minusSeconds(1)));
-        SignupInvite detached =
-                new SignupInvite(invite.id(), invite.tokenHash(), NOW, invite.expiresAt(), null, NOW, null, false);
+        SignupInvite detached = new SignupInvite(
+            invite.id(),
+            invite.tokenHash(),
+            NOW,
+            invite.expiresAt(),
+            null,
+            NOW,
+            null,
+            false);
         assertThatIllegalStateException().isThrownBy(() -> detached.redeem(UUID.randomUUID(), NOW));
-        SignupInvite revoked =
-                new SignupInvite(invite.id(), invite.tokenHash(), NOW, invite.expiresAt(), NOW, null, null, false);
+        SignupInvite revoked = new SignupInvite(
+            invite.id(),
+            invite.tokenHash(),
+            NOW,
+            invite.expiresAt(),
+            NOW,
+            null,
+            null,
+            false);
         assertThatIllegalStateException().isThrownBy(() -> revoked.redeem(UUID.randomUUID(), NOW));
     }
 
@@ -187,17 +178,17 @@ class AccountRulesTests {
 
     private Account account(Instant verified, Instant suspended, boolean reset, DeletionRequest deletion) {
         return new Account(
-                UUID.randomUUID(),
-                new EmailAddress("student@example.com"),
-                NOW,
-                verified,
-                suspended,
-                0,
-                reset,
-                NOW,
-                "pilot-v1",
-                NOW,
-                deletion,
-                null);
+            UUID.randomUUID(),
+            new EmailAddress("student@example.com"),
+            NOW,
+            verified,
+            suspended,
+            0,
+            reset,
+            NOW,
+            "pilot-v1",
+            NOW,
+            deletion,
+            null);
     }
 }

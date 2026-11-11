@@ -42,7 +42,7 @@ class AcceptEncodingFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
-            throws ServletException, IOException {
+        throws ServletException, IOException {
         String header = combinedHeader(request);
         chain.doFilter(header == null ? request : new CleanedRequest(request, acceptedCodings(header)), response);
     }
@@ -134,8 +134,8 @@ class AcceptEncodingFilter extends OncePerRequestFilter {
                 return super.getHeaders(name);
             }
             return acceptEncoding == null
-                    ? Collections.emptyEnumeration()
-                    : Collections.enumeration(List.of(acceptEncoding));
+                ? Collections.emptyEnumeration()
+                : Collections.enumeration(List.of(acceptEncoding));
         }
 
         @Override

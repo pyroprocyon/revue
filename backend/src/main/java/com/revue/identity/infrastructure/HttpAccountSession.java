@@ -27,9 +27,9 @@ public class HttpAccountSession implements AccountSession {
 
     /** Creates the HTTP session adapter with the configured authentication and CSRF strategies. */
     public HttpAccountSession(
-            SecurityContextRepository repository,
-            SessionAuthenticationStrategy strategy,
-            CookieCsrfTokenRepository csrf) {
+        SecurityContextRepository repository,
+        SessionAuthenticationStrategy strategy,
+        CookieCsrfTokenRepository csrf) {
         this.repository = repository;
         this.strategy = strategy;
         this.csrf = csrf;
@@ -38,11 +38,10 @@ public class HttpAccountSession implements AccountSession {
     @Override
     public void establish(Identity identity) {
         var attributes = attributes();
-        var authentication =
-                UsernamePasswordAuthenticationToken.authenticated(
-                        new Principal(identity.accountId(), identity.credentialVersion()),
-                        null,
-                        List.of(new SimpleGrantedAuthority("LEARNER")));
+        var authentication = UsernamePasswordAuthenticationToken.authenticated(
+            new Principal(identity.accountId(), identity.credentialVersion()),
+            null,
+            List.of(new SimpleGrantedAuthority("LEARNER")));
         strategy.onAuthentication(authentication, attributes.getRequest(), response(attributes));
         var context = SecurityContextHolder.createEmptyContext();
         context.setAuthentication(authentication);
@@ -86,5 +85,6 @@ public class HttpAccountSession implements AccountSession {
         return Objects.requireNonNull(attributes.getResponse());
     }
 
-    private record Principal(UUID accountId, long version) implements Serializable {}
+    private record Principal(UUID accountId, long version) implements Serializable {
+    }
 }

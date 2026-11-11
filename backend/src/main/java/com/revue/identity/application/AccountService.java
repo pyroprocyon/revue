@@ -25,13 +25,13 @@ public class AccountService {
 
     /** Creates the account use cases with their persistence, hashing and session ports. */
     public AccountService(
-            AccountQueries accounts,
-            RegistrationCommit registration,
-            LoginCommit login,
-            PasswordHasher hasher,
-            AuthenticationAdmission admission,
-            AccountSession session,
-            Clock clock) {
+        AccountQueries accounts,
+        RegistrationCommit registration,
+        LoginCommit login,
+        PasswordHasher hasher,
+        AuthenticationAdmission admission,
+        AccountSession session,
+        Clock clock) {
         this.accounts = accounts;
         this.registration = registration;
         this.login = login;
@@ -52,13 +52,15 @@ public class AccountService {
         try (var permit = admission.enter(username.value())) {
             if (!accounts.inviteAvailable(invite, clock.instant())) {
                 throw new IllegalArgumentException(
-                        "Use a valid invitation link. If you already registered, sign in instead");
+                    "Use a valid invitation link. If you already registered, sign in instead");
             }
             // The transaction starts only after hashing; invitations are locked and rechecked inside it.
-            var result =
-                    registration.registerUsername(
-                            new RegistrationCommit.UsernameRegistration(
-                                    username, hasher.encode(password), invite, PRIVACY_VERSION));
+            var result = registration.registerUsername(
+                new RegistrationCommit.UsernameRegistration(
+                    username,
+                    hasher.encode(password),
+                    invite,
+                    PRIVACY_VERSION));
             session.establish(new AccountSession.Identity(result.accountId(), result.credentialVersion()));
             return current();
         }
@@ -90,8 +92,8 @@ public class AccountService {
         var identity = session.current().orElseThrow(LoginCommit::rejected);
         var stored = accounts.byId(identity.accountId());
         if (stored.isEmpty()
-                || stored.get().account().credentialVersion() != identity.credentialVersion()
-                || stored.get().account().accessAt(clock.instant()) != Account.Access.ACTIVE) {
+            || stored.get().account().credentialVersion() != identity.credentialVersion()
+            || stored.get().account().accessAt(clock.instant()) != Account.Access.ACTIVE) {
             session.clear();
             throw LoginCommit.rejected();
         }
@@ -114,15 +116,15 @@ public class AccountService {
         }
         try {
             return new TokenHash(
-                    HexFormat.of()
-                            .formatHex(
-                                    MessageDigest.getInstance("SHA-256")
-                                            .digest(invitation.getBytes(StandardCharsets.UTF_8))));
+                HexFormat.of()
+                    .formatHex(
+                        MessageDigest.getInstance("SHA-256").digest(invitation.getBytes(StandardCharsets.UTF_8))));
         } catch (NoSuchAlgorithmException unavailable) {
             throw new IllegalStateException("SHA-256 is unavailable", unavailable);
         }
     }
 
     /** Public account details returned to the signed-in learner. */
-    public record Profile(String username) {}
+    public record Profile(String username) {
+    }
 }

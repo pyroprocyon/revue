@@ -5,10 +5,11 @@ package com.revue.content.application;
  * counts the set's active cards.
  */
 public record PublicSetSummary(
-        String setKey,
-        String title,
-        String description,
-        String publisherName,
-        long cardCount,
-        boolean trialAvailable,
-        String shareCode) {}
+    String setKey,
+    String title,
+    String description,
+    String publisherName,
+    long cardCount,
+    boolean trialAvailable,
+    String shareCode) {
+}

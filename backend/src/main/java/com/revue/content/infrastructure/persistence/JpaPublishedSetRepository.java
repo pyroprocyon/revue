@@ -39,10 +39,9 @@ class JpaPublishedSetRepository implements PublishedSetRepository {
             for (SharedSetRow set : setRows) {
                 setsByKey.put(set.setKey(), set);
             }
-            existingSets =
-                    setRows.stream()
-                            .map(set -> set.toDomain(cardsBySet.getOrDefault(set.setKey(), List.of())))
-                            .toList();
+            existingSets = setRows.stream()
+                .map(set -> set.toDomain(cardsBySet.getOrDefault(set.setKey(), List.of())))
+                .toList();
         }
 
         @Override

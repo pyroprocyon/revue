@@ -39,16 +39,16 @@ class StaticResourceConfig implements WebMvcConfigurer {
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
         registry.addResourceHandler("/assets/**")
-                .addResourceLocations(BUILD_LOCATION + "assets/")
-                .setCacheControl(CacheControl.maxAge(Duration.ofDays(365)).cachePublic().immutable())
-                .resourceChain(true)
-                .addResolver(new EncodedResourceResolver());
+            .addResourceLocations(BUILD_LOCATION + "assets/")
+            .setCacheControl(CacheControl.maxAge(Duration.ofDays(365)).cachePublic().immutable())
+            .resourceChain(true)
+            .addResolver(new EncodedResourceResolver());
         registry.addResourceHandler("/**")
-                .addResourceLocations(BUILD_LOCATION)
-                .setCacheControl(CacheControl.noCache())
-                .setUseLastModified(false)
-                .resourceChain(true)
-                .addResolver(new EncodedResourceResolver());
+            .addResourceLocations(BUILD_LOCATION)
+            .setCacheControl(CacheControl.noCache())
+            .setUseLastModified(false)
+            .resourceChain(true)
+            .addResolver(new EncodedResourceResolver());
     }
 
     @Override

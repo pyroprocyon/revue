@@ -24,13 +24,14 @@ import org.yaml.snakeyaml.error.YAMLException;
  */
 final class ContentParser {
 
-    private static final Set<String> SET_FIELDS =
-            Set.of("set_key", "title", "description", "publisher", "subject", "cards");
+    private static final Set<String> SET_FIELDS = Set
+        .of("set_key", "title", "description", "publisher", "subject", "cards");
 
-    private static final Set<String> CARD_FIELDS =
-            Set.of("key", "question", "answer", "key_ideas", "explanation", "memory_hook", "source");
+    private static final Set<String> CARD_FIELDS = Set
+        .of("key", "question", "answer", "key_ideas", "explanation", "memory_hook", "source");
 
-    private ContentParser() {}
+    private ContentParser() {
+    }
 
     /**
      * Returns the parsed set, or null when the file's shape is too broken to read. Every problem found is added to
