@@ -11,3 +11,10 @@ frontend/dist
 # Generated browser-test reports
 frontend/playwright-report/
 frontend/test-results/
+
+# Private engineering context and agent instructions, including nested copies.
+**/.agents
+**/.claude
+**/.codex
+**/AGENTS.md
+**/CLAUDE.md
