@@ -10,7 +10,7 @@ import { REVIEW_STEPS_INTRO, REVIEW_STEPS_TITLE, ReviewSteps } from '../../featu
 import { Screen } from '../../shared/ui/Screen';
 import { HOW_IT_WORKS_PATH, JOIN_PATH, SETS_PATH } from '../../shared/navigation/paths';
 
-// The phone hero and sample fit above the pinned actions.
+// Compact phones use a two-line hero; narrower screens and enlarged text can scroll.
 // At the lg breakpoint, the sample sits beside the hero and the explanation follows inline.
 
 const HOW_IT_WORKS_SECTION = 'how-it-works';
@@ -48,7 +48,7 @@ export function LandingPage() {
       actions={<LandingActions />}
       actionsOnPhonesOnly
     >
-      <section className="flex flex-1 flex-col gap-7 max-lg:justify-center-safe lg:grid lg:flex-none lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-16 lg:pt-14">
+      <section className="flex flex-1 flex-col gap-4 max-lg:justify-center-safe sm:gap-8 lg:grid lg:flex-none lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-16 lg:pt-14">
         <HeroText />
         <SampleCard />
       </section>
@@ -73,9 +73,9 @@ export function LandingPage() {
 function HeroText() {
   return (
     <div className="min-w-0">
-      <h1 className="text-hero font-extrabold tracking-[-0.03em] max-lg:[font-size:clamp(2.75rem,6.75dvh,var(--text-hero))] lg:text-hero-lg">
-        <span className="block text-accent">Review</span>{' '}
-        <span className="block">before</span>{' '}
+      <h1 className="text-hero font-extrabold tracking-[-0.03em] max-sm:text-[2.75rem] lg:text-hero-lg">
+        <span className="text-accent lg:block">Review</span>{' '}
+        <span className="lg:block">before</span>{' '}
         <span className="block">
           <span className="relative inline-block">
             {'it’s'}
@@ -87,10 +87,10 @@ function HeroText() {
           due.
         </span>
       </h1>
-      <p className="mt-4 text-lead font-bold text-balance lg:mt-9 lg:text-lead-lg">
+      <p className="mt-4 text-lead font-bold text-balance max-sm:text-xl/6 lg:mt-9 lg:text-lead-lg">
         You do the thinking. Revue handles the timing.
       </p>
-      <p className="mt-2 max-w-xl text-body tracking-[0.01em] text-muted lg:mt-3 lg:text-[1.3125rem] lg:leading-[1.45]">
+      <p className="mt-2 max-w-xl text-body tracking-[0.01em] text-muted max-sm:text-base/6 lg:mt-3 lg:text-[1.3125rem] lg:leading-[1.45]">
         Got an answer in mind? Flip the card, see how close you got, and rate it.
       </p>
       <div className="mt-8 hidden lg:block">

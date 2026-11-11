@@ -41,7 +41,7 @@ export function FlashCard({ card, publisherName, onRate }: Readonly<FlashCardPro
   }
 
   return (
-    <div className="flex flex-1 animate-fade-in flex-col perspective-[2000px] lg:min-h-[30rem]">
+    <div className="flex flex-1 animate-fade-in flex-col perspective-[2000px] sm:min-h-[30rem]">
       <div className={`grid flex-1 transform-3d ${turn}`}>
         <CardSide
           label="Question"
