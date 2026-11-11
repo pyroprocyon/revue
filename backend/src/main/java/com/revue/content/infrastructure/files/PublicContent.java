@@ -41,9 +41,15 @@ public final class PublicContent {
     static List<SetDefinition> readAndCheck(String location) {
         List<String> problems = new ArrayList<>();
         List<SetDefinition> sets = new ArrayList<>();
+        int totalBytes = 0;
         for (Resource resource : findFiles(location)) {
             String name = nameOf(resource);
-            SetDefinition set = ContentParser.parse(name, read(resource, name), problems);
+            String source = read(resource, name);
+            totalBytes += source.getBytes(StandardCharsets.UTF_8).length;
+            if (totalBytes > 16 * 1024 * 1024) {
+                throw new ContentUnavailableException("Public source exceeds 16 MiB");
+            }
+            SetDefinition set = ContentParser.parse(name, source, problems);
             if (set != null) {
                 sets.add(set);
             }
@@ -64,6 +70,9 @@ public final class PublicContent {
         } catch (IOException ex) {
             throw new ContentUnavailableException("Couldn't list the public content files", ex);
         }
+        if (resources.length > 4096) {
+            throw new ContentUnavailableException("Public source exceeds 4096 files");
+        }
         if (resources.length == 0) {
             // An empty source would retire every set, so treat it as missing instead.
             throw new ContentUnavailableException("No public content files found at " + location);
@@ -72,8 +81,12 @@ public final class PublicContent {
     }
 
     private static String read(Resource resource, String name) {
-        try {
-            return resource.getContentAsString(StandardCharsets.UTF_8);
+        try (var input = resource.getInputStream()) {
+            byte[] bytes = input.readNBytes(1024 * 1024 + 1);
+            if (bytes.length > 1024 * 1024) {
+                throw new ContentUnavailableException(name + ": source exceeds 1 MiB");
+            }
+            return new String(bytes, StandardCharsets.UTF_8);
         } catch (IOException ex) {
             throw new ContentUnavailableException("Couldn't read the public content file " + name, ex);
         }

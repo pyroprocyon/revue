@@ -119,22 +119,17 @@ public final class ContentRules {
     }
 
     /** Rejects moving an existing card key into another published set. */
-    public static void checkOwnership(List<SetDefinition> files, List<PublishedSet> existing) {
-        Map<String, String> ownerByCard = new HashMap<>();
-        for (PublishedSet set : existing) {
-            for (PublishedCard card : set.cards()) {
-                ownerByCard.put(card.key(), set.key());
-            }
-        }
+    public static void checkOwnership(List<SetDefinition> files, Map<String, String> ownerByCard) {
         List<String> problems = new ArrayList<>();
         for (SetDefinition file : files) {
             for (CardDefinition card : file.cards()) {
                 String owner = ownerByCard.get(card.key());
-                if (owner != null && !owner.equals(file.setKey())) {
-                    problems.add(
-                        file.sourceName() + ", card " + card.key() + ": key belongs to set " + owner
-                            + "; a card can't move between sets");
+                if (owner == null || owner.equals(file.setKey())) {
+                    continue;
                 }
+                String problem = "%s, card %s: key belongs to set %s; a card can't move between sets"
+                    .formatted(file.sourceName(), card.key(), owner);
+                problems.add(problem);
             }
         }
         if (!problems.isEmpty()) {

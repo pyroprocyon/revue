@@ -37,7 +37,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * keys. Every load is a complete source, so a test's load retires sets from earlier tests; the assertions only look at
  * the test's own rows.
  */
-@SpringBootTest(properties = "revue.content.load-on-startup=false")
+@SpringBootTest(properties = "revue.content.publish=false")
 @Import(TestcontainersConfiguration.class)
 class ContentLoaderTests {
 
@@ -91,7 +91,7 @@ class ContentLoaderTests {
 
     @ParameterizedTest
     @ValueSource(ints = {1, 20})
-    void republishingReadsTheCatalogOnlyOnce(int cardsPerSet) {
+    void republishingReadsEachSetOnceRegardlessOfCardCount(int cardsPerSet) {
         List<SetDefinition> source = IntStream.range(0, 2).mapToObj(setIndex -> {
             String key = "catalog-reads-" + cardsPerSet + "-" + setIndex;
             CardDefinition[] cards = IntStream.range(0, cardsPerSet)
@@ -107,7 +107,8 @@ class ContentLoaderTests {
         try {
             ContentLoader.Result result = loader.load(source);
             assertThat(result.changedNothing()).isTrue();
-            assertThat(statistics.getPrepareStatementCount()).as("one set read and one card read").isEqualTo(2);
+            assertThat(statistics.getPrepareStatementCount()).as("one set read and one card history read per set")
+                .isEqualTo(4);
         } finally {
             statistics.setStatisticsEnabled(statisticsWereEnabled);
         }

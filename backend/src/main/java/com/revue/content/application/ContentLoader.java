@@ -1,5 +1,6 @@
 package com.revue.content.application;
 
+import com.revue.content.domain.CardDefinition;
 import com.revue.content.domain.ContentRules;
 import com.revue.content.domain.InvalidContentException;
 import com.revue.content.domain.PublishedSet;
@@ -7,10 +8,8 @@ import com.revue.content.domain.PublishedSetRepository;
 import com.revue.content.domain.SetDefinition;
 import java.time.Clock;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -47,30 +46,27 @@ public class ContentLoader {
     @Transactional
     public Result load(List<SetDefinition> files) {
         List<String> problems = new ArrayList<>();
+        if (files.isEmpty() || files.size() > 4096) {
+            throw new InvalidContentException(List.of("Publication requires between 1 and 4096 set definitions"));
+        }
         ContentRules.check(files, problems);
         if (!problems.isEmpty()) {
             throw new InvalidContentException(problems);
         }
-        PublishedSetRepository.Catalog catalog = sets.loadCatalog();
-        List<PublishedSet> existing = catalog.existingSets();
-        ContentRules.checkOwnership(files, existing);
-        Map<String, PublishedSet> byKey = new HashMap<>();
-        for (PublishedSet set : existing) {
-            byKey.put(set.key(), set);
-        }
         Set<String> incomingKeys = new HashSet<>();
         var now = clock.instant();
         int setsAdded = 0;
-        int setsRetired = 0;
         int setsRestored = 0;
         int cardsAdded = 0;
         int cardsChanged = 0;
         int cardsRetired = 0;
         int cardsRestored = 0;
-        List<PublishedSet> publications = new ArrayList<>();
         for (SetDefinition file : files) {
             incomingKeys.add(file.setKey());
-            PublishedSet set = byKey.get(file.setKey());
+            ContentRules
+                .checkOwnership(List.of(file), sets.ownersOf(file.cards().stream().map(CardDefinition::key).toList()));
+            PublishedSetRepository.LoadedSet loaded = sets.loadSet(file.setKey());
+            PublishedSet set = loaded.existing().orElse(null);
             if (set == null) {
                 set = PublishedSet.publish(file);
                 setsAdded++;
@@ -85,15 +81,9 @@ public class ContentLoader {
                 cardsRetired += changes.cardsRetired();
                 cardsRestored += changes.cardsRestored();
             }
-            publications.add(set);
+            loaded.save(set);
         }
-        for (PublishedSet set : existing) {
-            if (!incomingKeys.contains(set.key()) && set.retire(now)) {
-                publications.add(set);
-                setsRetired++;
-            }
-        }
-        catalog.saveAll(publications);
+        int setsRetired = sets.retireMissing(incomingKeys, now);
         return new Result(setsAdded, setsRetired, setsRestored, cardsAdded, cardsChanged, cardsRetired, cardsRestored);
     }
 }

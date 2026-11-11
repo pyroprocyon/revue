@@ -9,6 +9,9 @@ public class RevueApplication {
 
     /** Starts the HTTP application using the configured Spring environment. */
     public static void main(String[] args) {
-        SpringApplication.run(RevueApplication.class, args);
+        var context = SpringApplication.run(RevueApplication.class, args);
+        if (context.getEnvironment().getProperty("revue.content.publish", Boolean.class, false)) {
+            SpringApplication.exit(context);
+        }
     }
 }

@@ -15,6 +15,19 @@ services:
       retries: 30
       start_interval: 1s
       start_period: 30s
+  publisher:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    command: ["--revue.content.publish=true", "--server.address=127.0.0.1", "--server.port=0"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/e2e
+      SPRING_DATASOURCE_USERNAME: e2e
+      SPRING_DATASOURCE_PASSWORD: ${REVUE_E2E_DB_PASSWORD}
   app:
     build:
       context: ../..
@@ -22,6 +35,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      publisher:
+        condition: service_completed_successfully
     environment:
       SPRING_PROFILES_ACTIVE: local
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/e2e
