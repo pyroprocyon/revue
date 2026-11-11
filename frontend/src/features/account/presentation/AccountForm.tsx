@@ -72,7 +72,7 @@ export function AccountForm({ register = false }: Readonly<{ register?: boolean 
 
   return (
     <Screen top={<div className="mx-auto"><HomeLink /></div>}>
-      <section className="mx-auto w-full max-w-[28rem] py-6 sm:py-10 lg:py-14">
+      <section className="mx-auto w-full max-w-[28rem] py-4 sm:py-10 lg:py-14">
         <div className="rounded-card bg-surface p-4 shadow-card sm:p-8">
           <h1 className="text-title font-extrabold tracking-tight">{register ? 'Create your account' : 'Welcome back'}</h1>
           {needsInvitation && (
@@ -80,7 +80,7 @@ export function AccountForm({ register = false }: Readonly<{ register?: boolean 
               Open your invitation link to continue.
             </output>
           )}
-          <form id="account-form" onSubmit={(event) => void submit(event)} className="mt-7 grid gap-5" aria-busy={busy}>
+          <form id="account-form" onSubmit={(event) => void submit(event)} className="mt-6 grid gap-4 sm:gap-5" aria-busy={busy}>
             <div>
               <label htmlFor="username" className="text-label font-semibold">Username</label>
               <input id="username" className={`${inputStyle} mt-2 block`} name="username" autoComplete="username"

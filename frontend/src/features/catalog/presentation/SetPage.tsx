@@ -61,7 +61,7 @@ function SetDetails({ publicSet }: Readonly<{ publicSet: PublicSet }>) {
   }, [queryClient, publicSet.setKey, publicSet.trialAvailable, trialCardsQuery]);
 
   const actions = (
-    <div className="grid gap-3 lg:flex lg:flex-wrap lg:items-start lg:justify-between lg:gap-4">
+    <div className="grid gap-3 sm:flex sm:flex-wrap sm:items-start sm:justify-between sm:gap-4">
       <TrialAction publicSet={publicSet} />
       <ShareLinks title={publicSet.title} path={setSharePath(publicSet.shareCode)} />
     </div>

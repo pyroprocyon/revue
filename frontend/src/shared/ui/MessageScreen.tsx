@@ -19,7 +19,7 @@ export function MessageScreen({ title, icon, action, children }: Readonly<Messag
   const headingRef = useFocusOnMount<HTMLHeadingElement>();
   return (
     <Screen top={<HomeLink />} actions={action}>
-      <section className="my-auto rounded-card bg-surface p-4 shadow-card sm:p-6 lg:my-6">
+      <section className="my-auto rounded-card bg-surface p-4 shadow-card sm:my-6 sm:p-6">
         {icon}
         <h1 ref={headingRef} tabIndex={-1} className="text-title font-extrabold tracking-tight text-balance outline-none">
           {title}
@@ -33,7 +33,7 @@ export function MessageScreen({ title, icon, action, children }: Readonly<Messag
 export function LoadingScreen({ text }: Readonly<{ text: string }>) {
   return (
     <Screen top={<HomeLink />}>
-      <output className="my-auto flex items-center gap-3 rounded-card bg-surface p-4 text-body text-muted shadow-card sm:p-6 lg:my-6">
+      <output className="my-auto flex items-center gap-3 rounded-card bg-surface p-4 text-body text-muted shadow-card sm:my-6 sm:p-6">
         <LoaderCircle aria-hidden="true" className="size-6 shrink-0 animate-spin text-accent motion-reduce:animate-none" />
         <span>{text}</span>
       </output>
