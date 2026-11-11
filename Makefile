@@ -146,3 +146,13 @@ check-java:
 	@java_bin="$${JAVA_HOME:+$$JAVA_HOME/bin/}java"; \
 	  version=$$("$$java_bin" -version 2>&1) || { echo "Java is unavailable. Install Temurin 25 and set JAVA_HOME."; exit 1; }; \
 	  [[ "$$version" == *'version "25.'* ]] || { echo "Backend tests require Java 25. Check JAVA_HOME and PATH."; exit 1; }
+
+.PHONY: publish-content capacity-check recovery-check
+publish-content: $(PREREQS) ## Publish bundled content explicitly; increment publication-revision.txt when content changes
+	$(COMPOSE) run --build --rm publisher
+
+capacity-check: check-docker check-java ## Measure the local HTTP baseline using synthetic content and a disposable database
+	cd $(BACKEND_DIR) && ./mvnw -DargLine="-Xms64m -Xmx256m -XX:+UseSerialGC" -Dtest=CapacityBaselineCheck test
+
+recovery-check: check-docker check-java ## Back up and restore synthetic data using disposable PostgreSQL containers
+	cd $(BACKEND_DIR) && ./mvnw -Dtest=RecoveryDrillCheck test

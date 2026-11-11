@@ -12,47 +12,15 @@ Revue is a study app for Filipino students preparing for classes and exams. Test
 
 Practice isn't saved. The example schedule shows when cards could come back.
 
-Revue is in early development. The current build also supports invitation-only pilot accounts for adults aged 18 and over. Saving sets, creating personal decks, and scheduling reviews from saved progress are planned.
+Revue is in early development. The current build also supports invitation-only pilot accounts. Saving sets, creating personal decks, and scheduling reviews from saved progress are planned.
 
 ## Help and feedback
 
 For questions, card corrections, account help, or privacy requests, email [revuetayo@gmail.com](mailto:revuetayo@gmail.com). Requests are handled personally.
 
-## Run locally
+## Technical overview
 
-Use WSL, Linux, or macOS with Docker, Docker Compose 2.20.2 or newer, GNU Make, and Bash. Keep WSL checkouts in the Linux filesystem and enable Docker Desktop's WSL integration.
-
-From the repository root:
-
-```bash
-make
-```
-
-Open [the local app](http://127.0.0.1:5173). The first start downloads dependencies. `make` creates `.env` from `.env.example` only when it is missing. Run it again after backend or dependency changes; frontend source changes reload automatically.
-
-`make stop` stops the containers and keeps local data. `make help` lists the other commands. Host ports can be changed in `.env`. For a local pilot account, `make invite` prints a signup link.
-
-## Development and contributions
-
-Discuss a proposed change in a repository issue first. Keep changes focused and leave out credentials, private learning material, and personal data.
-
-Host checks also need Java 25, the Node version in `.nvmrc`, Python 3, and `unzip`, with Docker running. Make selects the pinned Node version for frontend commands.
-
-```bash
-make check          # Lint, tests, type checks, and frontend build
-make smoke          # Build containers and check HTTP responses
-make install-hooks  # Enable the publication checks once per clone
-```
-
-On a fresh Linux host, install Chromium's system libraries before browser tests:
-
-```bash
-make frontend-install
-cd frontend
-bash ../scripts/with-node.sh npx --no-install playwright install --with-deps --only-shell chromium
-```
-
-Then return to the repository root. Before a pull request or code push, run `make quality` for browser tests and static analysis too. Publication also requires an authenticated [GitGuardian ggshield](https://docs.gitguardian.com/ggshield-docs/getting-started) scan of every outgoing commit; the pre-push guard enforces both checks. Missing or incomplete scans block publication.
+Revue uses a React frontend and a Spring Boot backend with PostgreSQL. One application serves the web interface and API. The backend groups catalog, accounts, and review scheduling into separate modules.
 
 ## License and credits
 
