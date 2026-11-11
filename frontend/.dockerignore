@@ -4,3 +4,10 @@ coverage
 .env
 .env.*
 *.log
+
+# Private engineering context and agent instructions, including nested copies.
+**/.agents
+**/.claude
+**/.codex
+**/AGENTS.md
+**/CLAUDE.md

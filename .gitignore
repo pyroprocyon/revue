@@ -32,3 +32,11 @@ __pycache__/
 # Generated browser-test reports
 frontend/playwright-report/
 frontend/test-results/
+
+# Private engineering context and agent configuration (provision separately).
+# Keep these rules in addition to checkout-local .git/info/exclude entries.
+.agents/
+.claude/
+.codex/
+AGENTS.md
+CLAUDE.md
