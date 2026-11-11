@@ -18,7 +18,7 @@ import org.springframework.test.web.servlet.MockMvc;
  * A signed-out API request gets a plain 401, and no signed-out request leaves anything behind. Bots send many such
  * requests, so a request must not create a session row in PostgreSQL or set a session cookie.
  */
-@SpringBootTest
+@SpringBootTest(properties = "revue.operations.token=")
 @AutoConfigureMockMvc
 @Import(TestcontainersConfiguration.class)
 class SignedOutRequestTests {
@@ -48,6 +48,13 @@ class SignedOutRequestTests {
             .andExpect(header().doesNotExist(HttpHeaders.SET_COOKIE));
 
         assertThat(countSessions()).isEqualTo(sessionsBefore);
+    }
+
+    @Test
+    void metricsStayClosedWithoutConfiguredToken() throws Exception {
+        mvc.perform(get("/actuator/metrics").header("Authorization", "Bearer "))
+            .andExpect(status().isUnauthorized())
+            .andExpect(header().doesNotExist(HttpHeaders.SET_COOKIE));
     }
 
     private int countSessions() {
