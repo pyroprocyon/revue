@@ -26,7 +26,6 @@ import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -38,7 +37,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
-@SpringBootTest(properties = "revue.content.load-on-startup=false")
+@SpringBootTest(properties = "revue.content.publish=false")
 @AutoConfigureMockMvc
 @Import(TestcontainersConfiguration.class)
 class UsernameAccountHttpTests {
@@ -282,27 +281,13 @@ class UsernameAccountHttpTests {
         }
     }
 
-    @ParameterizedTest(name = "privacy={0}, adult={1}")
-    @CsvSource({"false, true", "true, false"})
-    void declinedConfirmationCannotCreateAccountOrConsumeInvite(boolean privacy, boolean adult) throws Exception {
+    @Test
+    void olderSignupFormsCanStillRegisterWithoutConfirmations() throws Exception {
         Browser browser = new Browser();
         browser.csrf();
-        String username = username();
-        String invite = invitation();
-        var rejected = browser.send(signup(username, "kanjii", invite, privacy, adult));
-        assertThat(rejected.getResponse().getStatus()).isEqualTo(400);
-        assertThat(rejected.getResponse().getCookie("SESSION")).isNull();
-        assertThat(browser.send(get("/api/v1/me")).getResponse().getStatus()).isEqualTo(401);
-        assertThat(jdbc.queryForObject("select count(*) from users where username = ?", Integer.class, username))
-            .isZero();
-        assertThat(
-            jdbc.queryForMap(
-                "select redeemed_at, redeemed_by_user_id from signup_invites where token_hash = ?",
-                hash(invite)))
-            .containsEntry("redeemed_at", null)
-            .containsEntry("redeemed_by_user_id", null);
-        // Accepting both confirmations can still use the original invitation and username.
-        assertThat(browser.send(signup(username, "kanjii", invite)).getResponse().getStatus()).isEqualTo(200);
+        var request = signup(username(), "kanjii", invitation()).param("privacy", "false").param("adult", "false");
+        assertThat(browser.send(request).getResponse().getStatus()).isEqualTo(200);
+        assertThat(browser.send(get("/api/v1/me")).getResponse().getStatus()).isEqualTo(200);
     }
 
     @Test
@@ -321,21 +306,10 @@ class UsernameAccountHttpTests {
     }
 
     private MockHttpServletRequestBuilder signup(String username, String password, String invite) {
-        return signup(username, password, invite, true, true);
-    }
-
-    private MockHttpServletRequestBuilder signup(
-        String username,
-        String password,
-        String invite,
-        boolean privacy,
-        boolean adult) {
         return post("/api/v1/auth/register").contentType("application/x-www-form-urlencoded")
             .param("username", username)
             .param("password", password)
-            .param("invitation", invite)
-            .param("privacy", Boolean.toString(privacy))
-            .param("adult", Boolean.toString(adult));
+            .param("invitation", invite);
     }
 
     private MockHttpServletRequestBuilder login(String username, String password) {

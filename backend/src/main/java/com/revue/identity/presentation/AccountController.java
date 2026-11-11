@@ -26,15 +26,13 @@ public class AccountController {
         return accounts.csrf();
     }
 
-    /** Creates an invited account after both pilot confirmations are accepted. */
+    /** Creates a username account using a valid invitation. */
     @PostMapping(path = "/api/v1/auth/register", consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
     public AccountService.Profile register(
         @RequestParam String username,
         @RequestParam String password,
-        @RequestParam String invitation,
-        @RequestParam boolean privacy,
-        @RequestParam boolean adult) {
-        return accounts.register(username, password, invitation, privacy, adult);
+        @RequestParam String invitation) {
+        return accounts.register(username, password, invitation);
     }
 
     /** Authenticates a username and establishes the browser session. */

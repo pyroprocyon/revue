@@ -1,5 +1,5 @@
 export type AccountProfile = { username: string };
-export type Signup = { username: string; password: string; invitation: string; privacy: boolean; adult: boolean };
+export type Signup = { username: string; password: string; invitation: string };
 
 export interface AccountGateway {
   current(): Promise<AccountProfile | null>;

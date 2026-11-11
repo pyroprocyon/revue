@@ -45,8 +45,9 @@ export const test = base.extend<object, { pilot: PilotApp }>({
           const token = randomBytes(reusable ? 6 : 32).toString('base64url');
           const digest = createHash('sha256').update(token).digest('hex');
           // Only generated UUID/digest values enter this SQL; no learner input is interpolated.
+          // Start in the recent past so a small database clock adjustment cannot make the fixture future-dated.
           compose(['exec', '-T', 'db', 'psql', '-U', 'e2e', '-d', 'e2e', '-v', 'ON_ERROR_STOP=1'],
-            `insert into signup_invites(id,token_hash,created_at,expires_at,reusable) values ('${randomUUID()}','${digest}',now(),now()+interval '1 hour',${reusable});`);
+            `insert into signup_invites(id,token_hash,created_at,expires_at,reusable) values ('${randomUUID()}','${digest}',now()-interval '1 minute',now()+interval '1 hour',${reusable});`);
           return reusable ? `${origin}/i#${token}` : `${origin}/register#invite=${token}`;
         },
       });

@@ -44,7 +44,6 @@ export const httpAccount: AccountGateway = {
   async register(input: Signup) {
     const response = await post('/api/v1/auth/register', {
       username: input.username, password: input.password, invitation: input.invitation,
-      privacy: String(input.privacy), adult: String(input.adult),
     });
     return response.json() as Promise<AccountProfile>;
   },

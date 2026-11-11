@@ -4,7 +4,6 @@ import com.revue.identity.domain.Account;
 import com.revue.identity.domain.PasswordHash;
 import com.revue.identity.domain.TokenHash;
 import com.revue.identity.domain.Username;
-import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -19,8 +18,8 @@ public interface AccountQueries {
     /** Locks and returns an account's current credentials within the caller's transaction. */
     Optional<Credentials> lock(UUID id);
 
-    /** Checks whether the invitation is available at the supplied time. */
-    boolean inviteAvailable(TokenHash hash, Instant now);
+    /** Checks invitation availability using the database clock, which also timestamps issuance. */
+    boolean inviteAvailable(TokenHash hash);
 
     /** Account state and encoded credentials with redacted diagnostic output. */
     record Credentials(Account account, PasswordHash hash) {

@@ -23,7 +23,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
-@SpringBootTest(properties = "revue.content.load-on-startup=false")
+@SpringBootTest(properties = "revue.content.publish=false")
 @Import(TestcontainersConfiguration.class)
 class RegistrationCommitTests {
     @Autowired
@@ -43,11 +43,11 @@ class RegistrationCommitTests {
             .containsEntry("email", null)
             .containsEntry("credential_version", 0L)
             .containsEntry("credential_reset_required", false)
-            .containsEntry("privacy_notice_version", "pilot-v1")
+            .containsEntry("privacy_notice_version", null)
             .containsEntry("email_verified_at", null)
             .containsEntry("deletion_request_id", null);
-        assertThat(row.get("privacy_accepted_at")).isEqualTo(row.get("created_at"));
-        assertThat(row.get("adult_confirmed_at")).isEqualTo(row.get("created_at"));
+        assertThat(row.get("privacy_accepted_at")).isNull();
+        assertThat(row.get("adult_confirmed_at")).isNull();
         assertThat(
             jdbc.queryForObject(
                 "select redeemed_by_user_id from signup_invites where token_hash = ?",
@@ -102,8 +102,7 @@ class RegistrationCommitTests {
         var retry = new RegistrationCommit.UsernameRegistration(
             new Username(name),
             new PasswordHash("{test}replacement"),
-            unused,
-            "pilot-v1");
+            unused);
         assertThatThrownBy(() -> registration.registerUsername(retry)).isInstanceOfSatisfying(
             AccountProblem.class,
             problem -> assertThat(problem.kind()).isEqualTo(AccountProblem.Kind.UNAVAILABLE_USERNAME));
@@ -228,8 +227,7 @@ class RegistrationCommitTests {
         return new RegistrationCommit.UsernameRegistration(
             new Username(username),
             new PasswordHash("{test}encoded-placeholder"),
-            invite,
-            "pilot-v1");
+            invite);
     }
 
     private TokenHash invitation() {

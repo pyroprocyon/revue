@@ -21,8 +21,7 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
-    "revue.content.load-on-startup=false"})
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = "revue.content.publish=false")
 @Import(TestcontainersConfiguration.class)
 class AccountFormLimitTests {
     @LocalServerPort
@@ -57,8 +56,8 @@ class AccountFormLimitTests {
                         + "interval '1 hour') on conflict (token_hash) do nothing",
                     UUID.randomUUID(),
                     hash);
-                String form = "username=" + username + "&password=kanjii&invitation=" + token
-                    + "&privacy=true&adult=true&padding=" + "x".repeat(10_000);
+                String form = "username=" + username + "&password=kanjii&invitation=" + token + "&padding="
+                    + "x".repeat(10_000);
                 var body = chunked
                     ? HttpRequest.BodyPublishers
                         .ofInputStream(() -> new ByteArrayInputStream(form.getBytes(StandardCharsets.UTF_8)))

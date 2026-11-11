@@ -35,6 +35,7 @@ start: up ## Start the full development stack (same as make or make up)
 stop: down ## Stop and remove containers, keeping database data (same as make down)
 
 up: $(PREREQS) ## Build changed images and start the full development stack
+	python3 scripts/issue-pilot-invite.py --ensure
 	$(COMPOSE) up --detach --build --wait $(SERVICE)
 	@$(COMPOSE) ps
 	@if [ -z "$(SERVICE)" ] || [ "$(SERVICE)" = "frontend" ]; then \
@@ -98,7 +99,7 @@ lint: frontend-install ## Lint frontend code and validate Python/shell tooling s
 format-java: check-java ## Apply the four-space, 120-column Java style to production and test Java
 	cd "$(BACKEND_DIR)" && ./mvnw spotless:apply
 
-invite: ## Create or replace the shared local pilot invitation; copy the link from stdout
+invite: .env ## Print the stable local and public pilot invitation links
 	python3 scripts/issue-pilot-invite.py
 
 install-hooks: ## Enable the local pre-push quality gate without replacing existing hooks

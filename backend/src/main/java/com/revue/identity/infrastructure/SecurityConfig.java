@@ -1,7 +1,9 @@
 package com.revue.identity.infrastructure;
 
 import com.revue.identity.application.AccountService;
+import com.revue.identity.application.PilotInvitation;
 import java.util.List;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -37,6 +39,11 @@ import org.springframework.security.web.util.matcher.OrRequestMatcher;
  */
 @Configuration(proxyBeanMethods = false)
 public class SecurityConfig {
+
+    @Bean
+    PilotInvitation pilotInvitation(@Value("${REVUE_PILOT_INVITE_CODE:}") String code) {
+        return new PilotInvitation(code);
+    }
 
     @Bean
     SecurityFilterChain securityFilterChain(

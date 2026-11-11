@@ -11,7 +11,6 @@ import com.revue.identity.domain.PasswordHash;
 import com.revue.identity.domain.SignupInvite;
 import com.revue.identity.domain.TokenHash;
 import com.revue.identity.domain.Username;
-import java.time.Clock;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
@@ -33,9 +32,8 @@ class RegistrationCommitUnitTests {
             null,
             false);
         var time = new AtomicReference<>(expires.minusSeconds(1));
-        Clock clock = mock(Clock.class);
-        when(clock.instant()).thenAnswer(ignored -> time.get());
         RegistrationStore store = mock(RegistrationStore.class);
+        when(store.currentTime()).thenAnswer(ignored -> time.get());
         when(store.lockInvite(hash)).thenAnswer(ignored -> {
             time.set(expires); // The transaction acquired its lock only after the invite expired.
             return Optional.of(invite);
@@ -43,9 +41,8 @@ class RegistrationCommitUnitTests {
         var command = new RegistrationCommit.UsernameRegistration(
             new Username("student"),
             new PasswordHash("{test}encoded-placeholder"),
-            hash,
-            "pilot-v1");
-        assertThatThrownBy(() -> new RegistrationCommit(store, clock).registerUsername(command))
+            hash);
+        assertThatThrownBy(() -> new RegistrationCommit(store, new PilotInvitation("")).registerUsername(command))
             .isInstanceOf(RegistrationUnavailableException.class);
         verify(store, never()).insertUsernameAccount(any(), any());
         verify(store, never()).saveRedemption(any());
