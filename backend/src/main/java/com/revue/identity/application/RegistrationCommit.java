@@ -28,11 +28,11 @@ public class RegistrationCommit {
     /** Atomically creates the username account and redeems its invitation. */
     @Transactional
     public Result registerUsername(UsernameRegistration prepared) {
-        SignupInvite invite =
-                store.lockInvite(prepared.invitationHash()).orElseThrow(RegistrationUnavailableException::new);
+        SignupInvite invite = store.lockInvite(prepared.invitationHash())
+            .orElseThrow(RegistrationUnavailableException::new);
         Instant now = clock.instant().truncatedTo(ChronoUnit.MICROS);
-        Account account =
-                Account.registerUsername(UUID.randomUUID(), prepared.username(), prepared.privacyVersion(), now);
+        Account account = Account
+            .registerUsername(UUID.randomUUID(), prepared.username(), prepared.privacyVersion(), now);
         SignupInvite redeemed;
         try {
             redeemed = invite.redeem(account.id(), now);
@@ -41,8 +41,8 @@ public class RegistrationCommit {
         }
         if (!store.insertUsernameAccount(account, prepared.passwordHash())) {
             throw new AccountProblem(
-                    AccountProblem.Kind.UNAVAILABLE_USERNAME,
-                    "That username is unavailable. Choose another or sign in");
+                AccountProblem.Kind.UNAVAILABLE_USERNAME,
+                "That username is unavailable. Choose another or sign in");
         }
         store.saveRedemption(redeemed);
         return new Result(account.id(), account.credentialVersion());
@@ -50,7 +50,10 @@ public class RegistrationCommit {
 
     /** Prehashed credentials, invitation and consent for a username registration. */
     public record UsernameRegistration(
-            Username username, PasswordHash passwordHash, TokenHash invitationHash, String privacyVersion) {
+        Username username,
+        PasswordHash passwordHash,
+        TokenHash invitationHash,
+        String privacyVersion) {
         /** Validates the prepared username registration's required values. */
         public UsernameRegistration {
             Objects.requireNonNull(username);
@@ -61,5 +64,6 @@ public class RegistrationCommit {
     }
 
     /** A committed registration, not authentication authority or a learner session. */
-    public record Result(UUID accountId, long credentialVersion) {}
+    public record Result(UUID accountId, long credentialVersion) {
+    }
 }

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<profiles version="23">
+    <profile kind="CodeFormatterProfile" name="Revue" version="23">
+        <setting id="org.eclipse.jdt.core.formatter.tabulation.char" value="space" />
+        <setting id="org.eclipse.jdt.core.formatter.tabulation.size" value="4" />
+        <setting id="org.eclipse.jdt.core.formatter.indentation.size" value="4" />
+        <setting id="org.eclipse.jdt.core.formatter.continuation_indentation" value="1" />
+        <setting id="org.eclipse.jdt.core.formatter.continuation_indentation_for_array_initializer" value="1" />
+        <setting id="org.eclipse.jdt.core.formatter.lineSplit" value="120" />
+        <setting id="org.eclipse.jdt.core.formatter.comment.line_length" value="120" />
+        <setting id="org.eclipse.jdt.core.formatter.join_wrapped_lines" value="true" />
+        <setting id="org.eclipse.jdt.core.formatter.alignment_for_selector_in_method_invocation" value="80" />
+        <setting id="org.eclipse.jdt.core.formatter.align_selector_in_method_invocation_on_expression_first_line" value="true" />
+        <setting id="org.eclipse.jdt.core.formatter.alignment_for_arguments_in_method_invocation" value="48" />
+        <setting id="org.eclipse.jdt.core.formatter.alignment_for_arguments_in_allocation_expression" value="48" />
+        <setting id="org.eclipse.jdt.core.formatter.alignment_for_parameters_in_method_declaration" value="48" />
+        <setting id="org.eclipse.jdt.core.formatter.alignment_for_parameters_in_constructor_declaration" value="48" />
+        <setting id="org.eclipse.jdt.core.formatter.alignment_for_record_components" value="48" />
+        <setting id="org.eclipse.jdt.core.formatter.alignment_for_superinterfaces_in_type_declaration" value="16" />
+        <setting id="org.eclipse.jdt.core.formatter.alignment_for_throws_clause_in_method_declaration" value="16" />
+        <setting id="org.eclipse.jdt.core.formatter.alignment_for_throws_clause_in_constructor_declaration" value="16" />
+        <setting id="org.eclipse.jdt.core.formatter.indent_switchstatements_compare_to_switch" value="true" />
+        <setting id="org.eclipse.jdt.core.formatter.indent_switchstatements_compare_to_cases" value="true" />
+        <setting id="org.eclipse.jdt.core.formatter.comment.format_javadoc_comments" value="false" />
+        <setting id="org.eclipse.jdt.core.formatter.comment.format_block_comments" value="false" />
+        <setting id="org.eclipse.jdt.core.formatter.comment.format_line_comments" value="false" />
+        <setting id="org.eclipse.jdt.core.formatter.insert_new_line_after_annotation_on_field" value="insert" />
+        <setting id="org.eclipse.jdt.core.formatter.use_on_off_tags" value="false" />
+        <setting id="org.eclipse.jdt.core.compiler.source" value="25" />
+        <setting id="org.eclipse.jdt.core.compiler.compliance" value="25" />
+        <setting id="org.eclipse.jdt.core.compiler.codegen.targetPlatform" value="25" />
+        <setting id="org.eclipse.jdt.core.formatter.alignment_for_logical_operator" value="48" />
+        <setting id="org.eclipse.jdt.core.formatter.insert_space_before_opening_brace_in_array_initializer" value="insert" />
+        <setting id="org.eclipse.jdt.core.formatter.alignment_for_enum_constants" value="49" />
+    </profile>
+</profiles>

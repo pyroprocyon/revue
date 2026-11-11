@@ -13,12 +13,11 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class AccountErrorHandler {
     @ExceptionHandler(AccountProblem.class)
     ResponseEntity<ProblemDetail> accountProblem(AccountProblem problem) {
-        HttpStatus status =
-                switch (problem.kind()) {
-                    case INVALID_CREDENTIALS -> HttpStatus.UNAUTHORIZED;
-                    case UNAVAILABLE_USERNAME -> HttpStatus.CONFLICT;
-                    case OVERLOADED -> HttpStatus.TOO_MANY_REQUESTS;
-                };
+        HttpStatus status = switch (problem.kind()) {
+            case INVALID_CREDENTIALS -> HttpStatus.UNAUTHORIZED;
+            case UNAVAILABLE_USERNAME -> HttpStatus.CONFLICT;
+            case OVERLOADED -> HttpStatus.TOO_MANY_REQUESTS;
+        };
         var builder = ResponseEntity.status(status);
         if (status == HttpStatus.TOO_MANY_REQUESTS) {
             builder.header("Retry-After", "60");
@@ -34,6 +33,7 @@ public class AccountErrorHandler {
     @ExceptionHandler(RegistrationUnavailableException.class)
     ProblemDetail invalidInvitation() {
         return ProblemDetail.forStatusAndDetail(
-                HttpStatus.BAD_REQUEST, "Use a valid invitation link or sign in to an existing account");
+            HttpStatus.BAD_REQUEST,
+            "Use a valid invitation link or sign in to an existing account");
     }
 }

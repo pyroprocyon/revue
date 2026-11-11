@@ -28,7 +28,7 @@ final class CurrentAccountFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
-            throws ServletException, IOException {
+        throws ServletException, IOException {
         try {
             request.setAttribute(AccountService.Profile.class.getName(), accounts.current());
         } catch (AccountProblem rejected) {

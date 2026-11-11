@@ -40,10 +40,9 @@ class PublicSetController {
 
     @GetMapping("/share/{shareCode}/summary")
     ResponseEntity<PublicSetSummary> sharedSummary(@PathVariable String shareCode) {
-        return publicSets
-                .summaryByShareCode(shareCode)
-                .map(PublicSetController::ok)
-                .orElseGet(PublicSetController::notFound);
+        return publicSets.summaryByShareCode(shareCode)
+            .map(PublicSetController::ok)
+            .orElseGet(PublicSetController::notFound);
     }
 
     @GetMapping("/{setKey}/demo-cards")

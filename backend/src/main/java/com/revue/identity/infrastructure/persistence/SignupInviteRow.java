@@ -13,7 +13,8 @@ import org.jspecify.annotations.Nullable;
 @Entity(name = "SignupInvite")
 @Table(name = "signup_invites")
 class SignupInviteRow {
-    @Id private UUID id;
+    @Id
+    private UUID id;
 
     @Column(name = "token_hash", nullable = false, length = 64)
     private String tokenHash;
@@ -36,11 +37,19 @@ class SignupInviteRow {
     @Column(nullable = false)
     private boolean reusable;
 
-    protected SignupInviteRow() {}
+    protected SignupInviteRow() {
+    }
 
     SignupInvite toDomain() {
         return new SignupInvite(
-                id, new TokenHash(tokenHash), createdAt, expiresAt, revokedAt, redeemedAt, redeemedByUserId, reusable);
+            id,
+            new TokenHash(tokenHash),
+            createdAt,
+            expiresAt,
+            revokedAt,
+            redeemedAt,
+            redeemedByUserId,
+            reusable);
     }
 
     void recordRedemption(SignupInvite invite) {

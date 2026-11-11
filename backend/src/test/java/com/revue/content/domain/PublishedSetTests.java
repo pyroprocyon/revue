@@ -45,7 +45,7 @@ class PublishedSetTests {
         var set = PublishedSet.publish(definition(card("one", "Question?")));
         var invalid = new CardDefinition("one", "Changed?", "Answer", List.of(), null, null, null);
         assertThatExceptionOfType(InvalidContentException.class)
-                .isThrownBy(() -> set.synchronize(definition(invalid), NOW));
+            .isThrownBy(() -> set.synchronize(definition(invalid), NOW));
         assertThat(set.cards().getFirst().text().question()).isEqualTo("Question?");
         assertThat(set.cards().getFirst().contentVersion()).isOne();
     }

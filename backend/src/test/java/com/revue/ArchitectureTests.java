@@ -23,10 +23,9 @@ import org.springframework.transaction.annotation.Transactional;
 /** Dependency rules apply to every production class, including classes added later. */
 class ArchitectureTests {
 
-    private static final JavaClasses PRODUCTION =
-            new ClassFileImporter()
-                    .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
-                    .importPackages("com.revue");
+    private static final JavaClasses PRODUCTION = new ClassFileImporter()
+        .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
+        .importPackages("com.revue");
 
     @Test
     void domainsDependOnlyOnTheirOwnModelsAndTheJavaLibrary() {
@@ -36,13 +35,12 @@ class ArchitectureTests {
     static void checkDomainDependencies(JavaClasses importedClasses) {
         for (String context : contextsWithLayer(importedClasses, "domain")) {
             String domain = "com.revue." + context + ".domain..";
-            classes()
-                    .that()
-                    .resideInAPackage(domain)
-                    .should()
-                    .onlyDependOnClassesThat()
-                    .resideInAnyPackage("java..", domain, "org.jspecify.annotations..")
-                    .check(importedClasses);
+            classes().that()
+                .resideInAPackage(domain)
+                .should()
+                .onlyDependOnClassesThat()
+                .resideInAnyPackage("java..", domain, "org.jspecify.annotations..")
+                .check(importedClasses);
         }
     }
 
@@ -54,21 +52,19 @@ class ArchitectureTests {
     static void checkApplicationDependencies(JavaClasses importedClasses) {
         for (String context : contextsWithLayer(importedClasses, "application")) {
             String ownContext = "com.revue." + context;
-            classes()
-                    .that()
-                    .resideInAPackage(ownContext + ".application..")
-                    .should()
-                    .onlyDependOnClassesThat(
-                            resideInAnyPackage(
-                                            "java..",
-                                            ownContext + ".application..",
-                                            ownContext + ".domain..",
-                                            "org.jspecify.annotations..")
-                                    .or(type(Service.class))
-                                    .or(type(Transactional.class))
-                                    .or(type(Propagation.class))
-                                    .or(type(Isolation.class)))
-                    .check(importedClasses);
+            classes().that()
+                .resideInAPackage(ownContext + ".application..")
+                .should()
+                .onlyDependOnClassesThat(
+                    resideInAnyPackage(
+                        "java..",
+                        ownContext + ".application..",
+                        ownContext + ".domain..",
+                        "org.jspecify.annotations..").or(type(Service.class))
+                        .or(type(Transactional.class))
+                        .or(type(Propagation.class))
+                        .or(type(Isolation.class)))
+                .check(importedClasses);
         }
     }
 
@@ -83,62 +79,55 @@ class ArchitectureTests {
 
     @Test
     void integrationLibrariesStayInsideTheirAdapters() {
-        noClasses()
-                .that()
-                .resideOutsideOfPackage("..infrastructure.persistence..")
-                .should()
-                .dependOnClassesThat()
-                .resideInAnyPackage("jakarta.persistence..", "org.hibernate..", "org.springframework.data..")
-                .check(PRODUCTION);
-        noClasses()
-                .that()
-                .resideOutsideOfPackage("..infrastructure.fsrs..")
-                .should()
-                .dependOnClassesThat()
-                .resideInAPackage("io.github.openspacedrepetition..")
-                .check(PRODUCTION);
-        noClasses()
-                .that()
-                .resideOutsideOfPackage("..infrastructure.files..")
-                .should()
-                .dependOnClassesThat()
-                .resideInAPackage("org.yaml..")
-                .check(PRODUCTION);
-        classes()
-                .that()
-                .areAnnotatedWith("org.springframework.web.bind.annotation.RestController")
-                .should()
-                .resideInAPackage("..presentation..")
-                .check(PRODUCTION);
+        noClasses().that()
+            .resideOutsideOfPackage("..infrastructure.persistence..")
+            .should()
+            .dependOnClassesThat()
+            .resideInAnyPackage("jakarta.persistence..", "org.hibernate..", "org.springframework.data..")
+            .check(PRODUCTION);
+        noClasses().that()
+            .resideOutsideOfPackage("..infrastructure.fsrs..")
+            .should()
+            .dependOnClassesThat()
+            .resideInAPackage("io.github.openspacedrepetition..")
+            .check(PRODUCTION);
+        noClasses().that()
+            .resideOutsideOfPackage("..infrastructure.files..")
+            .should()
+            .dependOnClassesThat()
+            .resideInAPackage("org.yaml..")
+            .check(PRODUCTION);
+        classes().that()
+            .areAnnotatedWith("org.springframework.web.bind.annotation.RestController")
+            .should()
+            .resideInAPackage("..presentation..")
+            .check(PRODUCTION);
         checkAdapterDependencies(PRODUCTION);
     }
 
     static void checkAdapterDependencies(JavaClasses importedClasses) {
-        noClasses()
-                .that()
-                .resideInAPackage("..presentation..")
-                .should()
-                .dependOnClassesThat()
-                .resideInAnyPackage("..domain..", "..infrastructure..")
-                .check(importedClasses);
-        noClasses()
-                .that()
-                .resideOutsideOfPackage("..infrastructure..")
-                .should()
-                .dependOnClassesThat()
-                .resideInAnyPackage(
-                        "org.springframework.security..",
-                        "org.springframework.session..",
-                        "org.springframework.mail..",
-                        "jakarta.mail..")
-                .check(importedClasses);
-        noClasses()
-                .that()
-                .resideInAPackage("..infrastructure..")
-                .should()
-                .dependOnClassesThat()
-                .resideInAPackage("..presentation..")
-                .check(importedClasses);
+        noClasses().that()
+            .resideInAPackage("..presentation..")
+            .should()
+            .dependOnClassesThat()
+            .resideInAnyPackage("..domain..", "..infrastructure..")
+            .check(importedClasses);
+        noClasses().that()
+            .resideOutsideOfPackage("..infrastructure..")
+            .should()
+            .dependOnClassesThat()
+            .resideInAnyPackage(
+                "org.springframework.security..",
+                "org.springframework.session..",
+                "org.springframework.mail..",
+                "jakarta.mail..")
+            .check(importedClasses);
+        noClasses().that()
+            .resideInAPackage("..infrastructure..")
+            .should()
+            .dependOnClassesThat()
+            .resideInAPackage("..presentation..")
+            .check(importedClasses);
     }
 
     @Test

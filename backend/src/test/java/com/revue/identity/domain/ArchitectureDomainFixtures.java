@@ -9,11 +9,14 @@ import org.springframework.security.core.Authentication;
 public final class ArchitectureDomainFixtures {
 
     /** Domain fixture containing only accepted JDK and nullability types. */
-    public record Value(Instant createdAt, @Nullable String label) {}
+    public record Value(Instant createdAt, @Nullable String label) {
+    }
 
     /** Domain fixture with a forbidden security-framework dependency. */
-    public record SecurityLeak(Authentication authentication) {}
+    public record SecurityLeak(Authentication authentication) {
+    }
 
     /** Domain fixture with a forbidden foreign-domain dependency. */
-    public record ForeignDomainLeak(ReviewRating rating) {}
+    public record ForeignDomainLeak(ReviewRating rating) {
+    }
 }

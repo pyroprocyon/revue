@@ -42,8 +42,8 @@ class PublicContentStartup {
             }
         } catch (InvalidContentException ex) {
             log.error(
-                    "Public content not loaded; keeping the current content. Problems: {}",
-                    String.join("; ", ex.problems()));
+                "Public content not loaded; keeping the current content. Problems: {}",
+                String.join("; ", ex.problems()));
         } catch (ContentUnavailableException ex) {
             log.error("Public content not loaded; keeping the current content", ex);
         }

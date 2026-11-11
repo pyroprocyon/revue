@@ -14,8 +14,10 @@ class BrowserRouteFilterTests {
         var invalid = new MockHttpServletResponse();
         var filter = new BrowserRouteFilter();
 
-        filter.doFilter(new MockHttpServletRequest("GET", path), valid, (request, response) -> {});
-        filter.doFilter(new MockHttpServletRequest("GET", path + "-"), invalid, (request, response) -> {});
+        filter.doFilter(new MockHttpServletRequest("GET", path), valid, (request, response) -> {
+        });
+        filter.doFilter(new MockHttpServletRequest("GET", path + "-"), invalid, (request, response) -> {
+        });
 
         assertThat(valid.getForwardedUrl()).isEqualTo("/index.html");
         assertThat(valid.getHeader("X-Robots-Tag")).isNull();

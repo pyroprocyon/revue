@@ -26,6 +26,6 @@ public class ArgonPasswordHasher implements PasswordHasher {
             return false;
         }
         return encoder.matches(password, hash == null ? dummy : hash.value().substring(PREFIX.length()))
-                && hash != null;
+            && hash != null;
     }
 }

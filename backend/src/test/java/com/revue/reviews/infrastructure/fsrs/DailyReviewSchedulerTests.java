@@ -33,13 +33,12 @@ class DailyReviewSchedulerTests {
     @Test
     void restoredStateMatchesUninterruptedReviewsAcrossMidnightAndAfterLapse() {
         var zone = ZoneId.of("Asia/Manila");
-        var reference =
-                Scheduler.builder()
-                        .desiredRetention(0.9)
-                        .learningSteps(new Duration[0])
-                        .relearningSteps(new Duration[0])
-                        .enableFuzzing(false)
-                        .build();
+        var reference = Scheduler.builder()
+            .desiredRetention(0.9)
+            .learningSteps(new Duration[0])
+            .relearningSteps(new Duration[0])
+            .enableFuzzing(false)
+            .build();
         var times = new String[] {"2026-11-05T13:00:00Z", "2026-11-06T12:50:00Z", "2026-11-23T16:05:00Z"};
         var modelDates = new String[] {"2026-11-05", "2026-11-06", "2026-11-24"};
         var ratings = new Rating[] {Rating.GOOD, Rating.AGAIN, Rating.HARD};
@@ -47,12 +46,9 @@ class DailyReviewSchedulerTests {
         String state = null;
         for (int i = 0; i < times.length; i++) {
             var restarted = new DailyReviewScheduler(new FsrsMemoryModel(false));
-            var actual =
-                    i == 0
-                            ? restarted.firstReview(
-                                    42, ReviewRating.valueOf(ratings[i].name()), Instant.parse(times[i]), zone)
-                            : restarted.nextReview(
-                                    state, ReviewRating.valueOf(ratings[i].name()), Instant.parse(times[i]), zone);
+            var actual = i == 0
+                ? restarted.firstReview(42, ReviewRating.valueOf(ratings[i].name()), Instant.parse(times[i]), zone)
+                : restarted.nextReview(state, ReviewRating.valueOf(ratings[i].name()), Instant.parse(times[i]), zone);
             expected = reference.reviewCard(expected, ratings[i], Instant.parse(modelDates[i] + "T00:00:00Z")).card();
             state = actual.stateJson();
             assertThat(Card.fromJson(state)).isEqualTo(expected);

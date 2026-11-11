@@ -32,11 +32,14 @@ import org.springframework.web.bind.annotation.RestController;
 @Import({TestcontainersConfiguration.class, ProductionProfileTests.RequestSchemeEndpoint.class})
 class ProductionProfileTests {
 
-    @Autowired private MockMvc mvc;
+    @Autowired
+    private MockMvc mvc;
 
-    @Autowired private JdbcTemplate jdbc;
+    @Autowired
+    private JdbcTemplate jdbc;
 
-    @Autowired private CookieSerializer cookieSerializer;
+    @Autowired
+    private CookieSerializer cookieSerializer;
 
     @Test
     void theSessionCookieIsSecureBehindThePlainHttpProxy() {
@@ -47,7 +50,7 @@ class ProductionProfileTests {
     void requestsForwardedFromHttpsCountAsHttps() throws Exception {
         var cookies = AccountFixtures.signedIn(mvc, jdbc);
         mvc.perform(get(RequestSchemeEndpoint.PATH).cookie(cookies).header("X-Forwarded-Proto", "https"))
-                .andExpect(content().string("https"));
+            .andExpect(content().string("https"));
         mvc.perform(get(RequestSchemeEndpoint.PATH).cookie(cookies)).andExpect(content().string("http"));
     }
 

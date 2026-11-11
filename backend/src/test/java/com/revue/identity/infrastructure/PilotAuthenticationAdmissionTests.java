@@ -25,15 +25,13 @@ class PilotAuthenticationAdmissionTests {
 
     @Test
     void overlappingOperationsAreRejectedWithoutWaitingOrSpendingTheirAttemptBudget() throws Exception {
-        try (var executor = Executors.newSingleThreadExecutor();
-                var permit = admission.enter("first")) {
-            executor.submit(
-                            () -> {
-                                for (int i = 0; i < 12; i++) {
-                                    assertOverloaded("second");
-                                }
-                            })
-                    .get(5, TimeUnit.SECONDS);
+        try (java.util.concurrent.ExecutorService executor = Executors.newSingleThreadExecutor();
+            var permit = admission.enter("first")) {
+            executor.submit(() -> {
+                for (int i = 0; i < 12; i++) {
+                    assertOverloaded("second");
+                }
+            }).get(5, TimeUnit.SECONDS);
         }
         for (int i = 0; i < 10; i++) {
             attempt("second");
@@ -67,13 +65,11 @@ class PilotAuthenticationAdmissionTests {
 
     @Test
     void closingAnOperationAfterFailureAllowsTheNextOperation() {
-        assertThatThrownBy(
-                        () -> {
-                            try (var permit = admission.enter("first")) {
-                                throw new IllegalStateException("Downstream authentication failed");
-                            }
-                        })
-                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> {
+            try (var permit = admission.enter("first")) {
+                throw new IllegalStateException("Downstream authentication failed");
+            }
+        }).isInstanceOf(IllegalStateException.class);
         attempt("second");
     }
 
@@ -84,9 +80,8 @@ class PilotAuthenticationAdmissionTests {
     }
 
     private void assertOverloaded(String key) {
-        assertThatThrownBy(() -> admission.enter(key))
-                .isInstanceOfSatisfying(
-                        AccountProblem.class,
-                        problem -> assertThat(problem.kind()).isEqualTo(AccountProblem.Kind.OVERLOADED));
+        assertThatThrownBy(() -> admission.enter(key)).isInstanceOfSatisfying(
+            AccountProblem.class,
+            problem -> assertThat(problem.kind()).isEqualTo(AccountProblem.Kind.OVERLOADED));
     }
 }

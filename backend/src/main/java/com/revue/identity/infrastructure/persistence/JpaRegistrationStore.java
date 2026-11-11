@@ -23,35 +23,32 @@ public class JpaRegistrationStore implements RegistrationStore {
     @Override
     public Optional<SignupInvite> lockInvite(TokenHash tokenHash) {
         return entityManager
-                .createQuery("select i from SignupInvite i where i.tokenHash = :hash", SignupInviteRow.class)
-                .setParameter("hash", tokenHash.value())
-                .setLockMode(LockModeType.PESSIMISTIC_WRITE)
-                .getResultList()
-                .stream()
-                .findFirst()
-                .map(SignupInviteRow::toDomain);
+            .createQuery("select i from SignupInvite i where i.tokenHash = :hash", SignupInviteRow.class)
+            .setParameter("hash", tokenHash.value())
+            .setLockMode(LockModeType.PESSIMISTIC_WRITE)
+            .getResultList()
+            .stream()
+            .findFirst()
+            .map(SignupInviteRow::toDomain);
     }
 
     @Override
     public boolean insertUsernameAccount(Account account, PasswordHash passwordHash) {
-        return entityManager
-                        .createNativeQuery(
-                                """
-                                insert into users (id, username, password_hash, created_at, credential_version,
-                                \tcredential_reset_required, privacy_accepted_at, privacy_notice_version, adult_confirmed_at)
-                                values (:id, :username, :password, :created, :version, false, :privacy, :notice, :adult)
-                                on conflict (username) do nothing
-                                """)
-                        .setParameter("id", account.id())
-                        .setParameter("username", account.username().value())
-                        .setParameter("password", passwordHash.value())
-                        .setParameter("created", account.createdAt())
-                        .setParameter("version", account.credentialVersion())
-                        .setParameter("privacy", account.privacyAcceptedAt())
-                        .setParameter("notice", account.privacyNoticeVersion())
-                        .setParameter("adult", account.adultConfirmedAt())
-                        .executeUpdate()
-                == 1;
+        return entityManager.createNativeQuery("""
+            insert into users (id, username, password_hash, created_at, credential_version,
+            \tcredential_reset_required, privacy_accepted_at, privacy_notice_version, adult_confirmed_at)
+            values (:id, :username, :password, :created, :version, false, :privacy, :notice, :adult)
+            on conflict (username) do nothing
+            """)
+            .setParameter("id", account.id())
+            .setParameter("username", account.username().value())
+            .setParameter("password", passwordHash.value())
+            .setParameter("created", account.createdAt())
+            .setParameter("version", account.credentialVersion())
+            .setParameter("privacy", account.privacyAcceptedAt())
+            .setParameter("notice", account.privacyNoticeVersion())
+            .setParameter("adult", account.adultConfirmedAt())
+            .executeUpdate() == 1;
     }
 
     @Override

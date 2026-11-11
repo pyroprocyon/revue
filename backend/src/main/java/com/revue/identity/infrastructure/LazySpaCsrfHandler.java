@@ -22,7 +22,7 @@ final class LazySpaCsrfHandler implements CsrfTokenRequestHandler {
     @Override
     public @Nullable String resolveCsrfTokenValue(HttpServletRequest request, CsrfToken token) {
         return request.getHeader(token.getHeaderName()) != null
-                ? plain.resolveCsrfTokenValue(request, token)
-                : masked.resolveCsrfTokenValue(request, token);
+            ? plain.resolveCsrfTokenValue(request, token)
+            : masked.resolveCsrfTokenValue(request, token);
     }
 }

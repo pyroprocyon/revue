@@ -77,7 +77,8 @@ class SharedSetRow {
         return PublishedSet.restore(setKey, title, description, publisherName, subject, retiredAt, cards);
     }
 
-    @Nullable Long id() {
+    @Nullable
+    Long id() {
         return id;
     }
 

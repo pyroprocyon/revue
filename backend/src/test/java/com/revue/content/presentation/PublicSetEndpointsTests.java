@@ -35,44 +35,39 @@ class PublicSetEndpointsTests {
 
     private static final String PUBLIC_SETS = "/api/v1/public-sets";
 
-    @Autowired private MockMvc mvc;
+    @Autowired
+    private MockMvc mvc;
 
-    @Autowired private ContentLoader loader;
+    @Autowired
+    private ContentLoader loader;
 
-    @Autowired private JdbcTemplate jdbc;
+    @Autowired
+    private JdbcTemplate jdbc;
 
     @Test
     void shortShareCodesResolveOnlyActiveSetsAndRemainStableAcrossContentUpdates() throws Exception {
         loader.load(
-                List.of(set("share-history", "History", cards("share-a", "share-b", "share-c", "share-d", "share-e"))));
+            List.of(set("share-history", "History", cards("share-a", "share-b", "share-c", "share-d", "share-e"))));
         Long id = jdbc.queryForObject("select id from sets where set_key = ?", Long.class, "share-history");
         String code = Long.toString(id, 36);
         mvc.perform(get(PUBLIC_SETS + "/share-history")).andExpect(jsonPath("$.shareCode").value(code));
         mvc.perform(get(PUBLIC_SETS + "/share/" + code + "/summary"))
-                .andExpect(status().isOk())
-                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"))
-                .andExpect(header().doesNotExist(HttpHeaders.SET_COOKIE))
-                .andExpect(jsonPath("$.setKey").value("share-history"));
+            .andExpect(status().isOk())
+            .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"))
+            .andExpect(header().doesNotExist(HttpHeaders.SET_COOKIE))
+            .andExpect(jsonPath("$.setKey").value("share-history"));
         loader.load(
-                List.of(
-                        set(
-                                "share-history",
-                                "Updated history",
-                                cards("share-a", "share-b", "share-c", "share-d", "share-e"))));
+            List.of(
+                set("share-history", "Updated history", cards("share-a", "share-b", "share-c", "share-d", "share-e"))));
         mvc.perform(get(PUBLIC_SETS + "/share/" + code + "/summary"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.title").value("Updated history"));
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.title").value("Updated history"));
         loader.load(
-                List.of(
-                        set(
-                                "other",
-                                "Other",
-                                cards(
-                                        "other-share-a",
-                                        "other-share-b",
-                                        "other-share-c",
-                                        "other-share-d",
-                                        "other-share-e"))));
+            List.of(
+                set(
+                    "other",
+                    "Other",
+                    cards("other-share-a", "other-share-b", "other-share-c", "other-share-d", "other-share-e"))));
         mvc.perform(get(PUBLIC_SETS + "/share/" + code + "/summary")).andExpect(status().isNotFound());
         for (String invalid : List.of("0", "01", "-1", "ABC", "zzzzzzzzzzzzzz", "missing")) {
             mvc.perform(get(PUBLIC_SETS + "/share/" + invalid + "/summary")).andExpect(status().isNotFound());
@@ -82,38 +77,38 @@ class PublicSetEndpointsTests {
     @Test
     void theListShowsEveryActiveSetInTitleOrderWithoutAnyAnswers() throws Exception {
         loader.load(
-                List.of(
-                        set("weather", "Weather", cards("w-a", "w-b", "w-c", "w-d", "w-e")),
-                        set("history", "History", cards("h-a", "h-b", "h-c", "h-d", "h-e", "h-f")),
-                        set("short", "Almost Ready", cards("s-a", "s-b"))));
+            List.of(
+                set("weather", "Weather", cards("w-a", "w-b", "w-c", "w-d", "w-e")),
+                set("history", "History", cards("h-a", "h-b", "h-c", "h-d", "h-e", "h-f")),
+                set("short", "Almost Ready", cards("s-a", "s-b"))));
 
         mvc.perform(get(PUBLIC_SETS))
-                .andExpect(status().isOk())
-                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"))
-                .andExpect(jsonPath("$[*].setKey").value(contains("short", "history", "weather")))
-                .andExpect(jsonPath("$[*].cardCount").value(contains(2, 6, 5)))
-                .andExpect(jsonPath("$[*].trialAvailable").value(contains(false, true, true)))
-                .andExpect(jsonPath("$[0].*", hasSize(7)))
-                .andExpect(jsonPath("$[1].title").value("History"))
-                .andExpect(jsonPath("$[1].description").value("A set for tests."))
-                .andExpect(jsonPath("$[1].publisherName").value("Revue"));
+            .andExpect(status().isOk())
+            .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"))
+            .andExpect(jsonPath("$[*].setKey").value(contains("short", "history", "weather")))
+            .andExpect(jsonPath("$[*].cardCount").value(contains(2, 6, 5)))
+            .andExpect(jsonPath("$[*].trialAvailable").value(contains(false, true, true)))
+            .andExpect(jsonPath("$[0].*", hasSize(7)))
+            .andExpect(jsonPath("$[1].title").value("History"))
+            .andExpect(jsonPath("$[1].description").value("A set for tests."))
+            .andExpect(jsonPath("$[1].publisherName").value("Revue"));
     }
 
     @Test
     void theRetiredSetDropsOutOfTheListAndItsPagesAnswer404() throws Exception {
         loader.load(
-                List.of(
-                        set("history", "History", cards("h-a", "h-b", "h-c", "h-d", "h-e")),
-                        set("weather", "Weather", cards("w-a", "w-b", "w-c", "w-d", "w-e"))));
+            List.of(
+                set("history", "History", cards("h-a", "h-b", "h-c", "h-d", "h-e")),
+                set("weather", "Weather", cards("w-a", "w-b", "w-c", "w-d", "w-e"))));
         loader.load(List.of(set("weather", "Weather", cards("w-a", "w-b", "w-c", "w-d", "w-e"))));
 
         mvc.perform(get(PUBLIC_SETS)).andExpect(jsonPath("$[*].setKey").value(contains("weather")));
         mvc.perform(get(PUBLIC_SETS + "/history"))
-                .andExpect(status().isNotFound())
-                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"));
+            .andExpect(status().isNotFound())
+            .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"));
         mvc.perform(get(PUBLIC_SETS + "/history/demo-cards"))
-                .andExpect(status().isNotFound())
-                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"));
+            .andExpect(status().isNotFound())
+            .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"));
     }
 
     @Test
@@ -129,62 +124,62 @@ class PublicSetEndpointsTests {
         loader.load(List.of(set("history", "History", cards("h-a", "h-b", "h-c", "h-d", "h-e", "h-f"))));
 
         mvc.perform(get(PUBLIC_SETS + "/history"))
-                .andExpect(status().isOk())
-                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"))
-                .andExpect(jsonPath("$.*", hasSize(7)))
-                .andExpect(jsonPath("$.setKey").value("history"))
-                .andExpect(jsonPath("$.title").value("History"))
-                .andExpect(jsonPath("$.cardCount").value(6))
-                .andExpect(jsonPath("$.trialAvailable").value(true));
+            .andExpect(status().isOk())
+            .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"))
+            .andExpect(jsonPath("$.*", hasSize(7)))
+            .andExpect(jsonPath("$.setKey").value("history"))
+            .andExpect(jsonPath("$.title").value("History"))
+            .andExpect(jsonPath("$.cardCount").value(6))
+            .andExpect(jsonPath("$.trialAvailable").value(true));
     }
 
     @Test
     void theTrialGetsTheFirstFiveActiveCardsOfThatSetByPosition() throws Exception {
         loader.load(
-                List.of(
-                        set("weather", "Weather", cards("w-a", "w-b", "w-c", "w-d", "w-e", "w-f")),
-                        set("history", "History", cards("a", "b", "c", "d", "e", "f", "g"))));
+            List.of(
+                set("weather", "Weather", cards("w-a", "w-b", "w-c", "w-d", "w-e", "w-f")),
+                set("history", "History", cards("a", "b", "c", "d", "e", "f", "g"))));
         // Card b is retired, and card g moves to the front. Without the filters, b or the other set's
         // cards would appear; ordered by row ID instead of position, g would come last.
         loader.load(
-                List.of(
-                        set("weather", "Weather", cards("w-a", "w-b", "w-c", "w-d", "w-e", "w-f")),
-                        set("history", "History", cards("g", "a", "c", "d", "e", "f"))));
+            List.of(
+                set("weather", "Weather", cards("w-a", "w-b", "w-c", "w-d", "w-e", "w-f")),
+                set("history", "History", cards("g", "a", "c", "d", "e", "f"))));
 
         mvc.perform(get(PUBLIC_SETS + "/history/demo-cards"))
-                .andExpect(status().isOk())
-                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"))
-                .andExpect(jsonPath("$.setTitle").value("History"))
-                .andExpect(jsonPath("$.publisherName").value("Revue"))
-                .andExpect(jsonPath("$.cards[*].key").value(contains("g", "a", "c", "d", "e")))
-                .andExpect(jsonPath("$.cards[0].question").value("Question g?"))
-                .andExpect(jsonPath("$.cards[0].answer").value("Answer g."))
-                .andExpect(jsonPath("$.cards[0].explanation").value("Explanation g."))
-                .andExpect(jsonPath("$.cards[0].source").value("Source g."))
-                // The flashcard shows no key ideas or memory hook, so the trial doesn't receive them.
-                .andExpect(jsonPath("$.cards[0].keyIdeas").doesNotExist())
-                .andExpect(jsonPath("$.cards[0].memoryHook").doesNotExist());
+            .andExpect(status().isOk())
+            .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"))
+            .andExpect(jsonPath("$.setTitle").value("History"))
+            .andExpect(jsonPath("$.publisherName").value("Revue"))
+            .andExpect(jsonPath("$.cards[*].key").value(contains("g", "a", "c", "d", "e")))
+            .andExpect(jsonPath("$.cards[0].question").value("Question g?"))
+            .andExpect(jsonPath("$.cards[0].answer").value("Answer g."))
+            .andExpect(jsonPath("$.cards[0].explanation").value("Explanation g."))
+            .andExpect(jsonPath("$.cards[0].source").value("Source g."))
+            // The flashcard shows no key ideas or memory hook, so the trial doesn't receive them.
+            .andExpect(jsonPath("$.cards[0].keyIdeas").doesNotExist())
+            .andExpect(jsonPath("$.cards[0].memoryHook").doesNotExist());
     }
 
     @Test
     void theCardWithoutAnExplanationStillIncludesItsSource() throws Exception {
         List<CardDefinition> cards = new ArrayList<>(cards("p-a", "p-b", "p-c", "p-d"));
         cards.addFirst(
-                new CardDefinition(
-                        "p-plain",
-                        "A plain question?",
-                        "A plain answer.",
-                        List.of(),
-                        null,
-                        null,
-                        "Class notes, page 1."));
+            new CardDefinition(
+                "p-plain",
+                "A plain question?",
+                "A plain answer.",
+                List.of(),
+                null,
+                null,
+                "Class notes, page 1."));
         loader.load(List.of(set("plain", "Plain", cards)));
 
         mvc.perform(get(PUBLIC_SETS + "/plain/demo-cards"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.cards[0].key").value("p-plain"))
-                .andExpect(jsonPath("$.cards[0].explanation").value(nullValue()))
-                .andExpect(jsonPath("$.cards[0].source").value("Class notes, page 1."));
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.cards[0].key").value("p-plain"))
+            .andExpect(jsonPath("$.cards[0].explanation").value(nullValue()))
+            .andExpect(jsonPath("$.cards[0].source").value("Class notes, page 1."));
     }
 
     @Test
@@ -192,12 +187,12 @@ class PublicSetEndpointsTests {
         loader.load(List.of(set("history", "History", cards("a", "b", "c", "d"))));
 
         mvc.perform(get(PUBLIC_SETS + "/history"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.cardCount").value(4))
-                .andExpect(jsonPath("$.trialAvailable").value(false));
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.cardCount").value(4))
+            .andExpect(jsonPath("$.trialAvailable").value(false));
         mvc.perform(get(PUBLIC_SETS + "/history/demo-cards"))
-                .andExpect(status().isNotFound())
-                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"));
+            .andExpect(status().isNotFound())
+            .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"));
     }
 
     @Test
@@ -205,12 +200,12 @@ class PublicSetEndpointsTests {
         loader.load(List.of(set("history", "History", cards("a", "b", "c", "d", "e"))));
 
         mvc.perform(get(PUBLIC_SETS + "/history"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.cardCount").value(5))
-                .andExpect(jsonPath("$.trialAvailable").value(true));
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.cardCount").value(5))
+            .andExpect(jsonPath("$.trialAvailable").value(true));
         mvc.perform(get(PUBLIC_SETS + "/history/demo-cards"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.cards[*].key").value(contains("a", "b", "c", "d", "e")));
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.cards[*].key").value(contains("a", "b", "c", "d", "e")));
     }
 
     @Test
@@ -238,14 +233,14 @@ class PublicSetEndpointsTests {
         List<CardDefinition> cards = new ArrayList<>();
         for (String key : keys) {
             cards.add(
-                    new CardDefinition(
-                            key,
-                            "Question " + key + "?",
-                            "Answer " + key + ".",
-                            List.of("First idea", "Second idea"),
-                            "Explanation " + key + ".",
-                            "Hook " + key + ".",
-                            "Source " + key + "."));
+                new CardDefinition(
+                    key,
+                    "Question " + key + "?",
+                    "Answer " + key + ".",
+                    List.of("First idea", "Second idea"),
+                    "Explanation " + key + ".",
+                    "Hook " + key + ".",
+                    "Source " + key + "."));
         }
         return cards;
     }

@@ -40,51 +40,45 @@ public class SecurityConfig {
 
     @Bean
     SecurityFilterChain securityFilterChain(
-            HttpSecurity http,
-            AccountService accounts,
-            CookieCsrfTokenRepository csrf,
-            SecurityContextRepository contexts,
-            SessionAuthenticationStrategy sessions)
-            throws Exception {
+        HttpSecurity http,
+        AccountService accounts,
+        CookieCsrfTokenRepository csrf,
+        SecurityContextRepository contexts,
+        SessionAuthenticationStrategy sessions) throws Exception {
         var paths = PathPatternRequestMatcher.withDefaults();
-        var publicRoutes =
-                new OrRequestMatcher(
-                        paths.matcher("/actuator/health"),
-                        paths.matcher(HttpMethod.GET, "/api/v1/public-sets"),
-                        paths.matcher(HttpMethod.GET, "/api/v1/public-sets/*"),
-                        paths.matcher(HttpMethod.GET, "/api/v1/public-sets/*/demo-cards"),
-                        paths.matcher(HttpMethod.GET, "/api/v1/public-sets/share/*/summary"),
-                        paths.matcher(HttpMethod.GET, "/api/v1/auth/csrf"),
-                        paths.matcher(HttpMethod.POST, "/api/v1/auth/register"),
-                        paths.matcher(HttpMethod.POST, "/api/v1/auth/login"),
-                        paths.matcher(HttpMethod.POST, "/api/v1/auth/logout"));
+        var publicRoutes = new OrRequestMatcher(
+            paths.matcher("/actuator/health"),
+            paths.matcher(HttpMethod.GET, "/api/v1/public-sets"),
+            paths.matcher(HttpMethod.GET, "/api/v1/public-sets/*"),
+            paths.matcher(HttpMethod.GET, "/api/v1/public-sets/*/demo-cards"),
+            paths.matcher(HttpMethod.GET, "/api/v1/public-sets/share/*/summary"),
+            paths.matcher(HttpMethod.GET, "/api/v1/auth/csrf"),
+            paths.matcher(HttpMethod.POST, "/api/v1/auth/register"),
+            paths.matcher(HttpMethod.POST, "/api/v1/auth/login"),
+            paths.matcher(HttpMethod.POST, "/api/v1/auth/logout"));
         http.authorizeHttpRequests(
-                        requests ->
-                                requests.requestMatchers(publicRoutes)
-                                        .permitAll()
-                                        .requestMatchers("/api/**", "/actuator/**")
-                                        .hasAuthority("LEARNER")
-                                        .anyRequest()
-                                        .permitAll())
-                .exceptionHandling(
-                        exceptions ->
-                                exceptions.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
-                // By default Spring Security saves each rejected request in a new session, to redirect
-                // back to it after sign-in. Revue never redirects to an address taken from the request,
-                // and each saved request would write a session row to PostgreSQL. So turn it off.
-                .requestCache(cache -> cache.disable())
-                .csrf(config -> config.csrfTokenRepository(csrf).csrfTokenRequestHandler(new LazySpaCsrfHandler()))
-                .securityContext(config -> config.securityContextRepository(contexts))
-                .sessionManagement(config -> config.sessionAuthenticationStrategy(sessions))
-                .logout(
-                        config ->
-                                config.logoutUrl("/api/v1/auth/logout")
-                                        .invalidateHttpSession(true)
-                                        .clearAuthentication(true)
-                                        .deleteCookies("SESSION")
-                                        .logoutSuccessHandler(
-                                                (request, response, authentication) -> response.setStatus(204)))
-                .addFilterBefore(new CurrentAccountFilter(accounts, publicRoutes), AuthorizationFilter.class);
+            requests -> requests.requestMatchers(publicRoutes)
+                .permitAll()
+                .requestMatchers("/api/**", "/actuator/**")
+                .hasAuthority("LEARNER")
+                .anyRequest()
+                .permitAll())
+            .exceptionHandling(
+                exceptions -> exceptions.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
+            // By default Spring Security saves each rejected request in a new session, to redirect
+            // back to it after sign-in. Revue never redirects to an address taken from the request,
+            // and each saved request would write a session row to PostgreSQL. So turn it off.
+            .requestCache(cache -> cache.disable())
+            .csrf(config -> config.csrfTokenRepository(csrf).csrfTokenRequestHandler(new LazySpaCsrfHandler()))
+            .securityContext(config -> config.securityContextRepository(contexts))
+            .sessionManagement(config -> config.sessionAuthenticationStrategy(sessions))
+            .logout(
+                config -> config.logoutUrl("/api/v1/auth/logout")
+                    .invalidateHttpSession(true)
+                    .clearAuthentication(true)
+                    .deleteCookies("SESSION")
+                    .logoutSuccessHandler((request, response, authentication) -> response.setStatus(204)))
+            .addFilterBefore(new CurrentAccountFilter(accounts, publicRoutes), AuthorizationFilter.class);
         return http.build();
     }
 
@@ -97,12 +91,13 @@ public class SecurityConfig {
     @Bean
     SecurityContextRepository securityContexts() {
         return new DelegatingSecurityContextRepository(
-                new RequestAttributeSecurityContextRepository(), new HttpSessionSecurityContextRepository());
+            new RequestAttributeSecurityContextRepository(),
+            new HttpSessionSecurityContextRepository());
     }
 
     @Bean
     SessionAuthenticationStrategy accountSessions(CookieCsrfTokenRepository csrf) {
         return new CompositeSessionAuthenticationStrategy(
-                List.of(new ChangeSessionIdAuthenticationStrategy(), new CsrfAuthenticationStrategy(csrf)));
+            List.of(new ChangeSessionIdAuthenticationStrategy(), new CsrfAuthenticationStrategy(csrf)));
     }
 }

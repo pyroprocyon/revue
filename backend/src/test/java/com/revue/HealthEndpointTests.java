@@ -24,15 +24,17 @@ import org.springframework.test.web.servlet.MockMvc;
 @Import(TestcontainersConfiguration.class)
 class HealthEndpointTests {
 
-    @Autowired private MockMvc mvc;
+    @Autowired
+    private MockMvc mvc;
 
-    @Autowired private HealthContributorRegistry healthContributors;
+    @Autowired
+    private HealthContributorRegistry healthContributors;
 
     @Test
     void healthIsOpenAndShowsOnlyTheStatus() throws Exception {
         mvc.perform(get("/actuator/health"))
-                .andExpect(status().isOk())
-                .andExpect(content().json("{\"status\":\"UP\"}", JsonCompareMode.STRICT));
+            .andExpect(status().isOk())
+            .andExpect(content().json("{\"status\":\"UP\"}", JsonCompareMode.STRICT));
     }
 
     @Test

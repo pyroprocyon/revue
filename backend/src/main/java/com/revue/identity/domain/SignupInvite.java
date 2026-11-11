@@ -7,14 +7,14 @@ import org.jspecify.annotations.Nullable;
 
 /** Invitation validity and revocation, with optional reuse for the shared pilot link. */
 public record SignupInvite(
-        UUID id,
-        TokenHash tokenHash,
-        Instant createdAt,
-        Instant expiresAt,
-        @Nullable Instant revokedAt,
-        @Nullable Instant redeemedAt,
-        @Nullable UUID redeemedByUserId,
-        boolean reusable) {
+    UUID id,
+    TokenHash tokenHash,
+    Instant createdAt,
+    Instant expiresAt,
+    @Nullable Instant revokedAt,
+    @Nullable Instant redeemedAt,
+    @Nullable UUID redeemedByUserId,
+    boolean reusable) {
     /** Validates the invitation's required fields and lifecycle timestamps. */
     public SignupInvite {
         Objects.requireNonNull(id);
@@ -22,9 +22,9 @@ public record SignupInvite(
         Objects.requireNonNull(createdAt);
         Objects.requireNonNull(expiresAt);
         if ((reusable && (redeemedAt != null || redeemedByUserId != null))
-                || !expiresAt.isAfter(createdAt)
-                || (redeemedByUserId != null && redeemedAt == null)
-                || (redeemedAt != null && (redeemedAt.isBefore(createdAt) || !redeemedAt.isBefore(expiresAt)))) {
+            || !expiresAt.isAfter(createdAt)
+            || (redeemedByUserId != null && redeemedAt == null)
+            || (redeemedAt != null && (redeemedAt.isBefore(createdAt) || !redeemedAt.isBefore(expiresAt)))) {
             throw new IllegalArgumentException("Invalid invitation state");
         }
     }

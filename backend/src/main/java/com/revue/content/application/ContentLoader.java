@@ -29,17 +29,17 @@ public class ContentLoader {
 
     /** Counts the set and card changes made during a content import. */
     public record Result(
-            int setsAdded,
-            int setsRetired,
-            int setsRestored,
-            int cardsAdded,
-            int cardsChanged,
-            int cardsRetired,
-            int cardsRestored) {
+        int setsAdded,
+        int setsRetired,
+        int setsRestored,
+        int cardsAdded,
+        int cardsChanged,
+        int cardsRetired,
+        int cardsRestored) {
         /** Reports whether the import left all existing content unchanged. */
         public boolean changedNothing() {
-            return setsAdded + setsRetired + setsRestored + cardsAdded + cardsChanged + cardsRetired + cardsRestored
-                    == 0;
+            return setsAdded + setsRetired + setsRestored + cardsAdded + cardsChanged + cardsRetired
+                + cardsRestored == 0;
         }
     }
 

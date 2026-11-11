@@ -19,11 +19,22 @@ class LoginCommitTests {
     void thePasswordProvedBeforeCredentialChangeCannotEstablishNewerSession() {
         var now = Instant.parse("2026-11-09T00:00:00Z");
         var id = UUID.randomUUID();
-        Account account =
-                new Account(id, null, now, null, null, 1, false, now, "pilot-v1", now, null, new Username("student"));
+        Account account = new Account(
+            id,
+            null,
+            now,
+            null,
+            null,
+            1,
+            false,
+            now,
+            "pilot-v1",
+            now,
+            null,
+            new Username("student"));
         AccountQueries accounts = mock(AccountQueries.class);
         when(accounts.lock(id))
-                .thenReturn(Optional.of(new AccountQueries.Credentials(account, new PasswordHash("{test}encoded"))));
+            .thenReturn(Optional.of(new AccountQueries.Credentials(account, new PasswordHash("{test}encoded"))));
         var commit = new LoginCommit(accounts, Clock.fixed(now, ZoneOffset.UTC));
         assertThatThrownBy(() -> commit.confirm(id, 0)).isInstanceOf(AccountProblem.class);
     }

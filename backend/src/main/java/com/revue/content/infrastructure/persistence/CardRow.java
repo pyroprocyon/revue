@@ -102,10 +102,10 @@ class CardRow {
 
     PublishedCard toDomain() {
         return PublishedCard.restore(
-                new CardDefinition(contentKey, question, answer, keyIdeas, explanation, memoryHook, source),
-                position,
-                contentVersion,
-                retiredAt);
+            new CardDefinition(contentKey, question, answer, keyIdeas, explanation, memoryHook, source),
+            position,
+            contentVersion,
+            retiredAt);
     }
 
     SharedSetRow sharedSet() {
@@ -124,11 +124,13 @@ class CardRow {
         return answer;
     }
 
-    @Nullable String explanation() {
+    @Nullable
+    String explanation() {
         return explanation;
     }
 
-    @Nullable String source() {
+    @Nullable
+    String source() {
         return source;
     }
 }

@@ -17,9 +17,11 @@ import org.jspecify.annotations.Nullable;
 @Entity(name = "Account")
 @Table(name = "users")
 class AccountRow {
-    @Id private UUID id;
+    @Id
+    private UUID id;
 
-    @Column private @Nullable String email;
+    @Column
+    private @Nullable String email;
 
     @Column(length = 32)
     private @Nullable String username;
@@ -60,25 +62,26 @@ class AccountRow {
     @Column(name = "purge_after")
     private @Nullable Instant purgeAfter;
 
-    protected AccountRow() {}
+    protected AccountRow() {
+    }
 
     AccountQueries.Credentials toCredentials() {
-        DeletionRequest deletion =
-                deletionId == null ? null : new DeletionRequest(deletionId, deletionRequestedAt, purgeAfter);
-        Account account =
-                new Account(
-                        id,
-                        email == null ? null : new EmailAddress(email),
-                        createdAt,
-                        emailVerifiedAt,
-                        suspendedAt,
-                        credentialVersion,
-                        resetRequired,
-                        privacyAcceptedAt,
-                        privacyVersion,
-                        adultConfirmedAt,
-                        deletion,
-                        username == null ? null : new Username(username));
+        DeletionRequest deletion = deletionId == null
+            ? null
+            : new DeletionRequest(deletionId, deletionRequestedAt, purgeAfter);
+        Account account = new Account(
+            id,
+            email == null ? null : new EmailAddress(email),
+            createdAt,
+            emailVerifiedAt,
+            suspendedAt,
+            credentialVersion,
+            resetRequired,
+            privacyAcceptedAt,
+            privacyVersion,
+            adultConfirmedAt,
+            deletion,
+            username == null ? null : new Username(username));
         return new AccountQueries.Credentials(account, new PasswordHash(passwordHash));
     }
 }

@@ -15,8 +15,6 @@
 	<description>Revue backend</description>
 	<properties>
 		<java.version>25</java.version>
-		<google-java-format.version>1.37.0</google-java-format.version>
-		<java.format.mode>check</java.format.mode>
 	</properties>
 	<!--
 		Dependencies have no version numbers on purpose. The Spring Boot parent above
@@ -178,8 +176,7 @@
 					</dependency>
 				</dependencies>
 				<configuration>
-					<configLocation>config/google-checkstyle.xml</configLocation>
-					<propertyExpansion>org.checkstyle.google.severity=error</propertyExpansion>
+					<configLocation>config/checkstyle.xml</configLocation>
 					<includeTestSourceDirectory>true</includeTestSourceDirectory>
 					<includeResources>false</includeResources>
 					<includeTestResources>false</includeTestResources>
@@ -192,46 +189,34 @@
 						<phase>validate</phase>
 						<goals><goal>check</goal></goals>
 					</execution>
-					<execution>
-						<id>check-project-java-rules</id>
-						<phase>validate</phase>
-						<goals><goal>check</goal></goals>
-						<configuration>
-							<configLocation>config/checkstyle.xml</configLocation>
-							<outputFile>${project.build.directory}/checkstyle-project-result.xml</outputFile>
-							<cacheFile>${project.build.directory}/checkstyle-project-cachefile</cacheFile>
-						</configuration>
-					</execution>
 				</executions>
 			</plugin>
 			<plugin>
-				<groupId>org.codehaus.mojo</groupId>
-				<artifactId>exec-maven-plugin</artifactId>
-				<version>3.6.4</version>
-				<dependencies>
-					<dependency>
-						<groupId>com.google.googlejavaformat</groupId>
-						<artifactId>google-java-format</artifactId>
-						<version>${google-java-format.version}</version>
-						<classifier>all-deps</classifier>
-						<exclusions>
-							<exclusion><groupId>*</groupId><artifactId>*</artifactId></exclusion>
-						</exclusions>
-					</dependency>
-				</dependencies>
+				<groupId>com.diffplug.spotless</groupId>
+				<artifactId>spotless-maven-plugin</artifactId>
+				<version>3.11.0</version>
 				<configuration>
-					<executable>bash</executable>
-					<arguments>
-						<argument>${project.basedir}/format-java.sh</argument>
-						<argument>${java.format.mode}</argument>
-						<argument>${settings.localRepository}/com/google/googlejavaformat/google-java-format/${google-java-format.version}/google-java-format-${google-java-format.version}-all-deps.jar</argument>
-					</arguments>
+					<lineEndings>UNIX</lineEndings>
+					<upToDateChecking><enabled>false</enabled></upToDateChecking>
+					<java>
+						<includes>
+							<include>src/main/java/**/*.java</include>
+							<include>src/test/java/**/*.java</include>
+						</includes>
+						<importOrder><order>\#,</order></importOrder>
+						<eclipse>
+							<version>4.41</version>
+							<file>${project.basedir}/config/java-formatter.xml</file>
+						</eclipse>
+						<trimTrailingWhitespace/>
+						<endWithNewline/>
+					</java>
 				</configuration>
 				<executions>
 					<execution>
 						<id>check-java-format</id>
 						<phase>validate</phase>
-						<goals><goal>exec</goal></goals>
+						<goals><goal>check</goal></goals>
 					</execution>
 				</executions>
 			</plugin>

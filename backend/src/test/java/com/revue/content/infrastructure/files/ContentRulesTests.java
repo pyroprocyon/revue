@@ -22,28 +22,27 @@ import org.junit.jupiter.params.provider.MethodSource;
  */
 class ContentRulesTests {
 
-    private static final String VALID =
-            """
-            set_key: test-set
-            title: Test Set
-            description: A set for tests.
-            publisher: Revue
-            subject: Science
-            cards:
-              - key: card-one
-                question: What is one?
-                answer: One.
-                source: A plain source.
-              - key: card-two
-                question: What is two?
-                answer: Two.
-                key_ideas:
-                  - The number two
-                  - Comes after one
-                explanation: Because two comes second.
-                memory_hook: Two shoes.
-                source: A source.
-            """;
+    private static final String VALID = """
+        set_key: test-set
+        title: Test Set
+        description: A set for tests.
+        publisher: Revue
+        subject: Science
+        cards:
+          - key: card-one
+            question: What is one?
+            answer: One.
+            source: A plain source.
+          - key: card-two
+            question: What is two?
+            answer: Two.
+            key_ideas:
+              - The number two
+              - Comes after one
+            explanation: Because two comes second.
+            memory_hook: Two shoes.
+            source: A source.
+        """;
 
     @Test
     void theValidFileParsesWithNoProblems() {
@@ -67,10 +66,8 @@ class ContentRulesTests {
     void longKeysAreCheckedWithoutRecursiveBacktracking() {
         String key = "a-".repeat(10_000) + "z";
         assertThat(problemsFor(VALID.replace("test-set", key))).isEmpty();
-        assertThat(problemsFor(VALID.replace("test-set", key + "-")))
-                .anySatisfy(
-                        problem ->
-                                assertThat(problem).contains("must be lowercase letters and digits joined by hyphens"));
+        assertThat(problemsFor(VALID.replace("test-set", key + "-"))).anySatisfy(
+            problem -> assertThat(problem).contains("must be lowercase letters and digits joined by hyphens"));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -81,60 +78,52 @@ class ContentRulesTests {
 
     static Stream<Arguments> brokenFiles() {
         return Stream.of(
-                broken("missing answer", "    answer: One.\n", "", "card card-one: answer is missing"),
-                broken("missing source", "    source: A plain source.\n", "", "source is missing"),
-                broken("null source", "    source: A plain source.", "    source: null", "source is missing"),
-                broken(
-                        "source given as a number",
-                        "    source: A plain source.",
-                        "    source: 12",
-                        "source must be text"),
-                broken(
-                        "source too long",
-                        "    source: A plain source.",
-                        "    source: " + "x".repeat(501),
-                        "source is longer than 500 characters"),
-                broken("missing subject", "subject: Science\n", "", "subject is missing"),
-                broken("blank question", "question: What is one?", "question: ' '", "question must not be blank"),
-                broken(
-                        "blank explanation",
-                        "    explanation: Because two comes second.",
-                        "    explanation: ' '",
-                        "explanation must not be blank"),
-                broken("blank source", "    source: A source.", "    source: ' '", "source must not be blank"),
-                broken(
-                        "three key ideas",
-                        "      - Comes after one\n",
-                        "      - Comes after one\n      - Is even\n",
-                        "key_ideas may list at most two ideas"),
-                broken(
-                        "repeated key idea",
-                        "      - Comes after one",
-                        "      - The number two",
-                        "key_ideas must be different from each other"),
-                broken("blank key idea", "      - The number two", "      - ' '", "key idea must not be blank"),
-                broken("same question twice", "What is two?", "What is one?", "asks the same question"),
-                broken(
-                        "misspelled field",
-                        "    explanation: Because two",
-                        "    explaination: Because two",
-                        "unknown field explaination"),
-                broken("unquoted yes as an answer", "    answer: One.", "    answer: yes", "answer must be text"),
-                broken("key with spaces", "key: card-one", "key: Card One", "lowercase letters and digits"),
-                broken(
-                        "field given twice",
-                        "    answer: One.",
-                        "    answer: One.\n    answer: Uno.",
-                        "not valid YAML"));
+            broken("missing answer", "    answer: One.\n", "", "card card-one: answer is missing"),
+            broken("missing source", "    source: A plain source.\n", "", "source is missing"),
+            broken("null source", "    source: A plain source.", "    source: null", "source is missing"),
+            broken("source given as a number", "    source: A plain source.", "    source: 12", "source must be text"),
+            broken(
+                "source too long",
+                "    source: A plain source.",
+                "    source: " + "x".repeat(501),
+                "source is longer than 500 characters"),
+            broken("missing subject", "subject: Science\n", "", "subject is missing"),
+            broken("blank question", "question: What is one?", "question: ' '", "question must not be blank"),
+            broken(
+                "blank explanation",
+                "    explanation: Because two comes second.",
+                "    explanation: ' '",
+                "explanation must not be blank"),
+            broken("blank source", "    source: A source.", "    source: ' '", "source must not be blank"),
+            broken(
+                "three key ideas",
+                "      - Comes after one\n",
+                "      - Comes after one\n      - Is even\n",
+                "key_ideas may list at most two ideas"),
+            broken(
+                "repeated key idea",
+                "      - Comes after one",
+                "      - The number two",
+                "key_ideas must be different from each other"),
+            broken("blank key idea", "      - The number two", "      - ' '", "key idea must not be blank"),
+            broken("same question twice", "What is two?", "What is one?", "asks the same question"),
+            broken(
+                "misspelled field",
+                "    explanation: Because two",
+                "    explaination: Because two",
+                "unknown field explaination"),
+            broken("unquoted yes as an answer", "    answer: One.", "    answer: yes", "answer must be text"),
+            broken("key with spaces", "key: card-one", "key: Card One", "lowercase letters and digits"),
+            broken("field given twice", "    answer: One.", "    answer: One.\n    answer: Uno.", "not valid YAML"));
     }
 
     @Test
     void theCardKeyUsedInTwoFilesIsReported() {
-        String other =
-                VALID.replace("set_key: test-set", "set_key: other-set").replace("key: card-two", "key: card-three");
+        String other = VALID.replace("set_key: test-set", "set_key: other-set")
+            .replace("key: card-two", "key: card-three");
 
         assertThat(problemsFor(VALID, other))
-                .anySatisfy(problem -> assertThat(problem).contains("card card-one: key is also used in file-0.yaml"));
+            .anySatisfy(problem -> assertThat(problem).contains("card card-one: key is also used in file-0.yaml"));
     }
 
     @Test
@@ -142,13 +131,13 @@ class ContentRulesTests {
         String other = VALID.replace("key: card-one", "key: card-five").replace("key: card-two", "key: card-six");
 
         assertThat(problemsFor(VALID, other))
-                .anySatisfy(problem -> assertThat(problem).contains("set_key test-set is also used in file-0.yaml"));
+            .anySatisfy(problem -> assertThat(problem).contains("set_key test-set is also used in file-0.yaml"));
     }
 
     private static Arguments broken(String rule, String find, String replaceWith, String expectedProblem) {
         assertThat(VALID).as(rule).contains(find);
-        return Arguments.of(
-                rule, VALID.replaceFirst(Pattern.quote(find), Matcher.quoteReplacement(replaceWith)), expectedProblem);
+        return Arguments
+            .of(rule, VALID.replaceFirst(Pattern.quote(find), Matcher.quoteReplacement(replaceWith)), expectedProblem);
     }
 
     private static List<String> problemsFor(String... yamls) {

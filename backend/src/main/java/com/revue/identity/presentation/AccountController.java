@@ -29,11 +29,11 @@ public class AccountController {
     /** Creates an invited account after both pilot confirmations are accepted. */
     @PostMapping(path = "/api/v1/auth/register", consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
     public AccountService.Profile register(
-            @RequestParam String username,
-            @RequestParam String password,
-            @RequestParam String invitation,
-            @RequestParam boolean privacy,
-            @RequestParam boolean adult) {
+        @RequestParam String username,
+        @RequestParam String password,
+        @RequestParam String invitation,
+        @RequestParam boolean privacy,
+        @RequestParam boolean adult) {
         return accounts.register(username, password, invitation, privacy, adult);
     }
 
@@ -47,7 +47,7 @@ public class AccountController {
     @GetMapping("/api/v1/me")
     public AccountService.Profile current(HttpServletRequest request) {
         // The security filter validated this profile for this request before controller dispatch.
-        return (AccountService.Profile)
-                Objects.requireNonNull(request.getAttribute(AccountService.Profile.class.getName()));
+        return (AccountService.Profile) Objects
+            .requireNonNull(request.getAttribute(AccountService.Profile.class.getName()));
     }
 }

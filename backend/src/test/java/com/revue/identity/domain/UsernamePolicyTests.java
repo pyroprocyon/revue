@@ -39,6 +39,6 @@ class UsernamePolicyTests {
         Account scheduled = account.scheduleDeletion(UUID.randomUUID(), now);
         assertThat(scheduled.username()).isEqualTo(account.username());
         assertThat(scheduled.cancelDeletion(scheduled.deletion().id(), 1, now.plusSeconds(1)).username())
-                .isEqualTo(account.username());
+            .isEqualTo(account.username());
     }
 }

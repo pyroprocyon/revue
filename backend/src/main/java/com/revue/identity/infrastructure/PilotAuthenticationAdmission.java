@@ -31,17 +31,18 @@ public class PilotAuthenticationAdmission implements AuthenticationAdmission {
         attempts.entrySet().removeIf(entry -> !now.isBefore(entry.getValue().expires()));
         Attempts previous = attempts.get(key);
         if ((previous != null && previous.count() >= MAX_ATTEMPTS)
-                || (previous == null && attempts.size() >= MAX_IDENTIFIERS)
-                || !operations.tryAcquire()) {
+            || (previous == null && attempts.size() >= MAX_IDENTIFIERS)
+            || !operations.tryAcquire()) {
             throw new AccountProblem(AccountProblem.Kind.OVERLOADED, "Please wait a moment and try again");
         }
         attempts.put(
-                key,
-                previous == null
-                        ? new Attempts(1, now.plus(WINDOW))
-                        : new Attempts(previous.count() + 1, previous.expires()));
+            key,
+            previous == null
+                ? new Attempts(1, now.plus(WINDOW))
+                : new Attempts(previous.count() + 1, previous.expires()));
         return operations::release;
     }
 
-    private record Attempts(int count, Instant expires) {}
+    private record Attempts(int count, Instant expires) {
+    }
 }

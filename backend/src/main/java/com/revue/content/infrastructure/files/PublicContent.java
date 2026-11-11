@@ -24,7 +24,8 @@ public final class PublicContent {
 
     private static final String ROOT_MARKER = "content/public/";
 
-    private PublicContent() {}
+    private PublicContent() {
+    }
 
     /**
      * Returns every public set, parsed and checked.
@@ -55,8 +56,8 @@ public final class PublicContent {
     }
 
     private static List<Resource> findFiles(String location) {
-        ResourcePatternResolver resolver =
-                new PathMatchingResourcePatternResolver(PublicContent.class.getClassLoader());
+        ResourcePatternResolver resolver = new PathMatchingResourcePatternResolver(
+            PublicContent.class.getClassLoader());
         Resource[] resources;
         try {
             resources = resolver.getResources(location);

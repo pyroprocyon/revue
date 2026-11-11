@@ -5,7 +5,8 @@ import java.time.Instant;
 /** An opaque model state keeps the scheduling domain independent of the FSRS library. */
 public interface MemoryModel {
     /** Serialized memory state and the memory model's due instant. */
-    record Prediction(String stateJson, Instant due) {}
+    record Prediction(String stateJson, Instant due) {
+    }
 
     /** Computes the first memory prediction at the supplied model time. */
     Prediction firstReview(int cardId, ReviewRating rating, Instant modelTime);

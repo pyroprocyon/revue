@@ -37,6 +37,6 @@ class PublicContentTests {
     void theMissingSourceIsReportedAsUnavailableRatherThanEmpty() {
         // An empty source would retire every set, so the loader must never receive one.
         assertThatExceptionOfType(ContentUnavailableException.class)
-                .isThrownBy(() -> PublicContent.readAndCheck("classpath*:content/does-not-exist/**/*.yaml"));
+            .isThrownBy(() -> PublicContent.readAndCheck("classpath*:content/does-not-exist/**/*.yaml"));
     }
 }

@@ -8,18 +8,18 @@ import org.jspecify.annotations.Nullable;
 
 /** Independent facts, with eligibility derived rather than stored as a competing status. */
 public record Account(
-        UUID id,
-        @Nullable EmailAddress email,
-        Instant createdAt,
-        @Nullable Instant emailVerifiedAt,
-        @Nullable Instant suspendedAt,
-        long credentialVersion,
-        boolean credentialResetRequired,
-        @Nullable Instant privacyAcceptedAt,
-        @Nullable String privacyNoticeVersion,
-        @Nullable Instant adultConfirmedAt,
-        @Nullable DeletionRequest deletion,
-        @Nullable Username username) {
+    UUID id,
+    @Nullable EmailAddress email,
+    Instant createdAt,
+    @Nullable Instant emailVerifiedAt,
+    @Nullable Instant suspendedAt,
+    long credentialVersion,
+    boolean credentialResetRequired,
+    @Nullable Instant privacyAcceptedAt,
+    @Nullable String privacyNoticeVersion,
+    @Nullable Instant adultConfirmedAt,
+    @Nullable DeletionRequest deletion,
+    @Nullable Username username) {
     public static final Duration REGISTRATION_LIFETIME = Duration.ofDays(7);
 
     /** Validates the account identity, consent and lifecycle state. */
@@ -33,8 +33,8 @@ public record Account(
             throw new IllegalArgumentException("Invalid credential version");
         }
         if ((privacyAcceptedAt == null) != (privacyNoticeVersion == null)
-                || (privacyNoticeVersion != null
-                        && (privacyNoticeVersion.isBlank() || privacyNoticeVersion.length() > 100))) {
+            || (privacyNoticeVersion != null
+                && (privacyNoticeVersion.isBlank() || privacyNoticeVersion.length() > 100))) {
             throw new IllegalArgumentException("Privacy acceptance requires a notice version");
         }
     }
@@ -87,10 +87,10 @@ public record Account(
     /** Caller must first authenticate the proof and hold the account lock. Version alone is not proof. */
     public Account cancelDeletion(UUID requestId, long proofVersion, Instant now) {
         if (deletion == null
-                || !deletion.id().equals(requestId)
-                || proofVersion != credentialVersion
-                || now.isBefore(deletion.requestedAt())
-                || !now.isBefore(deletion.purgeAfter())) {
+            || !deletion.id().equals(requestId)
+            || proofVersion != credentialVersion
+            || now.isBefore(deletion.requestedAt())
+            || !now.isBefore(deletion.purgeAfter())) {
             throw new IllegalStateException("Deletion cannot be cancelled");
         }
         return withDeletion(null);
@@ -107,18 +107,18 @@ public record Account(
 
     private Account withDeletion(@Nullable DeletionRequest request) {
         return new Account(
-                id,
-                email,
-                createdAt,
-                emailVerifiedAt,
-                suspendedAt,
-                Math.incrementExact(credentialVersion),
-                credentialResetRequired,
-                privacyAcceptedAt,
-                privacyNoticeVersion,
-                adultConfirmedAt,
-                request,
-                username);
+            id,
+            email,
+            createdAt,
+            emailVerifiedAt,
+            suspendedAt,
+            Math.incrementExact(credentialVersion),
+            credentialResetRequired,
+            privacyAcceptedAt,
+            privacyNoticeVersion,
+            adultConfirmedAt,
+            request,
+            username);
     }
 
     /** Account access decisions that are independent of HTTP and persistence. */

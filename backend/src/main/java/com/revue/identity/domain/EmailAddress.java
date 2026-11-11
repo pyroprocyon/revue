@@ -66,8 +66,8 @@ public record EmailAddress(String value) {
 
     private static boolean isAtomCharacter(char character) {
         return (character >= 'a' && character <= 'z')
-                || (character >= '0' && character <= '9')
-                || "!#$%&'*+/=?^_`{|}~-".indexOf(character) >= 0;
+            || (character >= '0' && character <= '9')
+            || "!#$%&'*+/=?^_`{|}~-".indexOf(character) >= 0;
     }
 
     @Override

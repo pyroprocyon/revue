@@ -42,11 +42,14 @@ class StaticServingTests {
 
     private final HttpClient http = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build();
 
-    @LocalServerPort private int port;
+    @LocalServerPort
+    private int port;
 
-    @Autowired private MockMvc mvc;
+    @Autowired
+    private MockMvc mvc;
 
-    @Autowired private JdbcTemplate jdbc;
+    @Autowired
+    private JdbcTemplate jdbc;
 
     @Test
     void reloadingOneBrowserRouteServesTheAppKeptOutOfSearch() {
@@ -184,7 +187,7 @@ class StaticServingTests {
         assertThat(send("GET", "/api/unknown").statusCode()).isEqualTo(401);
         // Signed in, an unknown API route is a plain 404, not the React page.
         mvc.perform(get("/api/v1/unknown").cookie(AccountFixtures.signedIn(mvc, jdbc)))
-                .andExpect(status().isNotFound());
+            .andExpect(status().isNotFound());
     }
 
     @Test
@@ -198,8 +201,9 @@ class StaticServingTests {
     }
 
     private HttpResponse<String> send(String method, String path) {
-        HttpRequest request =
-                HttpRequest.newBuilder(uri(path)).method(method, HttpRequest.BodyPublishers.noBody()).build();
+        HttpRequest request = HttpRequest.newBuilder(uri(path))
+            .method(method, HttpRequest.BodyPublishers.noBody())
+            .build();
         return exchange(request, HttpResponse.BodyHandlers.ofString());
     }
 

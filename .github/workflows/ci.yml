@@ -62,7 +62,6 @@ jobs:
             frontend/playwright-report/
             frontend/test-results/
             backend/target/checkstyle-result.xml
-            backend/target/checkstyle-project-result.xml
             backend/target/quality/sonar-issues.json
             backend/target/quality/sonar-gate.json
             backend/target/quality/sonar-scope.json
