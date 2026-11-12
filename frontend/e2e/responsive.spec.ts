@@ -17,6 +17,29 @@ test('tablet preview actions follow the content instead of sitting at the bottom
   expect(action!.y - content!.y - content!.height).toBeLessThanOrEqual(64);
 });
 
+test('Privacy and Terms pin the sign-in link only when the phone has room', async ({ page }) => {
+  for (const path of ['/privacy', '/terms']) {
+    await page.setViewportSize({ width: 360, height: 744 });
+    await page.goto(path);
+    const back = page.getByRole('link', { name: 'Back to sign in', exact: true });
+    await expect(back).toBeInViewport({ ratio: 1 });
+    const content = page.getByRole('main');
+    expect(await content.evaluate(element => getComputedStyle(element).overflowY)).toBe('auto');
+
+    await page.setViewportSize({ width: 360, height: 480 });
+    expect(await content.evaluate(element => getComputedStyle(element).overflowY)).toBe('visible');
+    await back.scrollIntoViewIfNeeded();
+    await expect(back).toBeInViewport({ ratio: 1 });
+
+    await page.setViewportSize({ width: 320, height: 568 });
+    await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
+    expect(await content.evaluate(element => getComputedStyle(element).overflowY)).toBe('visible');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
+    await back.scrollIntoViewIfNeeded();
+    await expect(back).toBeInViewport({ ratio: 1 });
+  }
+});
+
 test('tablet trial keeps recall and rating controls within a compact card', async ({ page }) => {
   await page.setViewportSize({ width: 768, height: 1024 });
   await page.goto('/sets/philippine-history/try');

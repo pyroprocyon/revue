@@ -1,5 +1,27 @@
 @import 'tailwindcss';
 
+/* Keep policy actions below the reading area when the phone has room.
+   The container threshold scales with the document's text size. */
+@media (width < 40rem) and (height >= 33rem) {
+  @container page-actions (width >= 20rem) {
+    .page-with-phone-actions {
+      display: flex;
+      height: 100dvh;
+      flex-direction: column;
+    }
+
+    .page-with-phone-actions > main {
+      min-height: 0;
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .page-with-phone-actions > footer {
+      box-shadow: var(--shadow-actions);
+    }
+  }
+}
+
 /* A keyboard or landscape viewport must not trap reading content between fixed bars. */
 @media (max-height: 32rem) {
   .landing-screen {

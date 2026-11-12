@@ -17,6 +17,7 @@ export function PolicyPageLayout({ title, updated, children }: Readonly<PolicyPa
     <PageLayout
       top={<div className="mx-auto"><HomeLink /></div>}
       actions={<Link to={SIGN_IN_PATH} className={`${secondaryButton} w-full`}>Back to sign in</Link>}
+      pinActionsOnPhone
     >
       <div className="py-6 sm:py-10 lg:py-14">
         <article className="rounded-card bg-surface p-4 shadow-card sm:p-8">

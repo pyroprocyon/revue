@@ -170,18 +170,57 @@ test('privacy details and contact remain reachable with a keyboard and enlarged 
   await page.keyboard.press('Enter');
   await expect(details).toHaveAttribute('open', '');
   const content = page.getByRole('main');
-  expect(await page.evaluate(() => document.documentElement.scrollHeight > innerHeight)).toBe(true);
+  expect(await content.evaluate(element => element.scrollHeight > element.clientHeight)).toBe(true);
   await page.getByRole('link', { name: 'Skip to content', exact: true }).focus();
   await page.keyboard.press('Enter');
   await expect(content).toBeFocused();
-  const before = await page.evaluate(() => window.scrollY);
+  const before = await content.evaluate(element => element.scrollTop);
   await page.keyboard.press('PageDown');
-  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(before);
+  await expect.poll(() => content.evaluate(element => element.scrollTop)).toBeGreaterThan(before);
   await page.setViewportSize({ width: 320, height: 800 });
   await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
   await page.getByRole('link', { name: 'Contact us', exact: true }).click();
   await expect(page).toHaveURL(/\/terms#help-and-corrections$/);
   await expect(page.locator('#help-and-corrections')).toBeInViewport();
+});
+
+test('returning to Account rechecks once and restores focus without shifting the content', async ({ page, pilot }) => {
+  await page.goto(pilot.invitation());
+  await register(page, username());
+  const signOut = page.getByRole('button', { name: 'Sign out', exact: true });
+  await expect(signOut).toBeVisible();
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.evaluate(async () => {
+    document.documentElement.style.fontSize = '200%';
+    await document.fonts.ready;
+  });
+  const heading = page.getByRole('heading', { name: 'Your account' });
+  await signOut.focus();
+  const initialTop = await heading.evaluate(element => element.getBoundingClientRect().top + window.scrollY);
+  let requests = 0;
+  let release!: () => void;
+  const pending = new Promise<void>(resolve => { release = resolve; });
+  await page.route('**/api/v1/me', async route => {
+    requests += 1;
+    await pending;
+    await route.continue();
+  });
+  try {
+    await page.evaluate(() => {
+      window.dispatchEvent(new Event('focus'));
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await expect(page.getByRole('status')).toHaveText('Checking session…');
+    expect(await signOut.evaluate(element => element.closest('[inert]') !== null)).toBe(true);
+    await expect(signOut).not.toBeFocused();
+    const inertHeading = page.getByText('Your account', { exact: true });
+    expect(await inertHeading.evaluate(element => element.getBoundingClientRect().top + window.scrollY)).toBe(initialTop);
+  } finally {
+    release();
+  }
+  await expect(page.getByRole('status')).toHaveCount(0);
+  await expect(signOut).toBeFocused();
+  expect(requests).toBe(1);
 });
 
 
