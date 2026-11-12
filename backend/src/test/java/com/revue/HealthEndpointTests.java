@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.health.contributor.Health;
@@ -37,12 +38,20 @@ class HealthEndpointTests {
     @Test
     void databaseFailureRemovesReadinessWithoutFailingLiveness() throws Exception {
         var database = healthContributors.unregisterContributor("db");
-        healthContributors.registerContributor("db", (HealthIndicator) () -> Health.down().build());
+        var databaseChecks = new AtomicInteger();
+        healthContributors.registerContributor("db", (HealthIndicator) () -> {
+            databaseChecks.incrementAndGet();
+            return Health.down().build();
+        });
         try {
+            mvc.perform(get("/actuator/health")).andExpect(status().isOk());
+            mvc.perform(head("/actuator/health")).andExpect(status().isOk());
+            mvc.perform(get("/actuator/health/liveness")).andExpect(status().isOk());
+            assertThat(databaseChecks).hasValue(0);
             mvc.perform(get("/actuator/health/readiness"))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.status").value("DOWN"));
-            mvc.perform(get("/actuator/health/liveness")).andExpect(status().isOk());
+            assertThat(databaseChecks).hasValue(1);
         } finally {
             healthContributors.unregisterContributor("db");
             healthContributors.registerContributor("db", database);
