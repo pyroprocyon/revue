@@ -62,15 +62,15 @@ public class SecurityConfig {
             paths.matcher(HttpMethod.GET, "/api/v1/public-sets/*/demo-cards"),
             paths.matcher(HttpMethod.GET, "/api/v1/public-sets/share/*/summary"),
             paths.matcher(HttpMethod.GET, "/api/v1/auth/csrf"),
-            paths.matcher(HttpMethod.POST, "/api/v1/auth/register"),
-            paths.matcher(HttpMethod.POST, "/api/v1/auth/login"),
-            paths.matcher(HttpMethod.POST, "/api/v1/auth/logout"));
+            AccountRoutes.REGISTER,
+            AccountRoutes.LOGIN,
+            AccountRoutes.LOGOUT);
         http.authorizeHttpRequests(
             requests -> requests.requestMatchers(publicRoutes)
                 .permitAll()
-                .requestMatchers("/actuator/**")
+                .requestMatchers(AccountRoutes.OPERATIONS)
                 .denyAll()
-                .requestMatchers("/api/**")
+                .requestMatchers(AccountRoutes.API)
                 .hasAuthority("LEARNER")
                 .anyRequest()
                 .permitAll())
@@ -84,7 +84,7 @@ public class SecurityConfig {
             .securityContext(config -> config.securityContextRepository(contexts))
             .sessionManagement(config -> config.sessionAuthenticationStrategy(sessions))
             .logout(
-                config -> config.logoutUrl("/api/v1/auth/logout")
+                config -> config.logoutRequestMatcher(AccountRoutes.LOGOUT)
                     .invalidateHttpSession(true)
                     .clearAuthentication(true)
                     .deleteCookies("SESSION")

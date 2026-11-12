@@ -12,6 +12,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.availability.AvailabilityChangeEvent;
+import org.springframework.boot.availability.LivenessState;
+import org.springframework.boot.availability.ReadinessState;
 import org.springframework.boot.health.contributor.Health;
 import org.springframework.boot.health.contributor.HealthIndicator;
 import org.springframework.boot.health.registry.HealthContributorRegistry;
@@ -19,6 +22,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
@@ -39,6 +43,29 @@ class HealthEndpointTests {
     @Autowired
     private HealthContributorRegistry healthContributors;
 
+    @Autowired
+    private ApplicationContext context;
+
+    private static final String AVAILABILITY_EVENT = "service.availability_changed";
+
+    @Test
+    void processAvailabilityTransitionsAreLogged(CapturedOutput output) {
+        int previousEvents = StructuredEvents.named(output, AVAILABILITY_EVENT).size();
+        AvailabilityChangeEvent.publish(context, LivenessState.BROKEN);
+        AvailabilityChangeEvent.publish(context, LivenessState.CORRECT);
+        AvailabilityChangeEvent.publish(context, ReadinessState.REFUSING_TRAFFIC);
+        AvailabilityChangeEvent.publish(context, ReadinessState.ACCEPTING_TRAFFIC);
+
+        var events = StructuredEvents.named(output, AVAILABILITY_EVENT);
+        var transitions = events.subList(previousEvents, events.size());
+        assertThat(transitions).filteredOn(event -> "liveness".equals(event.at("/entity/type").asString()))
+            .extracting(event -> event.at("/state/to").asString())
+            .containsExactly("BROKEN", "CORRECT");
+        assertThat(transitions).filteredOn(event -> "readiness".equals(event.at("/entity/type").asString()))
+            .extracting(event -> event.at("/state/to").asString())
+            .containsExactly("REFUSING_TRAFFIC", "ACCEPTING_TRAFFIC");
+    }
+
     @Test
     void databaseFailureRemovesReadinessWithoutFailingLiveness(CapturedOutput output) throws Exception {
         var database = healthContributors.unregisterContributor("db");
@@ -57,7 +84,7 @@ class HealthEndpointTests {
                 .andExpect(jsonPath("$.status").value("DOWN"));
             mvc.perform(get("/actuator/health/readiness")).andExpect(status().isServiceUnavailable());
             assertThat(databaseChecks).hasValue(2);
-            assertThat(StructuredEvents.named(output, "service.availability_changed"))
+            assertThat(StructuredEvents.named(output, AVAILABILITY_EVENT))
                 .filteredOn(event -> "readiness_probe".equals(event.at("/entity/type").asString()))
                 .singleElement()
                 .satisfies(event -> assertThat(event.at("/state/to").asString()).isEqualTo("UNAVAILABLE"));
@@ -66,7 +93,7 @@ class HealthEndpointTests {
             healthContributors.registerContributor("db", database);
         }
         mvc.perform(get("/actuator/health/readiness")).andExpect(status().isOk());
-        assertThat(StructuredEvents.named(output, "service.availability_changed"))
+        assertThat(StructuredEvents.named(output, AVAILABILITY_EVENT))
             .filteredOn(event -> "readiness_probe".equals(event.at("/entity/type").asString()))
             .last()
             .satisfies(event -> {

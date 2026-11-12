@@ -8,8 +8,11 @@ import java.io.IOException;
 import java.util.Set;
 import java.util.regex.Pattern;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.server.PathContainer;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.util.pattern.PathPattern;
+import org.springframework.web.util.pattern.PathPatternParser;
 
 /**
  * Serves the React app for browser routes, so reloading a page such as a review session loads the app instead of a 404.
@@ -31,6 +34,8 @@ class BrowserRouteFilter extends OncePerRequestFilter {
 
     private static final String INDEX_PAGE = "/index.html";
 
+    private static final PathPattern API = PathPatternParser.defaultInstance.parse("/api/**");
+    private static final PathPattern OPERATIONS = PathPatternParser.defaultInstance.parse("/actuator/**");
     private static final Set<String> INDEXABLE_ROUTES = Set.of("/", "/sets");
 
     // A set preview: /sets/ followed by one set key, which content rules limit to these characters.
@@ -50,11 +55,12 @@ class BrowserRouteFilter extends OncePerRequestFilter {
         request.getRequestDispatcher(INDEX_PAGE).forward(request, response);
     }
 
-    static boolean isBrowserRoute(String method, String path) {
+    private static boolean isBrowserRoute(String method, String path) {
         if (!HttpMethod.GET.matches(method) && !HttpMethod.HEAD.matches(method)) {
             return false;
         }
-        if (isUnder(path, "/api") || isUnder(path, "/actuator")) {
+        var parsed = PathContainer.parsePath(path);
+        if (API.matches(parsed) || OPERATIONS.matches(parsed)) {
             return false;
         }
         String lastSegment = path.substring(path.lastIndexOf('/') + 1);
@@ -63,10 +69,6 @@ class BrowserRouteFilter extends OncePerRequestFilter {
 
     private static boolean isIndexable(String path) {
         return INDEXABLE_ROUTES.contains(path) || SET_PREVIEW.matcher(path).matches();
-    }
-
-    private static boolean isUnder(String path, String prefix) {
-        return path.equals(prefix) || path.startsWith(prefix + "/");
     }
 
     private static String pathOf(HttpServletRequest request) {

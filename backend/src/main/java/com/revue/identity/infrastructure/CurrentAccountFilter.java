@@ -22,8 +22,8 @@ final class CurrentAccountFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        String path = request.getRequestURI().substring(request.getContextPath().length());
-        return (!path.startsWith("/api/") && !path.startsWith("/actuator/")) || publicRoutes.matches(request);
+        boolean managedRoute = AccountRoutes.API.matches(request) || AccountRoutes.OPERATIONS.matches(request);
+        return !managedRoute || publicRoutes.matches(request);
     }
 
     @Override
