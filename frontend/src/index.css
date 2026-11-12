@@ -2,14 +2,50 @@
 
 /* A keyboard or landscape viewport must not trap reading content between fixed bars. */
 @media (max-height: 32rem) {
-  .app-screen {
+  .landing-screen {
     height: auto;
     min-height: 100dvh;
   }
 
-  .app-screen > main {
+  .landing-screen > main {
     flex: none;
     overflow: visible;
+  }
+}
+
+/* When enlarged text leaves little room for the landing footer, show Browse sets
+   under the headline and let the rest of the landing page scroll normally. */
+@container landing (width < 20rem) and (width < 640px) {
+  .landing-screen {
+    height: auto;
+    min-height: 100dvh;
+  }
+
+  .landing-screen > main {
+    flex: none;
+    overflow: visible;
+  }
+
+  .landing-hero {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .landing-hero-copy {
+    order: 1;
+  }
+
+  .landing-browse-in-hero {
+    display: block;
+    margin-top: 1rem;
+  }
+
+  .landing-browse-in-hero > a {
+    padding-inline: var(--spacing-compact-gutter);
+  }
+
+  .landing-browse-in-footer {
+    display: none;
   }
 }
 
@@ -28,6 +64,8 @@
      a hero headline and a lead line, each with a larger size for wide screens. */
   --text-hero: 3.75rem;
   --text-hero--line-height: 0.85;
+  --text-hero-compact: min(2.75rem, 1rem + 11vw);
+  --text-hero-compact--line-height: var(--text-hero--line-height);
   --text-hero-lg: 6.75rem;
   --text-hero-lg--line-height: 0.84;
   --text-lead: 1.375rem;
@@ -36,7 +74,7 @@
   --text-lead-lg--line-height: 1.15;
   --text-title-lg: 2.75rem;
   --text-title-lg--line-height: 1.1;
-  --text-title: 1.75rem;
+  --text-title: min(1.75rem, 1rem + 6vw);
   --text-title--line-height: 1.2;
   --text-section: 1.25rem;
   --text-section--line-height: 1.35;
@@ -76,6 +114,9 @@
   /* Reading pages (preview, trial) use one 600-pixel column; the landing page uses the wide one. */
   --container-page: 37.5rem;
   --container-wide: 64rem;
+
+  /* Let narrow columns keep room for enlarged text. */
+  --spacing-compact-gutter: min(1rem, 5vw);
 
   --radius-card: 1.5rem;
   --radius-control: 1rem;

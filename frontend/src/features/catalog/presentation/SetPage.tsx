@@ -9,7 +9,8 @@ import { FactLine } from '../../../shared/ui/FactLine';
 import { AllSetsLink, HomeLink } from '../../../shared/ui/HeaderLinks';
 import { LoadFailed } from '../../../shared/ui/LoadFailed';
 import { LoadingScreen, MessageScreen } from '../../../shared/ui/MessageScreen';
-import { ActionRow, Screen } from '../../../shared/ui/Screen';
+import { ActionRow } from '../../../shared/ui/LayoutParts';
+import { PageLayout } from '../../../shared/ui/PageLayout';
 import { ShareLinks } from '../../../shared/ui/ShareLinks';
 import { SETS_PATH, setSharePath, trialPath } from '../../../shared/navigation/paths';
 
@@ -74,8 +75,8 @@ function SetDetails({ publicSet }: Readonly<{ publicSet: PublicSet }>) {
   );
   return (
     <div className="lg:[--container-page:46rem]">
-      <Screen top={top} actions={actions}>
-        <article className="mt-2 flex flex-col rounded-card bg-surface p-4 shadow-card sm:p-6 lg:mt-8 lg:p-8">
+      <PageLayout top={top} actions={actions}>
+        <article className="mt-2 flex flex-col rounded-card bg-surface px-compact-gutter py-4 shadow-card sm:p-6 lg:mt-8 lg:p-8">
           <p className={`${chip} self-start`}>Shared set</p>
           <h1 className="mt-3 text-title font-extrabold tracking-tight text-balance lg:text-title-lg">{publicSet.title}</h1>
           <p className="mt-2 text-body text-muted lg:mt-3 lg:max-w-[54ch] lg:text-lg">{publicSet.description}</p>
@@ -84,7 +85,7 @@ function SetDetails({ publicSet }: Readonly<{ publicSet: PublicSet }>) {
             className="pt-6 text-support font-medium lg:mt-6 lg:border-t lg:border-line lg:pt-4 lg:text-muted"
           />
         </article>
-      </Screen>
+      </PageLayout>
     </div>
   );
 }

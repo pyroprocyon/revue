@@ -9,9 +9,11 @@ import { primaryButton, secondaryButton } from '../../../shared/ui/buttonStyles'
 import { BackButton } from '../../../shared/ui/HeaderLinks';
 import { LoadFailed } from '../../../shared/ui/LoadFailed';
 import { LoadingScreen, MessageScreen } from '../../../shared/ui/MessageScreen';
-import { ActionRow, Screen } from '../../../shared/ui/Screen';
+import { ActionRow } from '../../../shared/ui/LayoutParts';
+import { StudyLayout } from '../../../shared/ui/StudyLayout';
 import { SETS_PATH, setPath } from '../../../shared/navigation/paths';
 import { FlashCard } from './FlashCard';
+import { RatingButtons } from './RatingButtons';
 import { RATINGS, RecallMeter, type Rating } from './ratings';
 
 /** "Try 5 cards": a set's first five cards, practiced in the browser and never saved. */
@@ -67,12 +69,12 @@ function Trial({ setKey, initialContent }: Readonly<{ setKey: string; initialCon
     </>
   );
   return (
-    <Screen top={top}>
+    <StudyLayout top={top}>
       <h1 className="sr-only">Try {cardCount} cards</h1>
       <TrialProgress position={cardIndex + 1} cardCount={cardCount} />
       {/* A new key per card, so each card starts on its front instead of turning back over. */}
-      <FlashCard key={card.key} card={card} publisherName={content.publisherName} onRate={rate} />
-    </Screen>
+      <FlashCard key={card.key} card={card} publisherName={content.publisherName} ratingControls={<RatingButtons onRate={rate} />} />
+    </StudyLayout>
   );
 }
 

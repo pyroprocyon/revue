@@ -7,8 +7,8 @@ import { useAccountGateway } from './AccountProvider';
 import { PolicyLinks } from '../../../shared/ui/PolicyLinks';
 import { HomeLink } from '../../../shared/ui/HeaderLinks';
 import { SupportLink } from '../../../shared/ui/SupportLink';
-import { Screen } from '../../../shared/ui/Screen';
-import { primaryButton, textLink } from '../../../shared/ui/buttonStyles';
+import { FormLayout } from '../../../shared/ui/FormLayout';
+import { primaryButton, textLink, textLinkTarget } from '../../../shared/ui/buttonStyles';
 import { ACCOUNT_PATH, SIGN_IN_PATH } from '../../../shared/navigation/paths';
 
 const PASSWORD_MISMATCH = 'Passwords don’t match.';
@@ -71,62 +71,60 @@ export function AccountForm({ register = false }: Readonly<{ register?: boolean 
   const confirmationMismatch = error === PASSWORD_MISMATCH;
 
   return (
-    <Screen top={<div className="mx-auto"><HomeLink /></div>}>
-      <section className="mx-auto w-full max-w-[28rem] py-4 sm:py-10 lg:py-14">
-        <div className="rounded-card bg-surface p-4 shadow-card sm:p-8">
-          <h1 className="text-title font-extrabold tracking-tight">{register ? 'Create your account' : 'Welcome back'}</h1>
-          {needsInvitation && (
-            <output className="mt-5 block rounded-inset bg-subtle p-4 text-body">
-              Open your invitation link to continue.
-            </output>
-          )}
-          <form id="account-form" onSubmit={(event) => void submit(event)} className="mt-6 grid gap-4 sm:gap-5" aria-busy={busy}>
-            <div>
-              <label htmlFor="username" className="text-label font-semibold">Username</label>
-              <input id="username" className={`${inputStyle} mt-2 block`} name="username" autoComplete="username"
-                autoCapitalize="none" spellCheck={false} required minLength={3} maxLength={32}
-                value={username} onChange={(event) => setUsername(event.target.value)}
-                aria-describedby={register ? 'username-help' : undefined} />
-              {register && <span id="username-help" className="mt-1 block text-support text-muted">3–32 letters, numbers, underscores or hyphens.</span>}
-            </div>
-            <div>
-              <label htmlFor={passwordId} className="text-label font-semibold">Password</label>
-              <div className="relative mt-2">
-                <input id={passwordId} className={`${inputStyle} block pr-[56px]`} name="password" type={show ? 'text' : 'password'}
-                  required minLength={6} autoComplete={register ? 'new-password' : 'current-password'} value={password}
-                  onChange={(event) => { setPassword(event.target.value); clearPasswordMismatch(); }} aria-describedby={register ? 'password-help' : undefined} />
-                <PasswordVisibilityToggle fieldId={passwordId} label="password" show={show} onToggle={() => setShow(!show)} />
-              </div>
-              {register && <span id="password-help" className="mt-1 block text-support text-muted">6–64 characters. Spaces are welcome.</span>}
-            </div>
-            {register && (
-              <div>
-                <label htmlFor="confirm-password" className="text-label font-semibold">Confirm password</label>
-                <div className="relative mt-2">
-                  <input id="confirm-password" className={`${inputStyle} block pr-[56px]`} name="passwordConfirmation"
-                    type={showConfirmation ? 'text' : 'password'} autoComplete="new-password" required minLength={6}
-                    value={passwordConfirmation}
-                    onChange={(event) => { setPasswordConfirmation(event.target.value); clearPasswordMismatch(); }}
-                    aria-invalid={confirmationMismatch || undefined} aria-describedby={confirmationMismatch ? 'account-error' : undefined} />
-                  <PasswordVisibilityToggle fieldId="confirm-password" label="confirmation password"
-                    show={showConfirmation} onToggle={() => setShowConfirmation(!showConfirmation)} />
-                </div>
-              </div>
-            )}
-            {error && <p id="account-error" ref={errorRef} tabIndex={-1} role="alert" className="rounded-inset bg-highlight-soft p-4 text-support text-ink focus-visible:outline-2 focus-visible:outline-accent">{error}</p>}
-            <button className={`${primaryButton} w-full`} type="submit" disabled={busy || needsInvitation}>
-              {actionLabel}
-            </button>
-          </form>
-          <p className="mt-6 text-center text-support text-muted">
-            {register ? <>Already have an account? <Link to={signInPath} className={textLink}>Sign in</Link>.</> : <>Forgot your password? <SupportLink>Contact support</SupportLink>.</>}
-          </p>
+    <FormLayout top={<div className="mx-auto"><HomeLink /></div>}
+      footer={<PolicyLinks newTab={register} showPrivacy={!register} showSupport={register} />}>
+      <h1 className="text-title font-extrabold tracking-tight">{register ? 'Create your account' : 'Welcome back'}</h1>
+      {needsInvitation && (
+        <output className="mt-5 block rounded-inset bg-subtle p-4 text-body">
+          Open your invitation link to continue.
+        </output>
+      )}
+      <form id="account-form" onSubmit={(event) => void submit(event)} className="mt-6 grid gap-4 sm:gap-5" aria-busy={busy}>
+        <div>
+          <label htmlFor="username" className="text-label font-semibold">Username</label>
+          <input id="username" className={`${inputStyle} mt-2 block`} name="username" autoComplete="username"
+            autoCapitalize="none" spellCheck={false} required minLength={3} maxLength={32}
+            value={username} onChange={(event) => setUsername(event.target.value)}
+            aria-describedby={register ? 'username-help' : undefined} />
+          {register && <span id="username-help" className="mt-1 block text-support text-muted">3–32 letters, numbers, underscores or hyphens.</span>}
         </div>
-        <div className="flex justify-center">
-          <PolicyLinks newTab={register} showPrivacy={!register} showSupport={register} />
+        <div>
+          <label htmlFor={passwordId} className="text-label font-semibold">Password</label>
+          <div className="relative mt-2">
+            <input id={passwordId} className={`${inputStyle} block pr-[56px]`} name="password" type={show ? 'text' : 'password'}
+              required minLength={6} autoComplete={register ? 'new-password' : 'current-password'} value={password}
+              onChange={(event) => { setPassword(event.target.value); clearPasswordMismatch(); }} aria-describedby={register ? 'password-help' : undefined} />
+            <PasswordVisibilityToggle fieldId={passwordId} label="password" show={show} onToggle={() => setShow(!show)} />
+          </div>
+          {register && <span id="password-help" className="mt-1 block text-support text-muted">6–64 characters. Spaces are welcome.</span>}
         </div>
-      </section>
-    </Screen>
+        {register && (
+          <div>
+            <label htmlFor="confirm-password" className="text-label font-semibold">Confirm password</label>
+            <div className="relative mt-2">
+              <input id="confirm-password" className={`${inputStyle} block pr-[56px]`} name="passwordConfirmation"
+                type={showConfirmation ? 'text' : 'password'} autoComplete="new-password" required minLength={6}
+                value={passwordConfirmation}
+                onChange={(event) => { setPasswordConfirmation(event.target.value); clearPasswordMismatch(); }}
+                aria-invalid={confirmationMismatch || undefined} aria-describedby={confirmationMismatch ? 'account-error' : undefined} />
+              <PasswordVisibilityToggle fieldId="confirm-password" label="confirmation password"
+                show={showConfirmation} onToggle={() => setShowConfirmation(!showConfirmation)} />
+            </div>
+          </div>
+        )}
+        {error && <p id="account-error" ref={errorRef} tabIndex={-1} role="alert" className="rounded-inset bg-highlight-soft p-4 text-support text-ink focus-visible:outline-2 focus-visible:outline-accent">{error}</p>}
+        <button className={`${primaryButton} w-full`} type="submit" disabled={busy || needsInvitation}>
+          {actionLabel}
+        </button>
+      </form>
+      <p className="mt-3 text-center text-support text-muted">
+        {register ? (
+          <>Already have an account? <Link to={signInPath} className={`${textLink} ${textLinkTarget}`}>Sign in</Link></>
+        ) : (
+          <>Forgot your password? <SupportLink className={textLinkTarget}>Contact support</SupportLink></>
+        )}
+      </p>
+    </FormLayout>
   );
 }
 

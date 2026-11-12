@@ -1,6 +1,6 @@
 import { secondaryButton } from './buttonStyles';
 import { MessageScreen } from './MessageScreen';
-import { ActionRow } from './Screen';
+import { ActionRow } from './LayoutParts';
 
 type LoadFailedProps = {
   onRetry: () => void;

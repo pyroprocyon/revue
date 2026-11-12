@@ -11,7 +11,7 @@ import { RatingTag } from './ratings';
 export function SampleCard() {
   const captionId = useId();
   return (
-    <figure aria-labelledby={captionId} className="min-w-0 rounded-card bg-surface p-4 shadow-card sm:p-5 lg:p-8">
+    <figure aria-labelledby={captionId} className="min-w-0 rounded-card bg-surface p-compact-gutter shadow-card sm:p-5 lg:p-8">
       <figcaption id={captionId} className={`${chip} max-lg:px-2 max-lg:py-0.5 lg:text-base`}>
         Sample card
       </figcaption>

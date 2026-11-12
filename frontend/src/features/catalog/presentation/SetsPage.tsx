@@ -7,7 +7,7 @@ import { usePublicContentQueries } from './PublicContentProvider';
 import { HomeLink, SignInLink } from '../../../shared/ui/HeaderLinks';
 import { LoadFailed } from '../../../shared/ui/LoadFailed';
 import { LoadingScreen, MessageScreen } from '../../../shared/ui/MessageScreen';
-import { Screen } from '../../../shared/ui/Screen';
+import { PageLayout } from '../../../shared/ui/PageLayout';
 import { setPath } from '../../../shared/navigation/paths';
 
 /** "Browse sets" opens this list. Each set opens its preview, where the trial starts. */
@@ -39,7 +39,7 @@ export function SetsPage() {
     );
   }
   return (
-    <Screen top={<><HomeLink /><SignInLink /></>}>
+    <PageLayout top={<><HomeLink /><SignInLink /></>}>
       <section className="pt-2">
         <h1 className="text-title font-extrabold tracking-tight">Practice sets</h1>
         <p className="mt-2 text-body text-muted">Choose a set to try 5 cards.</p>
@@ -69,7 +69,7 @@ export function SetsPage() {
           </nav>
         )}
       </section>
-    </Screen>
+    </PageLayout>
   );
 }
 
@@ -77,13 +77,13 @@ function SetChoice({ publicSet }: Readonly<{ publicSet: PublicSet }>) {
   return (
     <Link
       to={setPath(publicSet.setKey)}
-      className="pressable flex items-center gap-3 rounded-card bg-surface p-4 shadow-card sm:p-6"
+      className="pressable flex items-center gap-3 rounded-card bg-surface p-compact-gutter shadow-card sm:p-6"
     >
       <span className="min-w-0 flex-1">
         <span className="block text-section font-extrabold tracking-tight">{publicSet.title}</span>
         <span className="mt-1 block text-body text-muted">{publicSet.description}</span>
       </span>
-      <ChevronRight aria-hidden="true" size={24} strokeWidth={2} className="shrink-0 text-muted" />
+      <ChevronRight aria-hidden="true" size={24} strokeWidth={2} className="hidden shrink-0 text-muted @min-[20rem]:block" />
     </Link>
   );
 }

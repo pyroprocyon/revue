@@ -170,13 +170,13 @@ test('privacy details and contact remain reachable with a keyboard and enlarged 
   await page.keyboard.press('Enter');
   await expect(details).toHaveAttribute('open', '');
   const content = page.getByRole('main');
-  expect(await content.evaluate(element => element.scrollHeight > element.clientHeight)).toBe(true);
-  await page.getByRole('link', { name: 'Revue', exact: true }).focus();
-  await page.keyboard.press('Tab');
+  expect(await page.evaluate(() => document.documentElement.scrollHeight > innerHeight)).toBe(true);
+  await page.getByRole('link', { name: 'Skip to content', exact: true }).focus();
+  await page.keyboard.press('Enter');
   await expect(content).toBeFocused();
-  const before = await content.evaluate(element => element.scrollTop);
+  const before = await page.evaluate(() => window.scrollY);
   await page.keyboard.press('PageDown');
-  await expect.poll(() => content.evaluate(element => element.scrollTop)).toBeGreaterThan(before);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(before);
   await page.setViewportSize({ width: 320, height: 800 });
   await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
   await page.getByRole('link', { name: 'Contact us', exact: true }).click();

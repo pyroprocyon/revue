@@ -7,7 +7,7 @@ import { accountTonalButton, primaryButton } from '../../shared/ui/buttonStyles'
 import { HomeLink, SignInLink } from '../../shared/ui/HeaderLinks';
 import { SampleCard } from '../../features/study/presentation/SampleCard';
 import { REVIEW_STEPS_INTRO, REVIEW_STEPS_TITLE, ReviewSteps } from '../../features/study/presentation/ReviewSteps';
-import { Screen } from '../../shared/ui/Screen';
+import { LandingLayout } from './LandingLayout';
 import { HOW_IT_WORKS_PATH, JOIN_PATH, SETS_PATH } from '../../shared/navigation/paths';
 
 // Compact phones use a two-line hero; narrower screens and enlarged text can scroll.
@@ -33,8 +33,7 @@ export function LandingPage() {
   }
 
   return (
-    <Screen
-      wide
+    <LandingLayout
       top={<>
         <HomeLink />
         <Link
@@ -46,7 +45,6 @@ export function LandingPage() {
         <AccountActions className="ml-auto hidden py-1 lg:flex" />
       </>}
       actions={<LandingActions />}
-      actionsOnPhonesOnly
     >
       <section className="flex flex-1 flex-col gap-4 max-lg:justify-center-safe sm:gap-8 lg:grid lg:flex-none lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-16 lg:pt-14">
         <HeroText />
@@ -66,14 +64,14 @@ export function LandingPage() {
         <p className="mt-3 max-w-2xl text-body text-muted lg:text-[1.1875rem]">{REVIEW_STEPS_INTRO}</p>
         <div className="mt-8"><ReviewSteps /></div>
       </section>
-    </Screen>
+    </LandingLayout>
   );
 }
 
 function HeroText() {
   return (
-    <div className="min-w-0">
-      <h1 className="text-hero font-extrabold tracking-[-0.03em] max-sm:text-[2.75rem] lg:text-hero-lg">
+    <div className="landing-hero min-w-0">
+      <h1 className="text-hero font-extrabold tracking-[-0.03em] max-sm:text-hero-compact lg:text-hero-lg">
         <span className="text-accent lg:block">Review</span>{' '}
         <span className="lg:block">before</span>{' '}
         <span className="block">
@@ -87,13 +85,15 @@ function HeroText() {
           due.
         </span>
       </h1>
-      <p className="mt-4 text-lead font-bold text-balance max-sm:text-xl/6 lg:mt-9 lg:text-lead-lg">
-        You do the thinking. Revue handles the timing.
-      </p>
-      <p className="mt-2 max-w-xl text-body tracking-[0.01em] text-muted max-sm:text-base/6 lg:mt-3 lg:text-[1.3125rem] lg:leading-[1.45]">
-        Got an answer in mind? Flip the card, see how close you got, and rate it.
-      </p>
-      <div className="mt-8 hidden lg:block">
+      <div className="landing-hero-copy mt-4 lg:mt-9">
+        <p className="text-lead font-bold text-balance max-sm:text-xl/6 lg:text-lead-lg">
+          You do the thinking. Revue handles the timing.
+        </p>
+        <p className="mt-2 max-w-xl text-body tracking-[0.01em] text-muted max-sm:text-base/6 lg:mt-3 lg:text-[1.3125rem] lg:leading-[1.45]">
+          Got an answer in mind? Flip the card, see how close you got, and rate it.
+        </p>
+      </div>
+      <div className="landing-browse-in-hero mt-8 hidden lg:block">
         <BrowseSetsButton />
       </div>
     </div>
@@ -103,8 +103,10 @@ function HeroText() {
 function LandingActions() {
   return (
     <div>
-      <BrowseSetsButton />
-      <AccountActions className="mt-3 flex" />
+      <div className="landing-browse-in-footer mb-3 flex">
+        <BrowseSetsButton />
+      </div>
+      <AccountActions className="flex" />
     </div>
   );
 }

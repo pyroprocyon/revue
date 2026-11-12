@@ -2,6 +2,7 @@ import { httpAccount } from '../features/account/infrastructure/httpAccount';
 import { AccountProvider } from '../features/account/presentation/AccountProvider';
 import { AccountForm } from '../features/account/presentation/AccountForm';
 import { AccountPage } from '../features/account/presentation/AccountPage';
+import { AccountLayout } from '../features/account/presentation/AccountLayout';
 import { JoinPage } from '../features/account/presentation/JoinPage';
 import { TermsPage } from '../features/account/presentation/TermsPage';
 import { PrivacyPage } from '../features/account/presentation/PrivacyPage';
@@ -17,7 +18,7 @@ import { SetsPage } from '../features/catalog/presentation/SetsPage';
 import { TrialPage } from '../features/study/presentation/TrialPage';
 import { HOME_PATH, HOW_IT_WORKS_PATH, SETS_PATH, SET_ROUTE, TRIAL_ROUTE, SIGN_IN_PATH, REGISTER_PATH, ACCOUNT_PATH, INVITE_PATH, SET_SHARE_ROUTE, JOIN_PATH } from '../shared/navigation/paths';
 
-/** Each page draws its own phone-height screen (shared/ui/Screen), so the routes are flat. */
+/** Public journeys choose their layout; private routes share the confirmed account boundary. */
 export function App() {
   return (
     <AccountProvider gateway={httpAccount}>
@@ -34,7 +35,9 @@ export function App() {
         <Route path={SIGN_IN_PATH} element={<AccountForm key="sign-in" />} />
         <Route path={JOIN_PATH} element={<JoinPage />} />
         <Route path={REGISTER_PATH} element={<AccountForm key="signup" register />} />
-        <Route path={ACCOUNT_PATH} element={<AccountPage />} />
+        <Route element={<AccountLayout />}>
+          <Route path={ACCOUNT_PATH} element={<AccountPage />} />
+        </Route>
         <Route path="/privacy" element={<PrivacyPage />} />
         <Route path="/terms" element={<TermsPage />} />
         <Route path="*" element={<NotFoundPage />} />
