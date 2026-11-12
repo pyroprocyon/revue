@@ -16,8 +16,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class AccountRequestFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        String path = request.getRequestURI();
-        return !path.startsWith("/api/v1/auth/") && !path.equals("/api/v1/me");
+        return !AccountRoutes.AUTH.matches(request) && !AccountRoutes.PROFILE.matches(request);
     }
 
     @Override

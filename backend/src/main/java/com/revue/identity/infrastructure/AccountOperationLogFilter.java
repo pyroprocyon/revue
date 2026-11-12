@@ -32,8 +32,7 @@ class AccountOperationLogFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        String path = path(request);
-        return !path.startsWith("/api/") && !path.startsWith("/actuator/");
+        return !AccountRoutes.API.matches(request) && !AccountRoutes.OPERATIONS.matches(request);
     }
 
     @Override
@@ -91,7 +90,7 @@ class AccountOperationLogFilter extends OncePerRequestFilter {
             .addKeyValue(EVENT_NAME, "auth.access_denied")
             .addKeyValue(EVENT_OUTCOME, "rejected")
             .addKeyValue(EVENT_REASON, reason(status))
-            .addKeyValue("endpoint.group", path(request).startsWith("/actuator/") ? "operations" : "api")
+            .addKeyValue("endpoint.group", AccountRoutes.OPERATIONS.matches(request) ? "operations" : "api")
             .addKeyValue("http.response.status_code", status)
             .log("Access denied");
     }
@@ -119,18 +118,15 @@ class AccountOperationLogFilter extends OncePerRequestFilter {
     }
 
     private static String commandEvent(HttpServletRequest request) {
-        if (!"POST".equals(request.getMethod())) {
-            return null;
+        if (AccountRoutes.REGISTER.matches(request)) {
+            return "auth.register";
         }
-        return switch (path(request)) {
-            case "/api/v1/auth/register" -> "auth.register";
-            case "/api/v1/auth/login" -> "auth.login";
-            case "/api/v1/auth/logout" -> LOGOUT_EVENT;
-            default -> null;
-        };
-    }
-
-    private static String path(HttpServletRequest request) {
-        return request.getRequestURI().substring(request.getContextPath().length());
+        if (AccountRoutes.LOGIN.matches(request)) {
+            return "auth.login";
+        }
+        if (AccountRoutes.LOGOUT.matches(request)) {
+            return LOGOUT_EVENT;
+        }
+        return null;
     }
 }

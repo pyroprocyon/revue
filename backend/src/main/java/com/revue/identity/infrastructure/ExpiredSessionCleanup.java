@@ -10,6 +10,7 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.session.jdbc.JdbcIndexedSessionRepository;
+import org.springframework.transaction.TransactionException;
 
 /**
  * Deletes expired session rows once at startup and then daily at noon, Manila time.
@@ -49,11 +50,12 @@ class ExpiredSessionCleanup {
         String operationId = UUID.randomUUID().toString();
         try {
             sessions.cleanUpExpiredSessions();
-        } catch (DataAccessException ex) {
+        } catch (DataAccessException | TransactionException ex) {
             LOG.atWarn()
                 .addKeyValue("event.name", "session.cleanup")
                 .addKeyValue("event.outcome", "failure")
                 .addKeyValue("event.reason", ex.getClass().getSimpleName())
+                .addKeyValue("error.cause_type", ex.getMostSpecificCause().getClass().getSimpleName())
                 .addKeyValue("operation.id", operationId)
                 .addKeyValue("job.trigger", trigger)
                 .log("Expired-session cleanup failed; the next scheduled run will retry");

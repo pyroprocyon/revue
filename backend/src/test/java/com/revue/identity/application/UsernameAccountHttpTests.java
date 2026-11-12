@@ -185,7 +185,7 @@ class UsernameAccountHttpTests {
     }
 
     @Test
-    void currentProfileUsesOneAuthoritativeAccountReadPerRequest() throws Exception {
+    void currentProfileUsesOneAuthoritativeAccountReadPerRequest(CapturedOutput output) throws Exception {
         Browser browser = new Browser();
         browser.csrf();
         String name = username();
@@ -201,11 +201,21 @@ class UsernameAccountHttpTests {
         assertThat(stale.getStatus()).isEqualTo(401);
         assertThat(stale.getContentAsString()).isEmpty();
         verify(accounts, times(2)).byId(id);
+        var invalidation = StructuredEvents.named(output, "auth.session_invalidated");
+        assertThat(invalidation).singleElement()
+            .satisfies(event -> assertThat(event.at("/state/to").asString()).isEqualTo("invalidated"));
+        assertThat(StructuredEvents.named(output, "auth.access_denied")).singleElement().satisfies(event -> {
+            assertThat(event.at("/event/outcome").asString()).isEqualTo("rejected");
+            assertThat(event.at("/http/response/status_code").asInt()).isEqualTo(401);
+            assertThat(event.at("/operation/id").asString())
+                .isEqualTo(invalidation.getFirst().at("/operation/id").asString());
+        });
     }
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
-    void operatorResetRestoresAccessAndInvalidatesTheOldPasswordAndSession(boolean quarantined) throws Exception {
+    void operatorResetRestoresAccessAndInvalidatesTheOldPasswordAndSession(boolean quarantined, CapturedOutput output)
+        throws Exception {
         String name = username();
         Browser learner = new Browser();
         learner.csrf();
@@ -227,6 +237,11 @@ class UsernameAccountHttpTests {
         assertThat(jdbc.queryForMap("select credential_version, credential_reset_required from users where id = ?", id))
             .containsEntry("credential_version", 1L)
             .containsEntry("credential_reset_required", false);
+        assertThat(StructuredEvents.named(output, "account.password_reset")).singleElement().satisfies(event -> {
+            assertThat(event.at("/entity/id").asString()).isEqualTo(id.toString());
+            assertThat(event.at("/state/from").asLong()).isZero();
+            assertThat(event.at("/state/to").asLong()).isEqualTo(1);
+        });
     }
 
     @ParameterizedTest
