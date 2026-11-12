@@ -10,11 +10,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.health.contributor.Health;
 import org.springframework.boot.health.contributor.HealthIndicator;
 import org.springframework.boot.health.registry.HealthContributorRegistry;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.test.context.support.WithMockUser;
@@ -24,6 +27,7 @@ import org.springframework.test.web.servlet.MockMvc;
  * The health check is what Docker Compose, the host and an uptime monitor call. It must work without signing in, reveal
  * nothing beyond UP or DOWN, and expose database readiness separately from process liveness.
  */
+@ExtendWith(OutputCaptureExtension.class)
 @SpringBootTest(properties = "revue.operations.token=test-only-operations-token-at-least-32-characters")
 @AutoConfigureMockMvc
 @Import(TestcontainersConfiguration.class)
@@ -36,7 +40,7 @@ class HealthEndpointTests {
     private HealthContributorRegistry healthContributors;
 
     @Test
-    void databaseFailureRemovesReadinessWithoutFailingLiveness() throws Exception {
+    void databaseFailureRemovesReadinessWithoutFailingLiveness(CapturedOutput output) throws Exception {
         var database = healthContributors.unregisterContributor("db");
         var databaseChecks = new AtomicInteger();
         healthContributors.registerContributor("db", (HealthIndicator) () -> {
@@ -51,11 +55,24 @@ class HealthEndpointTests {
             mvc.perform(get("/actuator/health/readiness"))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.status").value("DOWN"));
-            assertThat(databaseChecks).hasValue(1);
+            mvc.perform(get("/actuator/health/readiness")).andExpect(status().isServiceUnavailable());
+            assertThat(databaseChecks).hasValue(2);
+            assertThat(StructuredEvents.named(output, "service.availability_changed"))
+                .filteredOn(event -> "readiness_probe".equals(event.at("/entity/type").asString()))
+                .singleElement()
+                .satisfies(event -> assertThat(event.at("/state/to").asString()).isEqualTo("UNAVAILABLE"));
         } finally {
             healthContributors.unregisterContributor("db");
             healthContributors.registerContributor("db", database);
         }
+        mvc.perform(get("/actuator/health/readiness")).andExpect(status().isOk());
+        assertThat(StructuredEvents.named(output, "service.availability_changed"))
+            .filteredOn(event -> "readiness_probe".equals(event.at("/entity/type").asString()))
+            .last()
+            .satisfies(event -> {
+                assertThat(event.at("/state/from").asString()).isEqualTo("UNAVAILABLE");
+                assertThat(event.at("/state/to").asString()).isEqualTo("UP");
+            });
     }
 
     @Test

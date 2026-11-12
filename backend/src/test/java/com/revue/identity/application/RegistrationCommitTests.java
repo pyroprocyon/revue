@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.reset;
 
+import com.revue.StructuredEvents;
 import com.revue.TestcontainersConfiguration;
 import com.revue.identity.domain.PasswordHash;
 import com.revue.identity.domain.TokenHash;
@@ -17,12 +18,16 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
+@ExtendWith(OutputCaptureExtension.class)
 @SpringBootTest(properties = "revue.content.publish=false")
 @Import(TestcontainersConfiguration.class)
 class RegistrationCommitTests {
@@ -114,7 +119,7 @@ class RegistrationCommitTests {
     }
 
     @Test
-    void failureAfterAccountAndRedemptionWritesRollsBackBoth() {
+    void failureAfterAccountAndRedemptionWritesRollsBackBoth(CapturedOutput output) {
         TokenHash unused = invitation();
         String name = username();
         var prepared = usernamePrepared(name, unused);
@@ -135,7 +140,11 @@ class RegistrationCommitTests {
                 unused.value()))
             .containsEntry("redeemed_at", null)
             .containsEntry("redeemed_by_user_id", null);
+        assertThat(StructuredEvents.named(output, "account.created")).isEmpty();
+        assertThat(StructuredEvents.named(output, "invitation.redeemed")).isEmpty();
         assertThat(registration.registerUsername(prepared).accountId()).isNotNull();
+        assertThat(StructuredEvents.named(output, "account.created")).hasSize(1);
+        assertThat(StructuredEvents.named(output, "invitation.redeemed")).hasSize(1);
     }
 
     @Test

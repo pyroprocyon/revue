@@ -8,6 +8,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -21,6 +23,8 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 /** Adapts account sessions to Spring Security, JDBC sessions and CSRF cookies. */
 @Component
 public class HttpAccountSession implements AccountSession {
+    private static final Logger LOG = LoggerFactory.getLogger(HttpAccountSession.class);
+
     private final SecurityContextRepository repository;
     private final SessionAuthenticationStrategy strategy;
     private final CookieCsrfTokenRepository csrf;
@@ -66,6 +70,14 @@ public class HttpAccountSession implements AccountSession {
         var session = request.getSession(false);
         if (session != null) {
             session.invalidate();
+            LOG.atInfo()
+                .addKeyValue("event.name", "auth.session_invalidated")
+                .addKeyValue("event.outcome", "success")
+                .addKeyValue("event.reason", "account_no_longer_eligible")
+                .addKeyValue("entity.type", "session")
+                .addKeyValue("state.from", "authenticated")
+                .addKeyValue("state.to", "invalidated")
+                .log("Stale account session invalidated");
         }
         csrf.saveToken(null, request, response(attributes));
     }

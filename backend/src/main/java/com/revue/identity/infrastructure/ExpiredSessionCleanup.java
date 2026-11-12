@@ -1,5 +1,6 @@
 package com.revue.identity.infrastructure;
 
+import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -26,7 +27,7 @@ class ExpiredSessionCleanup {
 
     private static final String ZONE = "Asia/Manila";
 
-    private static final Logger log = LoggerFactory.getLogger(ExpiredSessionCleanup.class);
+    private static final Logger LOG = LoggerFactory.getLogger(ExpiredSessionCleanup.class);
 
     private final JdbcIndexedSessionRepository sessions;
 
@@ -36,16 +37,33 @@ class ExpiredSessionCleanup {
 
     @EventListener(ApplicationReadyEvent.class)
     void deleteAtStartup() {
-        // An exception here would stop the app from starting, and this cleanup can wait a day.
-        try {
-            sessions.cleanUpExpiredSessions();
-        } catch (DataAccessException ex) {
-            log.warn("Expired-session cleanup failed at startup; the daily run will retry", ex);
-        }
+        deleteExpiredSessions("startup");
     }
 
     @Scheduled(cron = DAILY_CRON, zone = ZONE)
     void deleteDaily() {
-        sessions.cleanUpExpiredSessions();
+        deleteExpiredSessions("scheduled");
+    }
+
+    private void deleteExpiredSessions(String trigger) {
+        String operationId = UUID.randomUUID().toString();
+        try {
+            sessions.cleanUpExpiredSessions();
+        } catch (DataAccessException ex) {
+            LOG.atWarn()
+                .addKeyValue("event.name", "session.cleanup")
+                .addKeyValue("event.outcome", "failure")
+                .addKeyValue("event.reason", ex.getClass().getSimpleName())
+                .addKeyValue("operation.id", operationId)
+                .addKeyValue("job.trigger", trigger)
+                .log("Expired-session cleanup failed; the next scheduled run will retry");
+            return;
+        }
+        LOG.atInfo()
+            .addKeyValue("event.name", "session.cleanup")
+            .addKeyValue("event.outcome", "success")
+            .addKeyValue("operation.id", operationId)
+            .addKeyValue("job.trigger", trigger)
+            .log("Expired-session cleanup finished");
     }
 }

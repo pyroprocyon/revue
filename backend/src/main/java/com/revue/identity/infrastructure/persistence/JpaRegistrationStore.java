@@ -1,5 +1,6 @@
 package com.revue.identity.infrastructure.persistence;
 
+import com.revue.AfterCommit;
 import com.revue.identity.application.RegistrationStore;
 import com.revue.identity.domain.Account;
 import com.revue.identity.domain.PasswordHash;
@@ -9,11 +10,15 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import java.time.Instant;
 import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Repository;
 
 /** Persists account registration and invitation redemption within JPA transactions. */
 @Repository
 public class JpaRegistrationStore implements RegistrationStore {
+    private static final Logger LOG = LoggerFactory.getLogger(JpaRegistrationStore.class);
+
     private final EntityManager entityManager;
 
     /** Creates the registration store using the current persistence context. */
@@ -41,7 +46,7 @@ public class JpaRegistrationStore implements RegistrationStore {
 
     @Override
     public boolean insertUsernameAccount(Account account, PasswordHash passwordHash) {
-        return entityManager.createNativeQuery("""
+        boolean inserted = entityManager.createNativeQuery("""
             insert into users (id, username, password_hash, created_at, credential_version,
             \tcredential_reset_required)
             values (:id, :username, :password, :created, :version, false)
@@ -53,6 +58,18 @@ public class JpaRegistrationStore implements RegistrationStore {
             .setParameter("created", account.createdAt())
             .setParameter("version", account.credentialVersion())
             .executeUpdate() == 1;
+        if (inserted) {
+            AfterCommit.log(
+                () -> LOG.atInfo()
+                    .addKeyValue("event.name", "account.created")
+                    .addKeyValue("event.outcome", "success")
+                    .addKeyValue("entity.type", "account")
+                    .addKeyValue("entity.id", account.id().toString())
+                    .addKeyValue("state.from", "absent")
+                    .addKeyValue("state.to", "active")
+                    .log("Account committed"));
+        }
+        return inserted;
     }
 
     @Override
@@ -61,5 +78,16 @@ public class JpaRegistrationStore implements RegistrationStore {
         SignupInviteRow row = entityManager.find(SignupInviteRow.class, invite.id());
         row.recordRedemption(invite);
         entityManager.flush();
+        if (!invite.reusable()) {
+            AfterCommit.log(
+                () -> LOG.atInfo()
+                    .addKeyValue("event.name", "invitation.redeemed")
+                    .addKeyValue("event.outcome", "success")
+                    .addKeyValue("entity.type", "invitation")
+                    .addKeyValue("entity.id", invite.id().toString())
+                    .addKeyValue("state.from", "available")
+                    .addKeyValue("state.to", "redeemed")
+                    .log("Single-use invitation redemption committed"));
+        }
     }
 }

@@ -3,6 +3,7 @@ package com.revue.content.application;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.revue.StructuredEvents;
 import com.revue.TestcontainersConfiguration;
 import com.revue.content.domain.CardDefinition;
 import com.revue.content.domain.InvalidContentException;
@@ -13,13 +14,17 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+@ExtendWith(OutputCaptureExtension.class)
 @SpringBootTest
 @Import(TestcontainersConfiguration.class)
 class CatalogPublisherTests {
@@ -39,7 +44,7 @@ class CatalogPublisherTests {
     }
 
     @Test
-    void retryIsNoOpAndOldOrReusedRevisionsCannotOverwriteContent() {
+    void retryIsNoOpAndOldOrReusedRevisionsCannotOverwriteContent(CapturedOutput output) {
         assertThat(publisher.publish(2, DIGEST, source("Published"))).isTrue();
         var updated = jdbc.queryForObject("SELECT updated_at FROM sets WHERE set_key = 'publisher-test'", Object.class);
         assertThat(publisher.publish(2, DIGEST, source("Published"))).isFalse();
@@ -51,6 +56,21 @@ class CatalogPublisherTests {
             .isInstanceOf(IllegalStateException.class);
         assertThat(jdbc.queryForObject("SELECT updated_at FROM sets WHERE set_key = 'publisher-test'", Object.class))
             .isEqualTo(updated);
+        assertThat(StructuredEvents.named(output, "catalog.published")).singleElement().satisfies(event -> {
+            assertThat(event.at("/state/from").asLong()).isZero();
+            assertThat(event.at("/state/to").asLong()).isEqualTo(2);
+        });
+    }
+
+    @Test
+    void outerRollbackSuppressesPublicationEvent(CapturedOutput output) {
+        new TransactionTemplate(transactions).executeWithoutResult(status -> {
+            assertThat(publisher.publish(1, DIGEST, source("Uncommitted"))).isTrue();
+            assertThat(StructuredEvents.named(output, "catalog.published")).isEmpty();
+            status.setRollbackOnly();
+        });
+        assertThat(StructuredEvents.named(output, "catalog.published")).isEmpty();
+        assertThat(jdbc.queryForObject("SELECT revision FROM catalog_publication", Long.class)).isZero();
     }
 
     @Test
