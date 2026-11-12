@@ -70,21 +70,28 @@ describe('signed-in layout', () => {
 
   it('preserves drafts through session checks and a failed check followed by retry', async () => {
     const { gateway } = setup(true);
-    const input = await screen.findByRole('textbox', { name: 'Draft' });
+    const input = await screen.findByRole<HTMLInputElement>('textbox', { name: 'Draft' });
     fireEvent.change(input, { target: { value: 'An unfinished question' } });
+    input.focus();
+    input.setSelectionRange(3, 8);
     const pending = deferredProfile();
     vi.mocked(gateway.current).mockReturnValueOnce(pending.promise);
     fireEvent.focus(window);
+    fireEvent(document, new Event('visibilitychange'));
+    expect(gateway.current).toHaveBeenCalledTimes(2);
     expect(input.closest('[inert]')).not.toBeNull();
+    input.blur(); // Chromium blurs focused descendants when their parent becomes inert.
     await act(async () => { pending.resolve({ username: 'first_student' }); });
     expect(screen.getByRole('textbox', { name: 'Draft' })).toBe(input);
-    expect((input as HTMLInputElement).value).toBe('An unfinished question');
+    expect(document.activeElement).toBe(input);
+    expect([input.selectionStart, input.selectionEnd]).toEqual([3, 8]);
+    expect(input.value).toBe('An unfinished question');
     vi.mocked(gateway.current).mockRejectedValueOnce(new Error('offline'));
     fireEvent.focus(window);
     await screen.findByRole('alert');
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
     await waitFor(() => expect(input.closest('[inert]')).toBeNull());
-    expect((input as HTMLInputElement).value).toBe('An unfinished question');
+    expect(input.value).toBe('An unfinished question');
   });
 
   it('clears prior account state and drafts when the confirmed account changes', async () => {
@@ -98,16 +105,23 @@ describe('signed-in layout', () => {
     expect(client.getQueryData(['private-library'])).toBeUndefined();
   });
 
-  it('redirects an expired session and ignores an older response that arrives afterward', async () => {
+  it('rechecks after the tab was hidden and ignores a response from before the return', async () => {
     const { gateway, client } = setup();
     await screen.findByRole('heading', { name: 'Your account' });
     client.setQueryData(['private-library'], ['private']);
-    const old = deferredProfile();
-    vi.mocked(gateway.current).mockReturnValueOnce(old.promise).mockResolvedValueOnce(null);
+    const previous = deferredProfile();
+    vi.mocked(gateway.current).mockReturnValueOnce(previous.promise).mockResolvedValueOnce(null);
     fireEvent.focus(window);
-    fireEvent.focus(window);
+    const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+    try {
+      fireEvent(document, new Event('visibilitychange'));
+      visibility.mockReturnValue('visible');
+      fireEvent(document, new Event('visibilitychange'));
+    } finally {
+      visibility.mockRestore();
+    }
     await screen.findByRole('heading', { name: 'Sign in again' });
-    await act(async () => { old.resolve({ username: 'first_student' }); });
+    await act(async () => { previous.resolve({ username: 'first_student' }); });
     expect(screen.queryByRole('heading', { name: 'Your account' })).toBeNull();
     expect(client.getQueryData(['private-library'])).toBeUndefined();
   });
