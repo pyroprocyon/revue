@@ -17,7 +17,7 @@ export function ReviewSteps() {
   return (
     <ol className="grid gap-6 @2xl:grid-cols-3 @2xl:gap-8">
       {REVIEW_STEPS.map(({ icon: Icon, title, text }) => (
-        <li key={title} className="flex min-w-0 gap-4">
+        <li key={title} className="flex min-w-0 flex-col gap-4 @min-[20rem]:flex-row">
           <span
             aria-hidden="true"
             className="grid size-12 shrink-0 place-items-center rounded-control bg-accent-soft text-accent"

@@ -1,32 +1,22 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { useState } from 'react';
+import { useNavigate, useOutletContext } from 'react-router';
 import type { AccountProfile } from '../application/account';
 import { useAccountGateway } from './AccountProvider';
-import { HomeLink } from '../../../shared/ui/HeaderLinks';
-import { Screen } from '../../../shared/ui/Screen';
-import { primaryButton, secondaryButton } from '../../../shared/ui/buttonStyles';
-import { SETS_PATH, SIGN_IN_PATH } from '../../../shared/navigation/paths';
+import { secondaryButton } from '../../../shared/ui/buttonStyles';
+import { SIGN_IN_PATH } from '../../../shared/navigation/paths';
 
 export function AccountPage() {
   const gateway = useAccountGateway();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [profile, setProfile] = useState<AccountProfile | null>(null);
+  const profile = useOutletContext<AccountProfile>();
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  useEffect(() => {
-    let active = true;
-    void gateway.current().then((current) => {
-      if (!active) return;
-      if (current === null) void navigate(SIGN_IN_PATH, { replace: true });
-      else setProfile(current);
-    }).catch(() => { if (active) setError('We could not load your account. Please refresh and try again.'); });
-    return () => { active = false; };
-  }, [gateway, navigate]);
-
   async function signOut() {
+    if (busy) return;
     setBusy(true);
+    setError('');
     try {
       await gateway.signOut();
       queryClient.clear();
@@ -35,14 +25,14 @@ export function AccountPage() {
     finally { setBusy(false); }
   }
 
-  return <Screen top={<HomeLink />} actions={<Link to={SETS_PATH} className={`${primaryButton} w-full`}>Browse sets</Link>}>
-    <section className="pt-6">
-      <h1 className="text-title font-extrabold tracking-tight">
-        {profile ? <>You’re signed in, <span className="mt-2 block wrap-anywhere text-section font-semibold">{profile.username}</span></> : 'Your account'}
-      </h1>
-      {profile && <><p className="mt-4 text-body text-muted">Saving sets and study progress is planned.</p>
-        <button type="button" className={`${secondaryButton} mt-6`} disabled={busy} onClick={() => void signOut()}>{busy ? 'Signing out…' : 'Sign out'}</button></>}
+  return <>
+    <h1 className="text-title font-extrabold tracking-tight">Your account</h1>
+    <section className="mt-6 max-w-lg rounded-card bg-surface p-compact-gutter shadow-card sm:p-6">
+      <h2 className="text-section font-bold">
+        You’re signed in, <span className="mt-2 block wrap-anywhere text-body font-semibold text-muted">{profile.username}</span>
+      </h2>
+      <button type="button" className={`${secondaryButton} mt-6 border border-line`} disabled={busy} onClick={() => void signOut()}>{busy ? 'Signing out…' : 'Sign out'}</button>
       {error && <p role="alert" className="mt-4 text-body">{error}</p>}
     </section>
-  </Screen>;
+  </>;
 }

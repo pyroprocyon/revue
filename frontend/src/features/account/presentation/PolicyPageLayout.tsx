@@ -4,7 +4,7 @@ import { SIGN_IN_PATH } from '../../../shared/navigation/paths';
 import { secondaryButton } from '../../../shared/ui/buttonStyles';
 import { HomeLink } from '../../../shared/ui/HeaderLinks';
 import { PolicyLinks } from '../../../shared/ui/PolicyLinks';
-import { Screen } from '../../../shared/ui/Screen';
+import { PageLayout } from '../../../shared/ui/PageLayout';
 
 type PolicyPageProps = {
   title: string;
@@ -14,7 +14,7 @@ type PolicyPageProps = {
 
 export function PolicyPageLayout({ title, updated, children }: Readonly<PolicyPageProps>) {
   return (
-    <Screen
+    <PageLayout
       top={<div className="mx-auto"><HomeLink /></div>}
       actions={<Link to={SIGN_IN_PATH} className={`${secondaryButton} w-full`}>Back to sign in</Link>}
     >
@@ -28,7 +28,7 @@ export function PolicyPageLayout({ title, updated, children }: Readonly<PolicyPa
         </article>
         <div className="flex justify-center"><PolicyLinks showSupport={false} /></div>
       </div>
-    </Screen>
+    </PageLayout>
   );
 }
 

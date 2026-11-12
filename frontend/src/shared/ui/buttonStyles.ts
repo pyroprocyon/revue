@@ -22,3 +22,5 @@ export const chip = 'inline-flex rounded-full bg-accent-soft px-3 py-1 text-labe
 // Underlined text links, with the same focus ring as the buttons.
 export const textLink =
   'rounded-sm text-accent underline decoration-2 underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent';
+
+export const textLinkTarget = 'inline-grid min-h-12 min-w-12 max-w-full place-items-center px-2 align-middle wrap-anywhere';

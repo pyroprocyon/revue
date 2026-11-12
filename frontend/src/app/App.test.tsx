@@ -33,7 +33,7 @@ describe('App', () => {
 
     expect(screen.getByRole('heading', { level: 1, name: 'Review before it’s due.' })).toBeDefined();
     expect(screen.getByText('You do the thinking. Revue handles the timing.')).toBeDefined();
-    // Phones pin the button at the bottom and desktops show it in the hero; CSS shows one of them.
+    // CSS shows the hero or footer link according to the rendered layout.
     const browseLinks = screen.getAllByRole('link', { name: 'Browse sets' });
     expect(browseLinks.map((link) => link.getAttribute('href'))).toEqual(['/sets', '/sets']);
     expect(screen.queryByText(/free/i)).toBeNull();

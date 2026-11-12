@@ -3,7 +3,6 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import type { TrialCard } from '../../catalog/application/publicContent';
 import { primaryButton } from '../../../shared/ui/buttonStyles';
 import { CardSource } from '../../../shared/ui/CardSource';
-import { RATINGS, RATINGS_IN_ORDER, RecallMeter, type Rating } from './ratings';
 
 // A two-sided card, like a paper flashcard: the question on the front, the answer on the back.
 // Checking the answer is deliberate; tapping the card surface never flips it. After reveal,
@@ -12,10 +11,10 @@ import { RATINGS, RATINGS_IN_ORDER, RecallMeter, type Rating } from './ratings';
 type FlashCardProps = {
   card: TrialCard;
   publisherName: string;
-  onRate: (rating: Rating) => void;
+  ratingControls: ReactNode;
 };
 
-export function FlashCard({ card, publisherName, onRate }: Readonly<FlashCardProps>) {
+export function FlashCard({ card, publisherName, ratingControls }: Readonly<FlashCardProps>) {
   const [answerShown, setAnswerShown] = useState(false);
   const [showingBack, setShowingBack] = useState(false);
   const recallHintId = useId();
@@ -92,7 +91,7 @@ export function FlashCard({ card, publisherName, onRate }: Readonly<FlashCardPro
               Back to question
             </button>
           }
-          footer={answerShown && <RatingButtons onRate={onRate} />}
+          footer={answerShown && ratingControls}
         >
           {answerShown && (
             <>
@@ -129,7 +128,7 @@ function CardSide({ label, hidden, back = false, headerAction, footer, children 
     <section
       inert={hidden}
       aria-hidden={hidden}
-      className={`col-start-1 row-start-1 flex min-w-0 flex-col wrap-anywhere rounded-card bg-surface p-4 text-center shadow-card backface-hidden sm:p-6 ${back ? 'rotate-y-180' : ''}`}
+      className={`col-start-1 row-start-1 flex min-w-0 flex-col wrap-anywhere rounded-card bg-surface px-compact-gutter py-4 text-center shadow-card backface-hidden sm:p-6 ${back ? 'rotate-y-180' : ''}`}
     >
       <div className="flex min-h-12 flex-wrap items-center justify-between gap-x-3">
         <p className={`text-left text-label font-semibold ${back ? 'text-accent' : 'text-muted'}`}>{label}</p>
@@ -138,34 +137,5 @@ function CardSide({ label, hidden, back = false, headerAction, footer, children 
       <div className="flex flex-1 flex-col justify-center py-6">{children}</div>
       {footer}
     </section>
-  );
-}
-
-function RatingButtons({ onRate }: Readonly<{ onRate: (rating: Rating) => void }>) {
-  return (
-    <fieldset className="@container min-w-0 text-left">
-      <legend className="text-label font-semibold">
-        Rate your answer
-      </legend>
-      {/* Two columns when two 8.75rem buttons and the gap fit inside the card. */}
-      <div className="mt-2 grid auto-rows-fr grid-cols-1 gap-2 @min-[18rem]:grid-cols-2">
-        {RATINGS_IN_ORDER.map((rating) => (
-          <button
-            key={rating}
-            type="button"
-            onClick={() => onRate(rating)}
-            // A direct name, so screen readers don't run the label into the meaning.
-            aria-label={`${RATINGS[rating].label}: ${RATINGS[rating].meaning}`}
-            className={`pressable flex min-h-14 flex-col items-start rounded-control p-3 text-left shadow-control ${RATINGS[rating].tint}`}
-          >
-            <span className="flex w-full items-center justify-between gap-2">
-              <span className="text-body font-bold">{RATINGS[rating].label}</span>
-              <RecallMeter rating={rating} />
-            </span>
-            <span className="text-[0.875rem] leading-tight text-muted">{RATINGS[rating].meaning}</span>
-          </button>
-        ))}
-      </div>
-    </fieldset>
   );
 }

@@ -1,7 +1,7 @@
 import { Link } from 'react-router';
 import { secondaryButton } from '../../shared/ui/buttonStyles';
 import { MessageScreen } from '../../shared/ui/MessageScreen';
-import { ActionRow } from '../../shared/ui/Screen';
+import { ActionRow } from '../../shared/ui/LayoutParts';
 import { HOME_PATH } from '../../shared/navigation/paths';
 
 export function NotFoundPage() {

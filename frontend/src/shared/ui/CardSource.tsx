@@ -1,4 +1,4 @@
-import { textLink } from './buttonStyles';
+import { textLink, textLinkTarget } from './buttonStyles';
 
 const WEB_ADDRESS = /https:\/\/\S+/;
 
@@ -16,7 +16,7 @@ export function CardSource({ source }: Readonly<{ source: string }>) {
       {address === undefined ? (
         name
       ) : (
-        <a href={address} target="_blank" rel="noreferrer" className={textLink}>
+        <a href={address} target="_blank" rel="noreferrer" className={`${textLink} ${textLinkTarget}`}>
           {name || address}
         </a>
       )}
