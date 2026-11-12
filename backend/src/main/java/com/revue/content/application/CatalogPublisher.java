@@ -32,7 +32,7 @@ public class CatalogPublisher {
             return false;
         }
         loader.load(source);
-        state.recordSuccess(revision, digest);
+        state.recordSuccess(current.revision(), revision, digest);
         return true;
     }
 }

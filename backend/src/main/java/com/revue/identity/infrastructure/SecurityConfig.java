@@ -88,6 +88,11 @@ public class SecurityConfig {
                     .invalidateHttpSession(true)
                     .clearAuthentication(true)
                     .deleteCookies("SESSION")
+                    .addLogoutHandler((request, response, authentication) -> {
+                        if (authentication != null && request.getSession(false) != null) {
+                            request.setAttribute(AccountOperationLogFilter.AUTHENTICATED_LOGOUT, true);
+                        }
+                    })
                     .logoutSuccessHandler((request, response, authentication) -> response.setStatus(204)))
             .addFilterBefore(new CurrentAccountFilter(accounts, publicRoutes), AuthorizationFilter.class);
         return http.build();

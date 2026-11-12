@@ -3,6 +3,10 @@ package com.revue.identity.infrastructure;
 import com.revue.identity.application.OperatorPasswordReset;
 import java.io.Console;
 import java.util.Arrays;
+import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -12,6 +16,8 @@ import org.springframework.stereotype.Component;
 @Component
 @ConditionalOnProperty(name = "revue.account.reset-password", havingValue = "true")
 class OperatorPasswordResetCommand implements ApplicationRunner {
+    private static final Logger LOG = LoggerFactory.getLogger(OperatorPasswordResetCommand.class);
+
     private final OperatorPasswordReset passwordReset;
 
     OperatorPasswordResetCommand(OperatorPasswordReset passwordReset) {
@@ -20,6 +26,21 @@ class OperatorPasswordResetCommand implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments arguments) {
+        try (var _ = MDC.putCloseable("operation.id", UUID.randomUUID().toString())) {
+            try {
+                resetFromConsole();
+            } catch (RuntimeException ex) {
+                LOG.atError()
+                    .addKeyValue("event.name", "account.password_reset")
+                    .addKeyValue("event.outcome", "failure")
+                    .addKeyValue("event.reason", ex.getClass().getSimpleName())
+                    .log("Operator password reset did not finish successfully");
+                throw ex;
+            }
+        }
+    }
+
+    private void resetFromConsole() {
         Console console = System.console();
         if (console == null) {
             throw new IllegalStateException("Password recovery requires an interactive terminal");

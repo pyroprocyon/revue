@@ -6,7 +6,7 @@ public interface PublicationState {
     Current lock();
 
     /** Records a successful publication in the same transaction as its content. */
-    void recordSuccess(long revision, String digest);
+    void recordSuccess(long previousRevision, long revision, String digest);
 
     /** The last committed source revision and its content fingerprint. */
     record Current(long revision, String digest) {

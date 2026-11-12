@@ -12,6 +12,7 @@ import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
+import com.revue.StructuredEvents;
 import com.revue.TestcontainersConfiguration;
 import com.zaxxer.hikari.HikariDataSource;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -26,10 +27,14 @@ import java.util.HexFormat;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.postgresql.util.PSQLException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -38,6 +43,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
+@ExtendWith(OutputCaptureExtension.class)
 @SpringBootTest(properties = "revue.content.publish=false")
 @AutoConfigureMockMvc
 @Import(TestcontainersConfiguration.class)
@@ -62,6 +68,65 @@ class UsernameAccountHttpTests {
     MeterRegistry metrics;
     @Autowired
     OperatorPasswordReset passwordReset;
+
+    @Test
+    void accountEventsCorrelateWithoutLeakingCredentialsOrAcceptingCallerIds(CapturedOutput output) throws Exception {
+        Browser browser = new Browser();
+        browser.csrf();
+        String name = username();
+        String password = "secret-password-sentinel";
+        String invite = invitation();
+        String forgedId = "caller-supplied-request-id";
+        var registered = browser.send(signup(name, password, invite).header("X-Request-Id", forgedId));
+        assertThat(registered.getResponse().getStatus()).isEqualTo(200);
+        final String sessionCookie = registered.getResponse().getCookie("SESSION").getValue();
+
+        var created = StructuredEvents.named(output, "account.created").getFirst();
+        var redeemed = StructuredEvents.named(output, "invitation.redeemed").getFirst();
+        var signedIn = StructuredEvents.named(output, "auth.register").getFirst();
+        String operationId = signedIn.at("/operation/id").asString();
+        assertThat(UUID.fromString(operationId)).isNotNull();
+        assertThat(created.at("/operation/id").asString()).isEqualTo(operationId);
+        assertThat(redeemed.at("/operation/id").asString()).isEqualTo(operationId);
+        assertThat(signedIn.at("/state/to").asString()).isEqualTo("authenticated");
+
+        browser.csrf();
+        assertThat(browser.send(post("/api/v1/auth/logout")).getResponse().getStatus()).isEqualTo(204);
+        browser.csrf();
+        assertThat(browser.send(post("/api/v1/auth/logout")).getResponse().getStatus()).isEqualTo(204);
+        assertThat(StructuredEvents.named(output, "auth.logout"))
+            .extracting(event -> event.at("/event/outcome").asString())
+            .containsExactly("success", "no_change");
+
+        browser.csrf();
+        assertThat(browser.send(login(name, "invalid-password-sentinel\r\n")).getResponse().getStatus()).isEqualTo(401);
+        assertThat(StructuredEvents.named(output, "auth.login")).singleElement().satisfies(event -> {
+            assertThat(event.at("/event/outcome").asString()).isEqualTo("rejected");
+            assertThat(event.at("/operation/id").asString()).isNotBlank().isNotEqualTo(operationId);
+        });
+        assertThat(output.getOut())
+            .doesNotContain(name, password, invite, sessionCookie, forgedId, "invalid-password-sentinel");
+    }
+
+    @Test
+    void sessionStoreFailureLeavesAccountCommitVisibleWithoutSessionSuccess(CapturedOutput output) throws Exception {
+        Browser browser = new Browser();
+        browser.csrf();
+        String name = username();
+        String invite = invitation();
+        jdbc.execute("ALTER TABLE spring_session ADD CONSTRAINT reject_session_save CHECK (false) NOT VALID");
+        try {
+            assertThatThrownBy(() -> browser.send(signup(name, "kanjii", invite)))
+                .hasRootCauseInstanceOf(PSQLException.class);
+        } finally {
+            jdbc.execute("ALTER TABLE spring_session DROP CONSTRAINT reject_session_save");
+        }
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM users WHERE username = ?", Integer.class, name))
+            .isEqualTo(1);
+        assertThat(StructuredEvents.named(output, "account.created")).hasSize(1);
+        assertThat(StructuredEvents.named(output, "auth.register")).singleElement()
+            .satisfies(event -> assertThat(event.at("/event/outcome").asString()).isEqualTo("failure"));
+    }
 
     @ParameterizedTest
     @ValueSource(ints = {6, 16})
