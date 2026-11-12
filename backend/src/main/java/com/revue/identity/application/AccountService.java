@@ -84,15 +84,11 @@ public class AccountService {
     /** Returns the current eligible account or rejects an invalid session. */
     public Profile current() {
         var identity = session.current().orElseThrow(LoginCommit::rejected);
-        var stored = accounts.byId(identity.accountId());
-        if (stored.isEmpty()
-            || stored.get().account().credentialVersion() != identity.credentialVersion()
-            || stored.get().account().accessAt(clock.instant()) != Account.Access.ACTIVE) {
-            session.clear();
-            throw LoginCommit.rejected();
-        }
-        Account account = stored.get().account();
-        if (account.username() == null) {
+        Account account = accounts.byId(identity.accountId()).map(AccountQueries.Credentials::account).orElse(null);
+        if (account == null
+            || account.credentialVersion() != identity.credentialVersion()
+            || account.accessAt(clock.instant()) != Account.Access.ACTIVE
+            || account.username() == null) {
             session.clear();
             throw LoginCommit.rejected();
         }

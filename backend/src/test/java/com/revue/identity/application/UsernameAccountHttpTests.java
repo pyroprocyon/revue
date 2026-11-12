@@ -1,6 +1,7 @@
 package com.revue.identity.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.clearInvocations;
@@ -59,6 +60,8 @@ class UsernameAccountHttpTests {
     HikariDataSource pool;
     @Autowired
     MeterRegistry metrics;
+    @Autowired
+    OperatorPasswordReset passwordReset;
 
     @ParameterizedTest
     @ValueSource(ints = {6, 16})
@@ -133,6 +136,53 @@ class UsernameAccountHttpTests {
         assertThat(stale.getStatus()).isEqualTo(401);
         assertThat(stale.getContentAsString()).isEmpty();
         verify(accounts, times(2)).byId(id);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void operatorResetRestoresAccessAndInvalidatesTheOldPasswordAndSession(boolean quarantined) throws Exception {
+        String name = username();
+        Browser learner = new Browser();
+        learner.csrf();
+        assertThat(learner.send(signup(name, "kanjii", invitation())).getResponse().getStatus()).isEqualTo(200);
+        var id = jdbc.queryForObject("select id from users where username = ?", UUID.class, name);
+        if (quarantined) {
+            jdbc.update("update users set credential_reset_required = true where id = ?", id);
+        }
+
+        assertThatThrownBy(() -> passwordReset.reset(name, "kanjii")).isInstanceOf(IllegalArgumentException.class);
+        passwordReset.reset(name, "sampaguita");
+
+        assertThat(learner.send(get("/api/v1/me")).getResponse().getStatus()).isEqualTo(401);
+        assertThat(learner.cookies).doesNotContainKey("SESSION");
+        learner.csrf();
+        assertThat(learner.send(login(name, "kanjii")).getResponse().getStatus()).isEqualTo(401);
+        assertThat(learner.send(login(name, "sampaguita")).getResponse().getStatus()).isEqualTo(200);
+        assertThat(learner.send(get("/api/v1/me")).getResponse().getContentAsString()).contains(name);
+        assertThat(jdbc.queryForMap("select credential_version, credential_reset_required from users where id = ?", id))
+            .containsEntry("credential_version", 1L)
+            .containsEntry("credential_reset_required", false);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void operatorResetCannotChangeSuspendedAccountsOrAccountsPendingDeletion(boolean deletionPending) throws Exception {
+        String name = username();
+        Browser learner = new Browser();
+        learner.csrf();
+        assertThat(learner.send(signup(name, "kanjii", invitation())).getResponse().getStatus()).isEqualTo(200);
+        if (deletionPending) {
+            jdbc.update(
+                "update users set deletion_request_id = gen_random_uuid(), deletion_requested_at = now(), "
+                    + "purge_after = now() + interval '7 days' where username = ?",
+                name);
+        } else {
+            jdbc.update("update users set suspended_at = now() where username = ?", name);
+        }
+
+        assertThatThrownBy(() -> passwordReset.reset(name, "sampaguita")).isInstanceOf(IllegalStateException.class);
+        assertThat(jdbc.queryForObject("select credential_version from users where username = ?", Long.class, name))
+            .isZero();
     }
 
     @Test

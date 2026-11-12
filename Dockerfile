@@ -42,10 +42,10 @@ RUN --mount=type=cache,target=/root/.m2 \
  && java -Djarmode=tools -jar /build/app.jar extract --destination /build/extracted
 
 # ---- Runtime stage: only the Java runtime and the app.
-FROM eclipse-temurin:25.0.5_8-jre-noble
+FROM eclipse-temurin:25.0.5_8-jre-alpine
 
 # Run as a dedicated user with no login shell, not as root.
-RUN useradd --system --no-create-home --shell /usr/sbin/nologin revue
+RUN adduser -S -H -s /sbin/nologin revue
 
 # Production settings, from application-prod.properties. Docker Compose sets another profile
 # for local development, which runs over plain HTTP.
@@ -66,12 +66,12 @@ COPY --from=build /build/extracted/ ./
 # The cache only works with this same JVM, classpath and jar timestamps, so it's made here, in the
 # runtime image, with the same JVM options as the start command. If a start can't use the cache,
 # Java warns and starts without it.
-# -XX:MaxRAM=512m sizes the training JVM like the free instance, whatever the build machine has.
+# -XX:MaxRAM=512m sizes the training JVM like the 512 MB instance, whatever the build machine has.
 # The heap decides how Java stores object references: above 32 GB, compressed references are off.
 # Without this flag, a build machine with 58 GB or more makes a cache the 512 MB instance rejects,
 # as Render's first deploy with the cache showed.
 # The last command checks that a 512 MB start can use the cache, and fails the build if not.
-RUN java -XX:AOTCacheOutput=app.aot -XX:MaxRAM=512m -Xms64m -XX:MaxRAMPercentage=55 -XX:+UseSerialGC \
+RUN java -XX:AOTCacheOutput=app.aot -XX:MaxRAM=512m -Xms64m -XX:MaxRAMPercentage=45 -XX:+UseSerialGC \
       -Dspring.context.exit=onRefresh \
       -Dspring.datasource.url=jdbc:postgresql://127.0.0.1:1/aot-training \
       -Dspring.datasource.hikari.initialization-fail-timeout=-1 \
@@ -84,18 +84,18 @@ RUN java -XX:AOTCacheOutput=app.aot -XX:MaxRAM=512m -Xms64m -XX:MaxRAMPercentage
       -Dlogging.level.org.springframework.jdbc.support.SQLErrorCodesFactory=ERROR \
       -Dlogging.level.org.hibernate.orm.deprecation=ERROR \
       -jar app.jar \
- && java -XX:AOTCache=app.aot -XX:AOTMode=on -XX:MaxRAM=512m -Xms64m -XX:MaxRAMPercentage=55 -XX:+UseSerialGC \
+ && java -XX:AOTCache=app.aot -XX:AOTMode=on -XX:MaxRAM=512m -Xms64m -XX:MaxRAMPercentage=45 -XX:+UseSerialGC \
       -cp app.jar -version
 
 USER revue
 # 8080 by default. The production profile listens on PORT instead when the host sets it.
 EXPOSE 8080
-# The free host has 512 MB of memory and 0.1 CPU. Cap the heap at 55% of the container's memory,
-# leaving room for class metadata and thread stacks. The Serial collector needs the least memory
-# and suits a single slow CPU. Starting values; measure memory and adjust.
+# Render Starter has 512 MB of memory and 0.5 CPU. Cap the heap at 45% of the container's memory,
+# leaving room for the AOT cache, class metadata, thread stacks and other native allocations.
+# The Serial collector suits this CPU budget. Measure memory under load before raising the cap.
 # -Xms64m starts the heap at 64 MB instead of about 8 MB (1/64 of 512 MB). The Serial collector
 # copies the AOT cache's stored heap objects into the heap at startup, and they no longer fit in
 # 8 MB once the app loads its JPA repositories: the check above then fails with "archived heap
 # objects cannot be loaded". On 2026-11-07 the cache needed 12 MB, so 64 MB leaves room to grow,
 # and Spring's startup grows the heap past 64 MB anyway.
-ENTRYPOINT ["java", "-XX:AOTCache=app.aot", "-Xms64m", "-XX:MaxRAMPercentage=55", "-XX:+UseSerialGC", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-XX:AOTCache=app.aot", "-Xms64m", "-XX:MaxRAMPercentage=45", "-XX:+UseSerialGC", "-jar", "app.jar"]
