@@ -24,3 +24,6 @@ export const SIGN_IN_PATH = '/sign-in';
 export const REGISTER_PATH = '/register';
 export const JOIN_PATH = '/join';
 export const ACCOUNT_PATH = '/account';
+export const HELP_PATH = '/help';
+
+export const LIBRARY_PATH = '/library';

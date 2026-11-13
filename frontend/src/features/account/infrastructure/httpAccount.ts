@@ -35,11 +35,22 @@ async function post(path: string, values?: Record<string, string>): Promise<Resp
 }
 
 export const httpAccount: AccountGateway = {
+  async signedIn() {
+    const response = await fetch('/api/v1/auth/session', {
+      credentials: 'same-origin', cache: 'no-store', signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) throw new Error('We could not check your session. Please try again.');
+    const status = await response.json() as { signedIn?: unknown } | null;
+    if (typeof status?.signedIn !== 'boolean') throw new Error('We could not check your session. Please try again.');
+    return status.signedIn;
+  },
   async current() {
-    const response = await fetch('/api/v1/me', { credentials: 'same-origin', cache: 'no-store' });
+    const response = await fetch('/api/v1/me', { credentials: 'same-origin', cache: 'no-store', signal: AbortSignal.timeout(10_000) });
     if (response.status === 401) return null;
     if (!response.ok) throw new Error('We could not load your account. Please try again.');
-    return response.json() as Promise<AccountProfile>;
+    const profile = await response.json() as Partial<AccountProfile> | null;
+    if (typeof profile?.username !== 'string') throw new Error('We could not load your account. Please try again.');
+    return { username: profile.username };
   },
   async register(input: Signup) {
     const response = await post('/api/v1/auth/register', {

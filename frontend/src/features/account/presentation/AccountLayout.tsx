@@ -1,19 +1,27 @@
 import { useQueryClient } from '@tanstack/react-query';
+import { House, LibraryBig } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { Navigate, Outlet } from 'react-router';
+import { Link, Navigate, NavLink, Outlet, useLocation } from 'react-router';
+import { safeAccountReturnPath } from '../application/account';
 import type { AccountProfile } from '../application/account';
 import { useAccountGateway } from './AccountProvider';
-import { SIGN_IN_PATH } from '../../../shared/navigation/paths';
+import { ACCOUNT_PATH, HELP_PATH, LIBRARY_PATH, SIGN_IN_PATH } from '../../../shared/navigation/paths';
 import { HomeLink } from '../../../shared/ui/HeaderLinks';
-import { primaryButton } from '../../../shared/ui/buttonStyles';
+import { accountLink, primaryButton } from '../../../shared/ui/buttonStyles';
 import { WorkspaceLayout } from '../../../shared/ui/WorkspaceLayout';
 
 type Session =
   | { status: 'loading' | 'signed-out' }
   | { status: 'ready'; profile: AccountProfile };
 
+function workspaceLink({ isActive }: Readonly<{ isActive: boolean }>) {
+  const base = 'pressable inline-flex min-h-12 items-center justify-center gap-2 rounded-control px-4 py-2 text-label font-semibold';
+  return `${base} ${isActive ? 'bg-accent-soft text-accent-strong' : 'text-muted'}`;
+}
+
 /** Private routes mount only after the session is confirmed, including after returning to the tab. */
 export function AccountLayout() {
+  const location = useLocation();
   const gateway = useAccountGateway();
   const queryClient = useQueryClient();
   const [session, setSession] = useState<Session>({ status: 'loading' });
@@ -82,11 +90,17 @@ export function AccountLayout() {
     }
   }, [checking, verificationError]);
 
-  if (session.status === 'signed-out') return <Navigate to={SIGN_IN_PATH} replace />;
+  if (session.status === 'signed-out') {
+    const returnPath = safeAccountReturnPath(location.pathname);
+    return <Navigate to={returnPath ? `${SIGN_IN_PATH}?${new URLSearchParams({ returnTo: returnPath })}` : SIGN_IN_PATH} replace />;
+  }
 
   const ErrorHeading = session.status === 'ready' ? 'h2' : 'h1';
   return (
-    <WorkspaceLayout brand={<HomeLink />}>
+    <WorkspaceLayout brand={<>
+      <HomeLink to={ACCOUNT_PATH} />
+      <Link to={HELP_PATH} className={`${accountLink} ml-auto`}>Help</Link>
+    </>}>
       {checking && (session.status === 'ready'
         ? <output className="absolute top-0 text-support text-muted">Checking session…</output>
         : <output className="mb-4 block text-muted">Loading your account…</output>)}
@@ -97,6 +111,10 @@ export function AccountLayout() {
       </section>}
       {/* Preserve same-account drafts during verification; a different account starts fresh. */}
       {session.status === 'ready' && <div ref={privateContent} inert={checking || verificationError}>
+        <nav aria-label="Your workspace" className="mb-8 flex flex-wrap gap-2 border-b border-line pb-4">
+          <NavLink to={ACCOUNT_PATH} className={workspaceLink}><House aria-hidden="true" className="size-5 shrink-0" />Account</NavLink>
+          <NavLink to={LIBRARY_PATH} className={workspaceLink}><LibraryBig aria-hidden="true" className="size-5 shrink-0" />Library</NavLink>
+        </nav>
         <Outlet key={session.profile.username} context={session.profile} />
       </div>}
     </WorkspaceLayout>

@@ -94,10 +94,11 @@ describe('Set preview', () => {
   });
 
   it('offers a retry after a failed load, and the retry shows the set', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(jsonResponse(500))
-      .mockResolvedValue(jsonResponse(200, historySet));
+    let setAttempts = 0;
+    const fetchMock = vi.fn(async (path: string) => {
+      if (path === SET_API && ++setAttempts === 1) return jsonResponse(500);
+      return path === SET_API ? jsonResponse(200, historySet) : jsonResponse(401);
+    });
     vi.stubGlobal('fetch', fetchMock);
 
     renderApp(SET_PAGE);

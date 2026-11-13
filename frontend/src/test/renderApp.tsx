@@ -21,9 +21,9 @@ export function renderApp(paths: string | string[]) {
   return { ...view, queryClient };
 }
 
-/** Replaces fetch so every request gets this status and JSON body. Returns the mock to inspect calls. */
+/** Stubs a signed-out session and supplies the given response for other requests. */
 export function stubFetch(status: number, body?: unknown) {
-  const fetchMock = vi.fn(async () => jsonResponse(status, body));
+  const fetchMock = vi.fn(async (path: string) => path === '/api/v1/auth/session' ? jsonResponse(200, { signedIn: false }) : jsonResponse(status, body));
   vi.stubGlobal('fetch', fetchMock);
   return fetchMock;
 }

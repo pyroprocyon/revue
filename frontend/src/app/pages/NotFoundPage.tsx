@@ -2,13 +2,15 @@ import { Link } from 'react-router';
 import { secondaryButton } from '../../shared/ui/buttonStyles';
 import { MessageScreen } from '../../shared/ui/MessageScreen';
 import { ActionRow } from '../../shared/ui/LayoutParts';
-import { HOME_PATH } from '../../shared/navigation/paths';
+import { usePublicSession } from '../../shared/navigation/publicSession';
+import { ACCOUNT_PATH, HOME_PATH } from '../../shared/navigation/paths';
 
 export function NotFoundPage() {
+  const signedIn = usePublicSession() === 'signed-in';
   const homeButton = (
     <ActionRow>
-      <Link to={HOME_PATH} className={secondaryButton}>
-        Go to the home page
+      <Link to={signedIn ? ACCOUNT_PATH : HOME_PATH} className={secondaryButton}>
+        {signedIn ? 'Go to Account' : 'Go to the home page'}
       </Link>
     </ActionRow>
   );

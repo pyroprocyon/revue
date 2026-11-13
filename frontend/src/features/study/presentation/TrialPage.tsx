@@ -11,6 +11,7 @@ import { LoadFailed } from '../../../shared/ui/LoadFailed';
 import { LoadingScreen, MessageScreen } from '../../../shared/ui/MessageScreen';
 import { ActionRow } from '../../../shared/ui/LayoutParts';
 import { StudyLayout } from '../../../shared/ui/StudyLayout';
+import { usePublicSession } from '../../../shared/navigation/publicSession';
 import { SETS_PATH, setPath } from '../../../shared/navigation/paths';
 import { FlashCard } from './FlashCard';
 import { RatingButtons } from './RatingButtons';
@@ -97,6 +98,7 @@ type TrialFinishedProps = {
 
 /** The end of the trial: each card with its rating and when an account would show it again. */
 function TrialFinished({ setKey, cards, ratings }: Readonly<TrialFinishedProps>) {
+  const signedIn = usePublicSession() === 'signed-in';
   const groups = trialSummary(cards, ratings);
   const finishedIcon = (
     <span className="mb-3 grid size-10 place-items-center rounded-full bg-accent-soft text-accent-strong">
@@ -107,7 +109,7 @@ function TrialFinished({ setKey, cards, ratings }: Readonly<TrialFinishedProps>)
     <MessageScreen
       title={`You practiced ${cards.length} cards.`}
       icon={finishedIcon}
-      action={<SetLinks setKey={setKey} primary="another-set" />}
+      action={<SetLinks setKey={setKey} primary={signedIn ? 'back-to-set' : 'another-set'} />}
     >
       <p>Example schedule, soonest first.</p>
       <div className="space-y-6">

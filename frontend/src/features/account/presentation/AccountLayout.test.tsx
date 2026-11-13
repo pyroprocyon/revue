@@ -10,6 +10,7 @@ import { AccountPage } from './AccountPage';
 
 function setup(draft = false, current = vi.fn().mockResolvedValue({ username: 'first_student' })) {
   const gateway: AccountGateway = {
+    signedIn: vi.fn().mockResolvedValue(false),
     current,
     register: vi.fn(), signIn: vi.fn(), signOut: vi.fn().mockResolvedValue(undefined),
   };

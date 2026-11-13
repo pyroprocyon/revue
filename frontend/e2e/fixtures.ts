@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
-type PilotApp = { origin: string; invitation: (reusable?: boolean) => string };
+type PilotApp = { origin: string; invitation: (reusable?: boolean) => string; addSaveableSet: () => void };
 
 export const test = base.extend<object, { pilot: PilotApp }>({
   pilot: [async ({ browserName }, provide, worker) => {
@@ -41,6 +41,17 @@ export const test = base.extend<object, { pilot: PilotApp }>({
 
       await provide({
         origin,
+        addSaveableSet() {
+          compose(['exec', '-T', 'db', 'psql', '-U', 'e2e', '-d', 'e2e', '-v', 'ON_ERROR_STOP=1'], `
+            insert into sets(set_key,title,description,publisher_name,subject,save_allowed,created_at,updated_at)
+            values ('published-test-set','Published test set','A test publication.','Revue','History',true,now(),now())
+            on conflict (set_key) do nothing;
+            insert into cards(set_id,content_key,position,question,answer,explanation,source,key_ideas,created_at,updated_at)
+            select id,'published-test-card',0,'Test question','Test answer','','',array['Test answer'],now(),now()
+            from sets where set_key = 'published-test-set'
+            on conflict (content_key) do nothing;
+          `);
+        },
         invitation(reusable = false) {
           const token = randomBytes(reusable ? 6 : 32).toString('base64url');
           const digest = createHash('sha256').update(token).digest('hex');

@@ -13,6 +13,7 @@ export function publicContentQueries(reader: PublicContentReader) {
     publicSetsPageQuery: (after?: string) => queryOptions({
       queryKey: after ? [...publicContentKeys.sets, 'page', after] : publicContentKeys.sets,
       queryFn: () => reader.list(after),
+      retry: false,
     }),
     publicSetQuery: (key: string, kind: 'key' | 'share' = 'key') => queryOptions({
       queryKey: publicContentKeys.set(kind === 'share' ? `share:${key}` : key),

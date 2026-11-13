@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
-import { Link } from 'react-router';
-import { SIGN_IN_PATH } from '../../../shared/navigation/paths';
+import { Link, useLocation, useNavigate } from 'react-router';
+import { ACCOUNT_PATH, SIGN_IN_PATH } from '../../../shared/navigation/paths';
+import { usePublicSession } from '../../../shared/navigation/publicSession';
 import { secondaryButton } from '../../../shared/ui/buttonStyles';
 import { HomeLink } from '../../../shared/ui/HeaderLinks';
 import { PolicyLinks } from '../../../shared/ui/PolicyLinks';
@@ -13,10 +14,21 @@ type PolicyPageProps = {
 };
 
 export function PolicyPageLayout({ title, updated, children }: Readonly<PolicyPageProps>) {
+  const session = usePublicSession();
+  const fromHelp = useLocation().state?.fromHelp === true;
+  const navigate = useNavigate();
+  const signedIn = session === 'signed-in';
+  const back = session !== 'checking' && (
+    <Link to={signedIn ? ACCOUNT_PATH : SIGN_IN_PATH} className={`${secondaryButton} w-full`}>
+      {signedIn ? 'Back to Account' : 'Back to sign in'}
+    </Link>
+  );
   return (
     <PageLayout
       top={<div className="mx-auto"><HomeLink /></div>}
-      actions={<Link to={SIGN_IN_PATH} className={`${secondaryButton} w-full`}>Back to sign in</Link>}
+      actions={fromHelp ? (
+        <button type="button" className={`${secondaryButton} w-full`} onClick={() => void navigate(-1)}>Back to Help</button>
+      ) : back}
       pinActionsOnPhone
     >
       <div className="py-6 sm:py-10 lg:py-14">
