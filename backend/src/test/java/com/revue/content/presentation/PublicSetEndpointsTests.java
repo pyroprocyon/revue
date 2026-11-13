@@ -123,7 +123,8 @@ class PublicSetEndpointsTests {
             .andExpect(jsonPath("$[*].setKey").value(contains("short", "history", "weather")))
             .andExpect(jsonPath("$[*].cardCount").value(contains(2, 6, 5)))
             .andExpect(jsonPath("$[*].trialAvailable").value(contains(false, true, true)))
-            .andExpect(jsonPath("$[0].*", hasSize(7)))
+            .andExpect(jsonPath("$[*].saveAllowed").value(contains(false, false, false)))
+            .andExpect(jsonPath("$[0].*", hasSize(8)))
             .andExpect(jsonPath("$[1].title").value("History"))
             .andExpect(jsonPath("$[1].description").value("A set for tests."))
             .andExpect(jsonPath("$[1].publisherName").value("Revue"));
@@ -161,10 +162,11 @@ class PublicSetEndpointsTests {
         mvc.perform(get(PUBLIC_SETS + "/history"))
             .andExpect(status().isOk())
             .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"))
-            .andExpect(jsonPath("$.*", hasSize(7)))
+            .andExpect(jsonPath("$.*", hasSize(8)))
             .andExpect(jsonPath("$.setKey").value("history"))
             .andExpect(jsonPath("$.title").value("History"))
             .andExpect(jsonPath("$.cardCount").value(6))
+            .andExpect(jsonPath("$.saveAllowed").value(false))
             .andExpect(jsonPath("$.trialAvailable").value(true));
     }
 

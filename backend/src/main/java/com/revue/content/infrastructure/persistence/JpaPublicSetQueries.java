@@ -63,6 +63,13 @@ class JpaPublicSetQueries implements PublicSetQueries {
     }
 
     private static Overview overview(SharedSetRow set, long count) {
-        return new Overview(set.id(), set.setKey(), set.title(), set.description(), set.publisherName(), count);
+        return new Overview(
+            set.id(),
+            set.setKey(),
+            set.title(),
+            set.description(),
+            set.publisherName(),
+            count,
+            set.saveAllowed());
     }
 }

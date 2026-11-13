@@ -54,11 +54,15 @@ class AccountMigrationTests {
             .load()
             .migrate();
 
-        assertThat(migration.migrationsExecuted).isEqualTo(5);
+        assertThat(migration.migrationsExecuted).isEqualTo(7);
+        assertThat(jdbc.queryForObject("select count(*) from " + schema + ".saved_sets", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("select count(*) from " + schema + ".schedules", Integer.class)).isZero();
         assertThat(jdbc.queryForObject("select revision from " + schema + ".catalog_publication", Long.class)).isZero();
         assertThat(jdbc.queryForObject("select count(*) from " + schema + ".authentication_attempts", Integer.class))
             .isZero();
-        assertThat(jdbc.queryForMap("select * from " + schema + ".sets where id = 1")).isEqualTo(setBefore);
+        var setAfter = jdbc.queryForMap("select * from " + schema + ".sets where id = 1");
+        assertThat(setAfter.remove("save_allowed")).isEqualTo(false);
+        assertThat(setAfter).isEqualTo(setBefore);
         assertThat(
             jdbc.queryForMap(
                 "select row_to_json(c)::text as card from " + schema + ".cards c where content_key = 'existing-card'"))

@@ -6,7 +6,14 @@ import java.util.Optional;
 /** Read port: projections avoid loading entire publication aggregates for public browsing. */
 public interface PublicSetQueries {
     /** Public set metadata with its active card count. */
-    record Overview(long id, String setKey, String title, String description, String publisherName, long cardCount) {
+    record Overview(
+        long id,
+        String setKey,
+        String title,
+        String description,
+        String publisherName,
+        long cardCount,
+        boolean saveAllowed) {
     }
 
     /** Lists at most limit sets after the alphabetical cursor, with active card counts. */

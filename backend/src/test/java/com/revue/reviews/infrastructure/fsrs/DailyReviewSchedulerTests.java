@@ -17,6 +17,16 @@ import org.junit.jupiter.api.Test;
 class DailyReviewSchedulerTests {
 
     @Test
+    void savedInitialStateCanResumeAsAnUnreviewedCard() {
+        var model = new FsrsMemoryModel(false);
+        var time = Instant.parse("2026-11-13T00:00:00Z");
+        for (ReviewRating rating : ReviewRating.values()) {
+            assertThat(Card.fromJson(model.nextReview(model.initialState(), rating, time).stateJson()))
+                .isEqualTo(Card.fromJson(model.firstReview(0, rating, time).stateJson()));
+        }
+    }
+
+    @Test
     void allRatingsAdvanceToLaterLocalDayDuringFallBack() {
         var scheduler = new DailyReviewScheduler(new FsrsMemoryModel(true));
         var zone = ZoneId.of("America/New_York");

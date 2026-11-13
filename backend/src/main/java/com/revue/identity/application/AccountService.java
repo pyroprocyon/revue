@@ -5,6 +5,7 @@ import com.revue.identity.domain.PasswordPolicy;
 import com.revue.identity.domain.TokenHash;
 import com.revue.identity.domain.Username;
 import java.time.Clock;
+import java.util.Optional;
 import org.springframework.stereotype.Service;
 
 /** Coordinates invited registration, password verification and learner sessions. */
@@ -83,16 +84,29 @@ public class AccountService {
 
     /** Returns the current eligible account or rejects an invalid session. */
     public Profile current() {
-        var identity = session.current().orElseThrow(LoginCommit::rejected);
+        return currentProfile().orElseThrow(LoginCommit::rejected);
+    }
+
+    /** Public navigation can check for an eligible session without requesting private access. */
+    public boolean signedIn() {
+        return currentProfile().isPresent();
+    }
+
+    private Optional<Profile> currentProfile() {
+        var current = session.current();
+        if (current.isEmpty()) {
+            return Optional.empty();
+        }
+        var identity = current.get();
         Account account = accounts.byId(identity.accountId()).map(AccountQueries.Credentials::account).orElse(null);
         if (account == null
             || account.credentialVersion() != identity.credentialVersion()
             || account.accessAt(clock.instant()) != Account.Access.ACTIVE
             || account.username() == null) {
             session.clear();
-            throw LoginCommit.rejected();
+            return Optional.empty();
         }
-        return new Profile(account.username().value());
+        return Optional.of(new Profile(account.username().value()));
     }
 
     /** Returns CSRF credentials through the session port. */
