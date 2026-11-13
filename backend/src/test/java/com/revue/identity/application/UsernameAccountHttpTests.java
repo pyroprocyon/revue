@@ -185,6 +185,29 @@ class UsernameAccountHttpTests {
     }
 
     @Test
+    void publicSessionStatusChecksEligibilityWithoutLoggingAnAccessDenial(CapturedOutput output) throws Exception {
+        Browser browser = new Browser();
+        var guest = browser.send(get("/api/v1/auth/session")).getResponse();
+        assertThat(guest.getStatus()).isEqualTo(200);
+        assertThat(guest.getContentAsString()).isEqualTo("{\"signedIn\":false}");
+        assertThat(guest.getHeader("Cache-Control")).contains("no-store", "private");
+        assertThat(guest.getCookie("SESSION")).isNull();
+        browser.csrf();
+        String name = username();
+        assertThat(browser.send(signup(name, "kanjii", invitation())).getResponse().getStatus()).isEqualTo(200);
+        var signedIn = browser.send(get("/api/v1/auth/session")).getResponse();
+        assertThat(signedIn.getStatus()).isEqualTo(200);
+        assertThat(signedIn.getContentAsString()).isEqualTo("{\"signedIn\":true}");
+        jdbc.update("update users set credential_version = credential_version + 1 where username = ?", name);
+        var stale = browser.send(get("/api/v1/auth/session")).getResponse();
+        assertThat(stale.getStatus()).isEqualTo(200);
+        assertThat(stale.getContentAsString()).isEqualTo("{\"signedIn\":false}");
+        assertThat(StructuredEvents.named(output, "auth.access_denied")).isEmpty();
+        assertThat(StructuredEvents.named(output, "auth.session_invalidated")).hasSize(1);
+        assertThat(browser.send(get("/api/v1/me")).getResponse().getStatus()).isEqualTo(401);
+    }
+
+    @Test
     void currentProfileUsesOneAuthoritativeAccountReadPerRequest(CapturedOutput output) throws Exception {
         Browser browser = new Browser();
         browser.csrf();

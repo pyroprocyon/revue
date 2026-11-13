@@ -67,6 +67,7 @@ public class PublicSetService {
             set.publisherName(),
             set.cardCount(),
             set.cardCount() >= TRIAL_CARD_COUNT,
-            Long.toString(set.id(), 36));
+            Long.toString(set.id(), 36),
+            set.saveAllowed());
     }
 }

@@ -41,6 +41,9 @@ class SharedSetRow {
     @Column(nullable = false)
     private String subject;
 
+    @Column(name = "save_allowed", nullable = false, insertable = false, updatable = false)
+    private boolean saveAllowed;
+
     @Column(name = "retired_at")
     private @Nullable Instant retiredAt;
 
@@ -92,6 +95,10 @@ class SharedSetRow {
 
     String publisherName() {
         return publisherName;
+    }
+
+    boolean saveAllowed() {
+        return saveAllowed;
     }
 
     String description() {

@@ -62,6 +62,7 @@ public class SecurityConfig {
             paths.matcher(HttpMethod.GET, "/api/v1/public-sets/*/demo-cards"),
             paths.matcher(HttpMethod.GET, "/api/v1/public-sets/share/*/summary"),
             paths.matcher(HttpMethod.GET, "/api/v1/auth/csrf"),
+            paths.matcher(HttpMethod.GET, "/api/v1/auth/session"),
             AccountRoutes.REGISTER,
             AccountRoutes.LOGIN,
             AccountRoutes.LOGOUT);

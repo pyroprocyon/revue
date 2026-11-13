@@ -41,6 +41,16 @@ public class AccountController {
         return accounts.signIn(username, password);
     }
 
+    /** Reports session status for public navigation without exposing profile details. */
+    @GetMapping("/api/v1/auth/session")
+    public SessionStatus session() {
+        return new SessionStatus(accounts.signedIn());
+    }
+
+    /** Public navigation needs only the presence of an eligible session. */
+    public record SessionStatus(boolean signedIn) {
+    }
+
     /** Returns the current eligible account's public profile. */
     @GetMapping("/api/v1/me")
     public AccountService.Profile current(HttpServletRequest request) {

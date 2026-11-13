@@ -24,6 +24,11 @@ public final class FsrsMemoryModel implements MemoryModel {
     }
 
     @Override
+    public String initialState() {
+        return Card.builder().cardId(0).build().toJson();
+    }
+
+    @Override
     public Prediction firstReview(int cardId, ReviewRating rating, Instant modelTime) {
         return review(Card.builder().cardId(cardId).build(), rating, modelTime);
     }

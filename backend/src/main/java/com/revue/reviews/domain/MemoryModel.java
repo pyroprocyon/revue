@@ -8,6 +8,9 @@ public interface MemoryModel {
     record Prediction(String stateJson, Instant due) {
     }
 
+    /** Serialized unreviewed state; no learner date or rating has been assigned. */
+    String initialState();
+
     /** Computes the first memory prediction at the supplied model time. */
     Prediction firstReview(int cardId, ReviewRating rating, Instant modelTime);
 
