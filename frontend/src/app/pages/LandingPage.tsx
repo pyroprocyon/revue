@@ -4,11 +4,12 @@ import { useEffect } from 'react';
 import { Link, Navigate, useLocation } from 'react-router';
 import { usePublicContentQueries } from '../../features/catalog/presentation/PublicContentProvider';
 import { accountTonalButton, primaryButton } from '../../shared/ui/buttonStyles';
-import { HomeLink, SignInLink } from '../../shared/ui/HeaderLinks';
+import { AccountHeaderLink, HomeLink } from '../../shared/ui/HeaderLinks';
 import { SampleCard } from '../../features/study/presentation/SampleCard';
 import { REVIEW_STEPS_INTRO, REVIEW_STEPS_TITLE, ReviewSteps } from '../../features/study/presentation/ReviewSteps';
+import { usePublicSession } from '../../shared/navigation/publicSession';
 import { LandingLayout } from './LandingLayout';
-import { HOW_IT_WORKS_PATH, JOIN_PATH, SETS_PATH } from '../../shared/navigation/paths';
+import { ACCOUNT_PATH, HOW_IT_WORKS_PATH, JOIN_PATH, SETS_PATH } from '../../shared/navigation/paths';
 
 // Compact phones use a two-line hero; narrower screens and enlarged text can scroll.
 // At the lg breakpoint, the sample sits beside the hero and the explanation follows inline.
@@ -17,6 +18,7 @@ const HOW_IT_WORKS_SECTION = 'how-it-works';
 
 export function LandingPage() {
   const { hash } = useLocation();
+  const session = usePublicSession();
   const { publicSetsQuery } = usePublicContentQueries();
   const queryClient = useQueryClient();
 
@@ -28,9 +30,11 @@ export function LandingPage() {
   }, [queryClient, publicSetsQuery]);
 
   // Old section links still work on phones, where the inline explanation is now hidden.
-  if (hash === `#${HOW_IT_WORKS_SECTION}` && window.matchMedia('(width < 64rem)').matches) {
+  if (hash === `#${HOW_IT_WORKS_SECTION}` && (session === 'signed-in' || window.matchMedia('(width < 64rem)').matches)) {
     return <Navigate to={HOW_IT_WORKS_PATH} replace />;
   }
+
+  if (session === 'signed-in') return <Navigate to={ACCOUNT_PATH} replace />;
 
   return (
     <LandingLayout
@@ -112,9 +116,11 @@ function LandingActions() {
 }
 
 function AccountActions({ className }: Readonly<{ className: string }>) {
+  const session = usePublicSession();
+  if (session === 'checking') return null;
   return (
     <nav aria-label="Account" className={`${className} flex-wrap gap-3`}>
-      <SignInLink appearance="account" />
+      <AccountHeaderLink appearance="account" />
       <Link to={JOIN_PATH} className={accountTonalButton}>Create account</Link>
     </nav>
   );

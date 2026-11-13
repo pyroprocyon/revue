@@ -1,9 +1,10 @@
 import { useQueryClient } from '@tanstack/react-query';
+import { UserRound } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router';
 import type { AccountProfile } from '../application/account';
 import { useAccountGateway } from './AccountProvider';
-import { secondaryButton } from '../../../shared/ui/buttonStyles';
+import { accountLink } from '../../../shared/ui/buttonStyles';
 import { SIGN_IN_PATH } from '../../../shared/navigation/paths';
 
 export function AccountPage() {
@@ -25,14 +26,26 @@ export function AccountPage() {
     finally { setBusy(false); }
   }
 
-  return <>
-    <h1 className="text-title font-extrabold tracking-tight">Your account</h1>
-    <section className="mt-6 max-w-lg rounded-card bg-surface p-compact-gutter shadow-card sm:p-6">
-      <h2 className="text-section font-bold">
-        You’re signed in, <span className="mt-2 block wrap-anywhere text-body font-semibold text-muted">{profile.username}</span>
-      </h2>
-      <button type="button" className={`${secondaryButton} mt-6 border border-line`} disabled={busy} onClick={() => void signOut()}>{busy ? 'Signing out…' : 'Sign out'}</button>
-      {error && <p role="alert" className="mt-4 text-body">{error}</p>}
+  return (
+    <section className="max-w-lg">
+      <h1 className="text-title font-extrabold tracking-tight lg:text-title-lg">Your account</h1>
+      <div className="mt-5 rounded-card bg-surface p-compact-gutter shadow-card sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+          <div className="flex min-w-0 flex-1 basis-40 flex-wrap items-center gap-3">
+            <span className="grid size-11 shrink-0 place-items-center rounded-control bg-accent-soft text-accent">
+              <UserRound aria-hidden="true" className="size-5" />
+            </span>
+            <dl className="min-w-0 flex-1 basis-24">
+              <dt className="text-support text-muted">Username</dt>
+              <dd className="font-bold text-section wrap-anywhere">{profile.username}</dd>
+            </dl>
+          </div>
+          <button type="button" className={`${accountLink} border border-line disabled:text-muted`} disabled={busy} onClick={() => void signOut()}>
+            {busy ? 'Signing out…' : 'Sign out'}
+          </button>
+        </div>
+        {error && <p role="alert" className="mt-3 text-body">{error}</p>}
+      </div>
     </section>
-  </>;
+  );
 }

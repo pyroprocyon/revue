@@ -201,6 +201,7 @@ describe('Five-card trial', () => {
 
   it('ends with when each card would come back, says nothing was saved, and never calls the server again', async () => {
     const fetchMock = await openTrial();
+    const initialRequests = fetchMock.mock.calls.length;
 
     for (const label of ['Easy', 'Good', 'Hard', 'Missed', 'Good']) {
       showAnswerAndRate(label);
@@ -223,7 +224,7 @@ describe('Five-card trial', () => {
     expect(screen.getByText(/This practice wasn’t saved./)).toBeDefined();
     expect(screen.getByRole('link', { name: 'Try another set' }).getAttribute('href')).toBe('/sets');
     expect(screen.getByRole('link', { name: 'Back to the set' }).getAttribute('href')).toBe('/sets/philippine-history');
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(initialRequests);
     expect(fetchMock).toHaveBeenCalledWith('/api/v1/public-sets/philippine-history/demo-cards', expect.anything());
   });
 

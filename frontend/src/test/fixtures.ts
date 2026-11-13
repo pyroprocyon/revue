@@ -8,6 +8,7 @@ export const historySet: PublicSet = {
   publisherName: 'Revue',
   cardCount: 5,
   trialAvailable: true,
+  saveAllowed: false,
 };
 
 export const natureSet: PublicSet = {
@@ -18,6 +19,7 @@ export const natureSet: PublicSet = {
   publisherName: 'Revue',
   cardCount: 5,
   trialAvailable: true,
+  saveAllowed: false,
 };
 
 // All shared cards have sources. Card 1 has an optional note; card 3 links to its source.

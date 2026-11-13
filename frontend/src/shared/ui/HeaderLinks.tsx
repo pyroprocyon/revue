@@ -1,14 +1,17 @@
 import { ChevronLeft } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router';
-import { HOME_PATH, SETS_PATH, SIGN_IN_PATH } from '../navigation/paths';
+import { ACCOUNT_PATH, HOME_PATH, SETS_PATH, SIGN_IN_PATH } from '../navigation/paths';
+import { usePublicSession } from '../navigation/publicSession';
 import { BrandMark } from './BrandMark';
 import { accountOutlinedButton } from './buttonStyles';
 
-/** The shared home link, with the Revue mark and name at every screen width. */
-export function HomeLink() {
+/** The Revue mark and name link to the home of the current area. */
+export function HomeLink({ to }: Readonly<{ to?: string }>) {
+  const session = usePublicSession();
+  const destination = session === 'signed-in' ? ACCOUNT_PATH : HOME_PATH;
   return (
     <Link
-      to={HOME_PATH}
+      to={to ?? destination}
       className="pressable -ml-2 inline-flex min-h-12 items-center gap-2 rounded-control px-2 text-[1.5rem] font-extrabold tracking-tight lg:text-[2.1875rem]"
     >
       <BrandMark className="size-8 lg:size-12" />
@@ -64,11 +67,14 @@ export function BackButton({ label, fallbackPath }: Readonly<BackButtonProps>) {
   );
 }
 
-export function SignInLink({ appearance = 'text' }: Readonly<{ appearance?: 'text' | 'account' }>) {
+export function AccountHeaderLink({ appearance = 'text' }: Readonly<{ appearance?: 'text' | 'account' }>) {
   const location = useLocation();
+  const session = usePublicSession();
   const className = appearance === 'account'
     ? accountOutlinedButton
     : 'pressable -mr-2 ml-auto inline-flex min-h-12 items-center rounded-control px-2 text-label font-semibold text-accent';
+  if (session === 'checking') return null;
+  if (session === 'signed-in') return <Link to={ACCOUNT_PATH} className={className}>Account</Link>;
   return (
     <Link
       to={`${SIGN_IN_PATH}?returnTo=${encodeURIComponent(location.pathname)}`}

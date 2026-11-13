@@ -10,9 +10,9 @@ Revue is a study app for Filipino students preparing for classes and exams. Test
 - Try five questions, check the answers and their sources, then rate each attempt.
 - Share a set with classmates.
 
-Practice isn't saved. The example schedule shows when cards could come back.
+Trial attempts aren't saved. The example schedule shows when cards could come back.
 
-Revue is in early development. The current build also supports invitation-only pilot accounts. Saving sets, creating personal decks, and scheduling reviews from saved progress are planned.
+Revue is in early development. Invited pilot learners can sign in and manage previously saved sets in Library. Onboarding samples are for practice. Saving will be available for eligible published sets. Removing a set keeps its stored progress. Personal decks and scheduled reviews are still planned.
 
 ## Help and feedback
 

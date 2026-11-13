@@ -10,6 +10,7 @@ const testPassword = crypto.randomUUID().slice(0, 6);
 
 function setup(register = true, entry = '/register') {
   const gateway: AccountGateway = {
+    signedIn: vi.fn().mockResolvedValue(false),
     register: vi.fn().mockResolvedValue({ username: 'student' }),
     signIn: vi.fn().mockResolvedValue({ username: 'student' }),
     signOut: vi.fn().mockResolvedValue(undefined), current: vi.fn().mockResolvedValue(null),

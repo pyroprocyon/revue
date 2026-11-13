@@ -7,14 +7,14 @@ describe('App', () => {
   it('opens signup directly at the short invitation route', async () => {
     stubFetch(404);
     renderApp('/i');
-    expect(screen.getByRole('textbox', { name: /^Username/ })).toBeDefined();
+    expect(await screen.findByRole('textbox', { name: /^Username/ })).toBeDefined();
   });
 
   it('clears signup passwords and mismatch feedback when switching to sign-in', async () => {
     window.history.replaceState({}, '', '/i#viewtest');
     stubFetch(200, [historySet, natureSet]);
     renderApp('/i');
-    fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'student' } });
+    fireEvent.change(await screen.findByLabelText('Username'), { target: { value: 'student' } });
     const password = crypto.randomUUID();
     fireEvent.change(screen.getByLabelText('Password'), { target: { value: password } });
     fireEvent.change(screen.getByLabelText('Confirm password'), { target: { value: password + 'x' } });
@@ -45,22 +45,22 @@ describe('App', () => {
     renderApp('/');
 
     // CSS chooses the phone or desktop action group in a real browser.
-    fireEvent.click(screen.getAllByRole('link', { name: 'Create account' })[0]);
-    expect(screen.getByRole('heading', { name: 'You’ll need an invitation' })).toBeDefined();
+    fireEvent.click((await screen.findAllByRole('link', { name: 'Create account' }))[0]);
+    expect(await screen.findByRole('heading', { name: 'You’ll need an invitation' })).toBeDefined();
     expect(screen.queryByRole('textbox')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Create account' })).toBeNull();
     fireEvent.click(screen.getByRole('link', { name: 'Browse sets' }));
-    expect(await screen.findByRole('heading', { name: 'Practice sets' })).toBeDefined();
+    expect(await screen.findByRole('heading', { name: 'Shared sets' })).toBeDefined();
   });
 
-  it('lets returning learners sign in from a direct visit to the invitation explanation', () => {
+  it('lets returning learners sign in from a direct visit to the invitation explanation', async () => {
     const fetchMock = stubFetch(404);
     renderApp('/join');
 
-    expect(screen.getByRole('heading', { name: 'You’ll need an invitation' })).toBeDefined();
+    expect(await screen.findByRole('heading', { name: 'You’ll need an invitation' })).toBeDefined();
     fireEvent.click(screen.getByRole('link', { name: 'Sign in' }));
     expect(screen.getByRole('heading', { name: 'Welcome back' })).toBeDefined();
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledExactlyOnceWith('/api/v1/auth/session', expect.anything());
   });
 
   it('says "review" only in the headline, using practice, set and comes back elsewhere', () => {
@@ -90,7 +90,7 @@ describe('App', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'How spaced repetition works' })).toBeDefined();
     expect(screen.getByText('Answer from memory.')).toBeDefined();
     fireEvent.click(screen.getByRole('link', { name: 'Browse sets' }));
-    expect(await screen.findByRole('heading', { name: 'Practice sets' })).toBeDefined();
+    expect(await screen.findByRole('heading', { name: 'Shared sets' })).toBeDefined();
   });
 
   it('shows a sample card from the sets with the real rating look, and nothing to press', () => {

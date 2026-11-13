@@ -2,19 +2,31 @@ import type { Locator } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { test, expect } from './fixtures';
 
-test('tablet preview actions follow the content instead of sitting at the bottom of the viewport', async ({ page }) => {
-  await page.setViewportSize({ width: 768, height: 1024 });
+test('small tablet practice preview keeps trial above the sharing controls', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'share', { value: async () => {} });
+  });
+  await page.setViewportSize({ width: 640, height: 900 });
   await page.goto('/sets/philippine-history');
-  const article = page.getByRole('article');
-  const start = page.getByRole('link', { name: 'Try 5 cards' });
-  await expect(start).toBeVisible();
+  const trial = page.getByRole('link', { name: 'Try 5 cards' });
+  const save = page.getByRole('link', { name: 'Sign in to save' });
+  const share = page.getByRole('button', { name: 'Share', exact: true });
+  const copy = page.getByRole('button', { name: 'Copy link' });
+  await expect(trial).toHaveAccessibleDescription('Trial progress and ratings aren’t saved.');
+  await expect(save).toHaveCount(0);
   await page.evaluate(() => document.fonts.ready);
-  const content = await article.boundingBox();
-  const action = await start.boundingBox();
-  expect(content).not.toBeNull();
-  expect(action).not.toBeNull();
-  expect(action!.y).toBeGreaterThanOrEqual(content!.y + content!.height);
-  expect(action!.y - content!.y - content!.height).toBeLessThanOrEqual(64);
+  const articleBox = (await page.getByRole('article').boundingBox())!;
+  const trialBox = (await trial.boundingBox())!;
+  const shareBox = (await share.boundingBox())!;
+  const copyBox = (await copy.boundingBox())!;
+  expect(trialBox.y - articleBox.y - articleBox.height).toBeGreaterThanOrEqual(0);
+  expect(trialBox.y - articleBox.y - articleBox.height).toBeLessThanOrEqual(64);
+  expect(shareBox.y).toBeGreaterThan(trialBox.y + trialBox.height);
+  expect(copyBox.y).toBe(shareBox.y);
+  for (const box of [trialBox, shareBox, copyBox]) {
+    expect(box.width).toBeGreaterThanOrEqual(48);
+    expect(box.height).toBeGreaterThanOrEqual(48);
+  }
 });
 
 test('Privacy and Terms pin the sign-in link only when the phone has room', async ({ page }) => {
@@ -100,7 +112,7 @@ test('invitation and guide text keep room for whole words at 320 pixels with 200
   await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
   await expectWordOnOneLine(page.getByRole('heading', { name: 'You’ll need an invitation' }), 'invitation');
   await page.getByRole('link', { name: 'Browse sets' }).click();
-  await expect(page.getByRole('heading', { name: 'Practice sets' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Shared sets' })).toBeVisible();
   await page.goto('/how-it-works');
   await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
   await expectWordOnOneLine(page.getByRole('heading', { name: 'How spaced repetition works' }), 'repetition');
@@ -137,7 +149,7 @@ test('keyboard reveal and tabbing keep enlarged answers and ratings reachable wi
   }
 });
 
-test('account controls remain reachable without promoting the public trial', async ({ page, pilot }) => {
+test('compact account controls remain reachable at supported widths', async ({ page, pilot }) => {
   await page.goto(pilot.invitation());
   const username = `layout_${randomUUID().replaceAll('-', '').slice(0, 24)}`;
   const password = randomUUID();
@@ -147,14 +159,19 @@ test('account controls remain reachable without promoting the public trial', asy
   await page.getByRole('button', { name: 'Create account', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Your account', exact: true })).toBeVisible();
   const signOut = page.getByRole('button', { name: 'Sign out', exact: true });
+  const library = page.getByRole('link', { name: 'Library', exact: true });
 
   for (const [width, height, textSize] of [[390, 844, '100%'], [768, 1024, '100%'], [1366, 900, '100%'], [320, 568, '200%']] as const) {
     await page.setViewportSize({ width, height });
     await page.evaluate((size) => { document.documentElement.style.fontSize = size; }, textSize);
     await expectTouchTarget(signOut);
+    await expectTouchTarget(library);
+    expect((await signOut.boundingBox())!.width).toBeLessThan(width * 0.65);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
   }
-  await expect(page.locator('a[href="/sets"]')).toHaveCount(0);
+  await expect(library).toHaveAttribute('href', '/library');
+  await expect(page.getByRole('link', { name: 'Browse sets', exact: true })).toHaveCount(0);
+  await expect(page.locator('a[href$="/try"]')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Try a practice set' })).toHaveCount(0);
   await signOut.click();
   await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();

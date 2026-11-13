@@ -45,9 +45,8 @@ describe('Set list', () => {
 
     renderApp('/sets');
 
-    expect(await screen.findByRole('heading', { level: 1, name: 'Practice sets' })).toBeDefined();
-    expect(screen.getByText('Practice only. Nothing is saved.')).toBeDefined();
-    expect(screen.getByText('That includes your progress and ratings, even when you’re signed in.')).toBeDefined();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Shared sets' })).toBeDefined();
+    expect(screen.getByText('Try a five-card practice session.')).toBeDefined();
     const links = screen.getAllByRole('link').filter((link) => link.getAttribute('href')?.startsWith('/sets/'));
     expect(links.map((link) => link.getAttribute('href'))).toEqual([
       '/sets/philippine-history',

@@ -41,11 +41,18 @@ test('invited learner registers with six characters, reloads, signs out and sign
 
   const name = username();
   await register(page, name);
-  await expect(page.getByRole('heading', { name: `You’re signed in, ${name}` })).toBeVisible();
+  await expect(page.getByText(name, { exact: true })).toBeVisible();
   const firstSession = (await context.cookies()).find(cookie => cookie.name === 'SESSION');
   expect(firstSession?.httpOnly).toBe(true);
+  await page.getByRole('link', { name: 'Library', exact: true }).click();
+  await expect(page).toHaveURL(/\/library$/);
+  await expect(page.getByRole('heading', { name: 'Library', exact: true })).toBeVisible();
+  await page.getByRole('link', { name: 'Revue', exact: true }).click();
+  await expect(page).toHaveURL(/\/account$/);
+  await expect(page.getByText(name, { exact: true })).toBeVisible();
+  expect((await context.cookies()).find(cookie => cookie.name === 'SESSION')?.value).toBe(firstSession?.value);
   await page.reload();
-  await expect(page.getByRole('heading', { name: `You’re signed in, ${name}` })).toBeVisible();
+  await expect(page.getByText(name, { exact: true })).toBeVisible();
   const me = await page.request.get('/api/v1/me');
   expect(await me.json()).toEqual({ username: name });
   expect(me.headers()['cache-control']).toContain('no-store');
@@ -65,7 +72,7 @@ test('invited learner registers with six characters, reloads, signs out and sign
   const loginResponse = page.waitForResponse(result => result.url().endsWith('/api/v1/auth/login') && result.request().method() === 'POST');
   await password.press('Enter');
   expect((await loginResponse).status()).toBe(200);
-  await expect(page.getByRole('heading', { name: `You’re signed in, ${name}` })).toBeVisible();
+  await expect(page.getByText(name, { exact: true })).toBeVisible();
   expect((await context.cookies()).find(cookie => cookie.name === 'SESSION')?.value).not.toBe(firstSession?.value);
 });
 
@@ -83,7 +90,7 @@ test('wrong and unknown credentials give the same error and a learner can retry'
   await expect(page.getByRole('alert')).toHaveText('Username or password is incorrect');
   expect((await page.request.get('/api/v1/me')).status()).toBe(401);
   await signIn(page, name);
-  await expect(page.getByRole('heading', { name: `You’re signed in, ${name}` })).toBeVisible();
+  await expect(page.getByText(name, { exact: true })).toBeVisible();
 });
 
 test('existing learners keep their shared-set destination when switching to sign-in', async ({ page, pilot }) => {
@@ -92,6 +99,7 @@ test('existing learners keep their shared-set destination when switching to sign
   await register(page, name);
   await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
   await page.getByRole('button', { name: 'Sign out' }).click();
+  await expect(page).toHaveURL(/\/sign-in$/);
   const invitation = new URL(pilot.invitation());
   invitation.searchParams.set('returnTo', '/sets/philippine-history');
   await page.goto(invitation.href);
@@ -100,6 +108,10 @@ test('existing learners keep their shared-set destination when switching to sign
   await signIn(page, name);
   await expect(page).toHaveURL(/\/sets\/philippine-history$/);
   await expect(page.getByRole('heading', { name: 'Philippine History', exact: true })).toBeVisible();
+  const brand = page.getByRole('link', { name: 'Revue', exact: true });
+  await expect(brand).toHaveAttribute('href', '/account');
+  await brand.click();
+  await expect(page.getByText(name, { exact: true })).toBeVisible();
 });
 
 test('two browsers keep separate accounts and a duplicate username leaves its invite usable', async ({ page, browser, pilot }) => {
@@ -107,7 +119,7 @@ test('two browsers keep separate accounts and a duplicate username leaves its in
   const firstInvite = pilot.invitation();
   await page.goto(firstInvite);
   await register(page, first);
-  await expect(page.getByRole('heading', { name: `You’re signed in, ${first}` })).toBeVisible();
+  await expect(page.getByText(first, { exact: true })).toBeVisible();
   const otherContext = await browser.newContext({ baseURL: pilot.origin });
   try {
     const other = await otherContext.newPage();
@@ -117,7 +129,7 @@ test('two browsers keep separate accounts and a duplicate username leaves its in
     expect((await other.request.get('/api/v1/me')).status()).toBe(401);
     const second = username();
     await register(other, second);
-    await expect(other.getByRole('heading', { name: `You’re signed in, ${second}` })).toBeVisible();
+    await expect(other.getByText(second, { exact: true })).toBeVisible();
     expect(await (await page.request.get('/api/v1/me')).json()).toEqual({ username: first });
     expect(await (await other.request.get('/api/v1/me')).json()).toEqual({ username: second });
     await other.getByRole('button', { name: 'Sign out' }).click();
@@ -234,7 +246,7 @@ test('an invitation opened on an already-mounted registration page enables signu
   await expect(page).not.toHaveURL(/#invite=/);
   await expect(page.getByRole('textbox', { name: 'Username' })).toHaveValue(name);
   await register(page, name);
-  await expect(page.getByRole('heading', { name: `You’re signed in, ${name}` })).toBeVisible();
+  await expect(page.getByText(name, { exact: true })).toBeVisible();
 });
 
 test('first sign-in while offline gives guidance and recovers after reconnecting', async ({ page, context, pilot }) => {
@@ -255,7 +267,7 @@ test('first sign-in while offline gives guidance and recovers after reconnecting
     await expect(page.getByLabel(/^Password/)).toHaveValue('');
   } finally { await context.setOffline(false); }
   await signIn(page, name);
-  await expect(page.getByRole('heading', { name: `You’re signed in, ${name}` })).toBeVisible();
+  await expect(page.getByText(name, { exact: true })).toBeVisible();
 });
 
 
@@ -270,7 +282,7 @@ test('the same short pilot link registers two independent learners', async ({ pa
       await expect(learner).toHaveURL(/\/i$/);
       expect((await learner.request.get('/api/v1/me')).status()).toBe(401);
       expect((await register(learner, name)).status()).toBe(200);
-      await expect(learner.getByRole('heading', { name: `You’re signed in, ${name}` })).toBeVisible();
+      await expect(learner.getByText(name, { exact: true })).toBeVisible();
       expect(await (await learner.request.get('/api/v1/me')).json()).toEqual({ username: name });
     }
   } finally {
@@ -317,9 +329,82 @@ test('signup checks the confirmation locally and sends only one password after c
   const response = page.waitForResponse(result => result.url().endsWith('/api/v1/auth/register') && result.request().method() === 'POST');
   await confirmation.press('Enter');
   expect((await response).status()).toBe(200);
-  await expect(page.getByRole('heading', { name: `You’re signed in, ${name}` })).toBeVisible();
+  await expect(page.getByText(name, { exact: true })).toBeVisible();
   expect(requests).toHaveLength(1);
   const sent = new URLSearchParams(requests[0]);
   expect([...sent.keys()].sort()).toEqual(['invitation', 'password', 'username']);
   expect(sent.get('password')).toBe(PASSWORD);
+});
+
+test('signed-in navigation keeps every public route connected to Account', async ({ page, pilot }) => {
+  const name = username();
+  await page.goto(pilot.invitation());
+  await register(page, name);
+  const account = page.getByText(name, { exact: true });
+  await expect(account).toBeVisible();
+
+  const sets: { setKey: string; shareCode: string }[] = await (await page.request.get('/api/v1/public-sets')).json();
+  const history = sets.find(set => set.setKey === 'philippine-history')!;
+  const preview = '/sets/philippine-history';
+  for (const [route, heading] of [
+    ['/sets', 'Shared sets'],
+    [preview, 'Philippine History'],
+    [`/s/${history.shareCode}`, 'Philippine History'],
+    ['/how-it-works', 'How spaced repetition works'],
+    ['/privacy', 'Privacy notice'],
+    ['/terms', 'Terms'],
+    ['/missing-page', 'Page not found.'],
+  ]) {
+    await page.goto(route);
+    await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible();
+    const brand = page.getByRole('link', { name: 'Revue', exact: true });
+    await expect(brand).toHaveAttribute('href', '/account');
+    await expect(page.getByRole('link', { name: /^(Sign in|Back to sign in|Sign in to save)$/ })).toHaveCount(0);
+  }
+
+  await page.getByRole('link', { name: 'Go to Account' }).click();
+  await expect(account).toBeVisible();
+  for (const destination of ['Account', 'Library']) {
+    await page.getByRole('link', { name: destination, exact: true }).click();
+    await expect(page.getByRole('link', { name: 'Privacy', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Terms', exact: true })).toHaveCount(0);
+    await page.getByRole('link', { name: 'Help', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Help', exact: true })).toBeFocused();
+    await expect(page.getByRole('link', { name: 'Contact support' })).toBeVisible();
+    for (const policy of ['Privacy notice', 'Terms']) {
+      await page.getByRole('link', { name: policy, exact: true }).click();
+      await expect(page.getByRole('heading', { name: policy, exact: true })).toBeVisible();
+      await page.getByRole('button', { name: 'Back to Help' }).click();
+    }
+    await page.getByRole('button', { name: 'Back', exact: true }).click();
+    await expect(page).toHaveURL(new RegExp(`/${destination.toLowerCase()}$`));
+  }
+  await page.goto('/sets');
+  await page.getByRole('link', { name: 'Account', exact: true }).click();
+  await expect(account).toBeVisible();
+  for (const route of ['/', '/sign-in', '/join', '/i', '/register']) {
+    await page.goto(route);
+    await expect(page).toHaveURL(/\/account$/);
+    await expect(account).toBeVisible();
+  }
+  await page.goto('/sign-in?returnTo=%2Fsets%2Fphilippine-history');
+  await expect(page).toHaveURL(/\/sets\/philippine-history$/);
+  await expect(page.getByRole('button', { name: 'Save to Library' })).toHaveCount(0);
+  await page.getByRole('link', { name: 'Try 5 cards' }).click();
+  for (let index = 0; index < 5; index++) {
+    await page.getByRole('button', { name: 'Check answer' }).click();
+    await page.getByRole('button', { name: /^Good:/ }).click();
+  }
+  await expect(page.getByRole('heading', { name: 'You practiced 5 cards.' })).toBeVisible();
+  await expect(page.getByText('This practice wasn’t saved.')).toBeVisible();
+  expect((await (await page.request.get('/api/v1/me/saved-sets')).json()).items).toHaveLength(0);
+  await page.getByRole('link', { name: 'Revue', exact: true }).click();
+  await expect(account).toBeVisible();
+
+  await page.getByRole('button', { name: 'Sign out' }).click();
+  await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
+  await page.getByRole('link', { name: 'Revue', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Review before it’s due.' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Sign in', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Create account', exact: true })).toBeVisible();
 });

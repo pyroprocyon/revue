@@ -1,4 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
+import { publicSessionKey } from '../../../shared/navigation/publicSession';
 import { Eye, EyeOff } from 'lucide-react';
 import { useEffect, useRef, useState, type SubmitEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
@@ -52,7 +53,9 @@ export function AccountForm({ register = false }: Readonly<{ register?: boolean 
       else await gateway.signIn(username, password);
       setPassword('');
       setPasswordConfirmation('');
-      queryClient.clear();
+      await queryClient.cancelQueries({ queryKey: publicSessionKey, exact: true });
+      queryClient.removeQueries({ queryKey: ['library'] });
+      queryClient.setQueryData(publicSessionKey, true);
       await navigate(returnPath ?? ACCOUNT_PATH, { replace: true });
     } catch (error_) {
       setPassword('');
