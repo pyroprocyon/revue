@@ -4,7 +4,7 @@ import { focusManager } from '@tanstack/react-query';
 import { historyCards, historySet } from '../test/fixtures';
 import { jsonResponse, renderApp } from '../test/renderApp';
 import { primaryButton, secondaryButton } from '../shared/ui/buttonStyles';
-import { hasSignedInHint, saveSignedInHint } from '../shared/navigation/signedInHint';
+import { shouldWaitForSession, saveSignedInHint } from '../shared/navigation/signedInHint';
 
 function pendingSession() {
   let resolve!: (value: Response) => void;
@@ -20,10 +20,30 @@ function pendingSession() {
     return jsonResponse(404);
   });
   vi.stubGlobal('fetch', fetcher);
-  return { fetcher, finish: (signedIn: boolean) => act(async () => resolve(jsonResponse(200, { signedIn }))) };
+  return {
+    fetcher,
+    finish: (signedIn: boolean) => act(async () => resolve(jsonResponse(200, { signedIn }))),
+    fail: () => act(async () => resolve(jsonResponse(503))),
+  };
 }
 
 describe('session-dependent navigation', () => {
+  it.each(['signed-in', 'guest', 'failed'])('waits for a %s session when browser storage is blocked', async (outcome) => {
+    const blocked = () => { throw new DOMException('Storage blocked', 'SecurityError'); };
+    vi.stubGlobal('localStorage', { getItem: blocked, setItem: blocked, removeItem: blocked });
+    const session = pendingSession();
+    renderApp('/');
+    expect(screen.queryByRole('heading', { name: 'Review before it’s due.' })).toBeNull();
+    expect(screen.queryByRole('status')).toBeNull();
+    expect(await screen.findByRole('status')).toHaveProperty('textContent', 'Checking your session…');
+    if (outcome === 'failed') await session.fail();
+    else await session.finish(outcome === 'signed-in');
+    expect(await screen.findByRole('heading', {
+      name: outcome === 'signed-in' ? 'Your review' : 'Review before it’s due.',
+    })).toBeDefined();
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
   it.each(['/', '/sign-in', '/join', '/i', '/register'])('keeps guest content and fast loading notices off the signed-in entry %s', async (path) => {
     saveSignedInHint(true);
     const session = pendingSession();
@@ -46,7 +66,7 @@ describe('session-dependent navigation', () => {
     expect(await screen.findAllByRole('link', { name: 'Sign in' })).not.toHaveLength(0);
     expect(screen.getByRole('heading', { name: 'Review before it’s due.' })).toBeDefined();
     expect(screen.queryByRole('status')).toBeNull();
-    expect(hasSignedInHint()).toBe(false);
+    expect(shouldWaitForSession()).toBe(false);
   });
 
   it('sends a signed-in learner from the homepage to Today and saves the hint when the browser had none', async () => {
@@ -55,7 +75,7 @@ describe('session-dependent navigation', () => {
     expect(screen.getByRole('heading', { name: 'Review before it’s due.' })).toBeDefined();
     await session.finish(true);
     await screen.findByRole('heading', { name: 'Your review' });
-    expect(hasSignedInHint()).toBe(true);
+    expect(shouldWaitForSession()).toBe(true);
   });
 
   it.each([
