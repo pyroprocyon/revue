@@ -54,9 +54,10 @@ class AccountMigrationTests {
             .load()
             .migrate();
 
-        assertThat(migration.migrationsExecuted).isEqualTo(7);
+        assertThat(migration.migrationsExecuted).isEqualTo(8);
         assertThat(jdbc.queryForObject("select count(*) from " + schema + ".saved_sets", Integer.class)).isZero();
         assertThat(jdbc.queryForObject("select count(*) from " + schema + ".schedules", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("select count(*) from " + schema + ".review_logs", Integer.class)).isZero();
         assertThat(jdbc.queryForObject("select revision from " + schema + ".catalog_publication", Long.class)).isZero();
         assertThat(jdbc.queryForObject("select count(*) from " + schema + ".authentication_attempts", Integer.class))
             .isZero();
