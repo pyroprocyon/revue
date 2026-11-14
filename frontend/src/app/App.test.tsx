@@ -2,7 +2,7 @@ import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { historySet, natureSet } from '../test/fixtures';
 import { jsonResponse, renderApp, stubFetch } from '../test/renderApp';
-import { hasSignedInHint, saveSignedInHint } from '../shared/navigation/signedInHint';
+import { shouldWaitForSession, saveSignedInHint } from '../shared/navigation/signedInHint';
 
 describe('App', () => {
   it.each(['signed-in', 'guest', 'unavailable'])('waits before choosing the homepage for a %s session in a browser that was signed in before', async (session) => {
@@ -30,7 +30,7 @@ describe('App', () => {
       name: session === 'signed-in' ? 'Your review' : 'Review before it’s due.',
     })).toBeDefined();
     // Only a confirmed guest answer clears the hint; a failed check keeps it.
-    expect(hasSignedInHint()).toBe(session !== 'guest');
+    expect(shouldWaitForSession()).toBe(session !== 'guest');
   });
 
   it('opens signup directly at the short invitation route', async () => {

@@ -18,6 +18,43 @@ async function delaySession(page: Page, signedIn = true) {
   return release;
 }
 
+for (const width of [375, 1366]) {
+  for (const signedIn of [true, false]) {
+    test(`blocked storage waits on repeated home visits at ${width}px (signed in: ${signedIn})`, async ({ page }, info) => {
+      await page.setViewportSize({ width, height: 800 });
+      await page.addInitScript(() => {
+        Object.defineProperty(window, 'localStorage', {
+          get() { throw new DOMException('Storage blocked', 'SecurityError'); },
+        });
+        new MutationObserver(() => {
+          if (document.querySelector('.landing-hero')) document.documentElement.dataset.landingSeen = 'true';
+        }).observe(document, { childList: true, subtree: true });
+      });
+      for (let visit = 1; visit <= 2; visit++) {
+        const release = await delaySession(page, signedIn);
+        await page.route('**/api/v1/me', route => route.fulfill({ json: { username: 'storage_learner' } }));
+        await page.route('**/api/v1/cards/due', route => route.fulfill({ json: {
+          totalCards: 0, availableCards: 0, dueCards: 0, newCards: 0, nextReviewDate: null, cards: [],
+        } }));
+        try {
+          await page.goto('/');
+          await expect(page.getByRole('status')).toHaveText('Checking your session…');
+          await expect(page.getByRole('heading', { name: 'Review before it’s due.' })).toHaveCount(0);
+          await expect(page.locator('html')).not.toHaveAttribute('data-landing-seen');
+          release();
+          await expect(page.getByRole('heading', {
+            name: signedIn ? 'Your review' : 'Review before it’s due.', exact: true,
+          })).toBeVisible();
+          if (signedIn) await expect(page.locator('html')).not.toHaveAttribute('data-landing-seen');
+          if (visit === 2) await page.screenshot({ path: info.outputPath('blocked-storage-ready.png'), fullPage: true });
+        } finally {
+          release();
+        }
+      }
+    });
+  }
+}
+
 test('a guest sees the homepage at once while the session check is still pending', async ({ page }, info) => {
   await page.setViewportSize({ width: 375, height: 800 });
   const release = await delaySession(page, false);

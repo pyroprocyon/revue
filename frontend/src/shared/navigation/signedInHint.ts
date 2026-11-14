@@ -9,14 +9,15 @@ export function saveSignedInHint(signedIn: boolean) {
     if (signedIn) localStorage.setItem(SIGNED_IN_HINT_KEY, 'true');
     else localStorage.removeItem(SIGNED_IN_HINT_KEY);
   } catch {
-    // Without browser storage the homepage treats every visitor as a guest until the check answers.
+    // Storage is optional; the server still determines the session.
   }
 }
 
-export function hasSignedInHint() {
+/** Wait when the browser remembers a sign-in or cannot read its hint. */
+export function shouldWaitForSession() {
   try {
     return localStorage.getItem(SIGNED_IN_HINT_KEY) === 'true';
   } catch {
-    return false;
+    return true;
   }
 }
