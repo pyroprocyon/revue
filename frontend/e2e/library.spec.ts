@@ -9,6 +9,8 @@ async function register(page: Page, invitation: string) {
   await page.getByLabel('Password', { exact: true }).fill('kanjii');
   await page.getByLabel('Confirm password', { exact: true }).fill('kanjii');
   await page.getByRole('button', { name: 'Create account' }).click();
+  await expect(page).toHaveURL(/\/today$/);
+  await page.getByRole('link', { name: 'Account', exact: true }).click();
   await expect(page.getByText(username, { exact: true })).toBeVisible();
   return username;
 }
@@ -185,7 +187,7 @@ test('explicit save survives sign-in return, duplicate save, reload and another 
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Published test set' })).toBeVisible();
   await page.getByRole('link', { name: 'Revue', exact: true }).click();
-  await expect(page).toHaveURL(/\/account$/);
+  await expect(page).toHaveURL(/\/today$/);
   await expect(page.getByRole('link', { name: 'View set: Published test set' })).toHaveCount(0);
   await page.getByRole('link', { name: 'Library', exact: true }).click();
   const saved = await (await page.request.get('/api/v1/me/saved-sets')).json();

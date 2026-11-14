@@ -7,7 +7,7 @@ export function PrivacyPage() {
     <PolicyPageLayout title="Privacy notice">
       <div className="space-y-4">
         <p>We keep your username and a protected version of your password to run your account. Cookies help keep you signed in securely.</p>
-        <p>We keep the sets you save and their review schedules. Public trial attempts aren’t saved, and sharing a set doesn’t share your account.</p>
+        <p>We keep the sets you save, your ratings, study dates and review schedules. Typed answers stay in your browser. Public trial attempts aren’t saved, and sharing a set doesn’t share your account.</p>
         <p>Removing a set from your Library keeps your progress so you can resume if you save it again.</p>
         <p>You can request a copy of your data, corrections, or removal. We handle these requests directly.</p>
         <Link to="/terms#help-and-corrections" className={`${textLink} inline-flex min-h-12 items-center`}>Contact us</Link>

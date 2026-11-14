@@ -20,7 +20,7 @@ function setup(register = true, entry = '/register') {
       <Route path="/register" element={<AccountForm register={register} />} />
       <Route path="/sign-in" element={<AccountForm />} />
       <Route path="/sets/example" element={<p>Original set</p>} />
-      <Route path="/account" element={<p>Account ready</p>} />
+      <Route path="/today" element={<p>Today ready</p>} />
     </Routes></AccountProvider>
   </MemoryRouter></QueryClientProvider>);
   return gateway;
@@ -55,7 +55,7 @@ describe('pilot account forms', () => {
     fireEvent.change(password, { target: { value: testPassword } });
     fireEvent.change(screen.getByLabelText('Confirm password'), { target: { value: testPassword } });
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
-    await screen.findByText('Account ready');
+    await screen.findByText('Today ready');
     expect(gateway.register).toHaveBeenCalledWith({ username: 'student', password: testPassword, invitation: invite });
     expect(window.location.hash).toBe('');
   });
@@ -131,7 +131,7 @@ describe('pilot account forms', () => {
     fireEvent.change(confirmation, { target: { value: testPassword } });
     expect(screen.queryByRole('alert')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
-    await screen.findByText('Account ready');
+    await screen.findByText('Today ready');
     expect(gateway.register).toHaveBeenCalledExactlyOnceWith({ username: 'student', password: testPassword, invitation });
   });
 

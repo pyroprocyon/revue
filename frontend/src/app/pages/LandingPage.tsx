@@ -9,7 +9,7 @@ import { SampleCard } from '../../features/study/presentation/SampleCard';
 import { REVIEW_STEPS_INTRO, REVIEW_STEPS_TITLE, ReviewSteps } from '../../features/study/presentation/ReviewSteps';
 import { usePublicSession } from '../../shared/navigation/publicSession';
 import { LandingLayout } from './LandingLayout';
-import { ACCOUNT_PATH, HOW_IT_WORKS_PATH, JOIN_PATH, SETS_PATH } from '../../shared/navigation/paths';
+import { TODAY_PATH, HOW_IT_WORKS_PATH, JOIN_PATH, SETS_PATH } from '../../shared/navigation/paths';
 
 // Compact phones use a two-line hero; narrower screens and enlarged text can scroll.
 // At the lg breakpoint, the sample sits beside the hero and the explanation follows inline.
@@ -34,7 +34,7 @@ export function LandingPage() {
     return <Navigate to={HOW_IT_WORKS_PATH} replace />;
   }
 
-  if (session === 'signed-in') return <Navigate to={ACCOUNT_PATH} replace />;
+  if (session === 'signed-in') return <Navigate to={TODAY_PATH} replace />;
 
   return (
     <LandingLayout

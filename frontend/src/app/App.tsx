@@ -1,3 +1,7 @@
+import { ReviewProvider } from '../features/study/presentation/ReviewProvider';
+import { TodayPage } from '../features/study/presentation/TodayPage';
+import { ReviewPage } from '../features/study/presentation/ReviewPage';
+import { httpReviews } from '../features/study/infrastructure/httpReviews';
 import { LibraryProvider } from '../features/catalog/presentation/LibraryProvider';
 import { LibraryPage } from '../features/catalog/presentation/LibraryPage';
 import { httpLibrary } from '../features/catalog/infrastructure/httpLibrary';
@@ -21,12 +25,13 @@ import { NotFoundPage } from './pages/NotFoundPage';
 import { SetPage } from '../features/catalog/presentation/SetPage';
 import { SetsPage } from '../features/catalog/presentation/SetsPage';
 import { TrialPage } from '../features/study/presentation/TrialPage';
-import { HELP_PATH, LIBRARY_PATH, HOME_PATH, HOW_IT_WORKS_PATH, SETS_PATH, SET_ROUTE, TRIAL_ROUTE, SIGN_IN_PATH, REGISTER_PATH, ACCOUNT_PATH, INVITE_PATH, SET_SHARE_ROUTE, JOIN_PATH } from '../shared/navigation/paths';
+import { TODAY_PATH, REVIEW_PATH, HELP_PATH, LIBRARY_PATH, HOME_PATH, HOW_IT_WORKS_PATH, SETS_PATH, SET_ROUTE, TRIAL_ROUTE, SIGN_IN_PATH, REGISTER_PATH, ACCOUNT_PATH, INVITE_PATH, SET_SHARE_ROUTE, JOIN_PATH } from '../shared/navigation/paths';
 
 /** Public journeys choose their layout; private routes share the confirmed account boundary. */
 export function App() {
   return (
     <AccountProvider gateway={httpAccount}>
+    <ReviewProvider gateway={httpReviews}>
     <LibraryProvider gateway={httpLibrary}>
     <PublicContentProvider reader={httpPublicContent}>
       <ScrollOnNavigation />
@@ -50,12 +55,15 @@ export function App() {
           <Route path="*" element={<NotFoundPage />} />
         </Route>
         <Route element={<AccountLayout />}>
+          <Route path={TODAY_PATH} element={<TodayPage />} />
           <Route path={LIBRARY_PATH} element={<LibraryPage />} />
           <Route path={ACCOUNT_PATH} element={<AccountPage />} />
         </Route>
+        <Route element={<AccountLayout focused />}><Route path={REVIEW_PATH} element={<ReviewPage />} /></Route>
       </Routes>
     </PublicContentProvider>
     </LibraryProvider>
+    </ReviewProvider>
     </AccountProvider>
   );
 }

@@ -35,6 +35,8 @@ export function SaveSetAction({ shareCode, setKey }: Readonly<{ shareCode: strin
       // Re-read with the current cookie: another tab may have changed accounts during the POST.
       await queryClient.invalidateQueries({ queryKey });
       void queryClient.invalidateQueries({ queryKey: ['library', 'list'] });
+      // Saved sets decide Today's cards, so its cached summary is now out of date.
+      queryClient.removeQueries({ queryKey: ['reviews'] });
       setState('idle');
     } catch (error) {
       if (error instanceof LibraryFailure && error.reason === 'signed-out') {

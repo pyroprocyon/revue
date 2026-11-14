@@ -5,12 +5,13 @@ import { useEffect, useRef, useState, type SubmitEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { safeAccountReturnPath } from '../application/account';
 import { useAccountGateway } from './AccountProvider';
+import { forgetConfirmedProfile } from './confirmedProfile';
 import { PolicyLinks } from '../../../shared/ui/PolicyLinks';
 import { HomeLink } from '../../../shared/ui/HeaderLinks';
 import { SupportLink } from '../../../shared/ui/SupportLink';
 import { FormLayout } from '../../../shared/ui/FormLayout';
 import { primaryButton, textLink, textLinkTarget } from '../../../shared/ui/buttonStyles';
-import { ACCOUNT_PATH, SIGN_IN_PATH } from '../../../shared/navigation/paths';
+import { TODAY_PATH, SIGN_IN_PATH } from '../../../shared/navigation/paths';
 
 const PASSWORD_MISMATCH = 'Passwords don’t match.';
 
@@ -55,8 +56,10 @@ export function AccountForm({ register = false }: Readonly<{ register?: boolean 
       setPasswordConfirmation('');
       await queryClient.cancelQueries({ queryKey: publicSessionKey, exact: true });
       queryClient.removeQueries({ queryKey: ['library'] });
+      queryClient.removeQueries({ queryKey: ['reviews'] });
+      forgetConfirmedProfile(queryClient);
       queryClient.setQueryData(publicSessionKey, true);
-      await navigate(returnPath ?? ACCOUNT_PATH, { replace: true });
+      await navigate(returnPath ?? TODAY_PATH, { replace: true });
     } catch (error_) {
       setPassword('');
       setPasswordConfirmation('');

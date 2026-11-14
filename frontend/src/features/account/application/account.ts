@@ -10,7 +10,7 @@ export interface AccountGateway {
 }
 
 export function safeAccountReturnPath(path: string | null): string | null {
-  if (path === '/library') return path;
+  if (path === '/library' || path === '/today' || path === '/review' || path === '/account') return path;
   if (!path?.startsWith('/sets/') || path.length > 128) return null;
   const key = path.slice('/sets/'.length);
   return key.split('-').every((part) => part.length > 0 && [...part].every((character) => /[a-z0-9]/.test(character))) ? path : null;

@@ -45,6 +45,8 @@ export function RemoveSetAction({ set, username, onRemoved }: Readonly<Props>) {
       });
       void client.invalidateQueries(lists);
       void client.invalidateQueries({ queryKey: ['library', 'membership', set.id] });
+      // Saved sets decide Today's cards, so its cached summary is now out of date.
+      client.removeQueries({ queryKey: ['reviews'] });
       onRemoved(set.title, restoreFocus.current);
     } catch (error) {
       if (error instanceof LibraryFailure && error.reason === 'signed-out') {

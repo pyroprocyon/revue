@@ -6,6 +6,7 @@ import type { AccountProfile } from '../application/account';
 import { useAccountGateway } from './AccountProvider';
 import { accountLink } from '../../../shared/ui/buttonStyles';
 import { SIGN_IN_PATH } from '../../../shared/navigation/paths';
+import { WorkspacePage } from '../../../shared/ui/WorkspacePage';
 
 export function AccountPage() {
   const gateway = useAccountGateway();
@@ -27,25 +28,26 @@ export function AccountPage() {
   }
 
   return (
-    <section className="max-w-lg">
-      <h1 className="text-title font-extrabold tracking-tight lg:text-title-lg">Your account</h1>
-      <div className="mt-5 rounded-card bg-surface p-compact-gutter shadow-card sm:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
-          <div className="flex min-w-0 flex-1 basis-40 flex-wrap items-center gap-3">
-            <span className="grid size-11 shrink-0 place-items-center rounded-control bg-accent-soft text-accent">
-              <UserRound aria-hidden="true" className="size-5" />
+    <WorkspacePage title="Your account">
+      <div className="overflow-hidden rounded-card bg-surface shadow-card">
+        <div className="p-compact-gutter py-6 sm:p-8">
+          <div className="flex min-w-0 flex-wrap items-center gap-4">
+            <span className="grid size-16 shrink-0 place-items-center rounded-card bg-accent-soft text-accent">
+              <UserRound aria-hidden="true" className="size-7" />
             </span>
             <dl className="min-w-0 flex-1 basis-24">
               <dt className="text-support text-muted">Username</dt>
-              <dd className="font-bold text-section wrap-anywhere">{profile.username}</dd>
+              <dd className="mt-1 text-title font-bold tracking-tight wrap-anywhere">{profile.username}</dd>
             </dl>
           </div>
+        </div>
+        <div className="border-t border-line px-compact-gutter py-3 sm:px-8">
           <button type="button" className={`${accountLink} border border-line disabled:text-muted`} disabled={busy} onClick={() => void signOut()}>
             {busy ? 'Signing out…' : 'Sign out'}
           </button>
+          {error && <p role="alert" className="mt-3 text-body">{error}</p>}
         </div>
-        {error && <p role="alert" className="mt-3 text-body">{error}</p>}
       </div>
-    </section>
+    </WorkspacePage>
   );
 }

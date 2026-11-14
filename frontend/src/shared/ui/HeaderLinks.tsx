@@ -1,20 +1,20 @@
 import { ChevronLeft } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router';
-import { ACCOUNT_PATH, HOME_PATH, SETS_PATH, SIGN_IN_PATH } from '../navigation/paths';
+import { ACCOUNT_PATH, TODAY_PATH, HOME_PATH, SETS_PATH, SIGN_IN_PATH } from '../navigation/paths';
 import { usePublicSession } from '../navigation/publicSession';
 import { BrandMark } from './BrandMark';
 import { accountOutlinedButton } from './buttonStyles';
 
 /** The Revue mark and name link to the home of the current area. */
-export function HomeLink({ to }: Readonly<{ to?: string }>) {
+export function HomeLink({ to, compact = false }: Readonly<{ to?: string; compact?: boolean }>) {
   const session = usePublicSession();
-  const destination = session === 'signed-in' ? ACCOUNT_PATH : HOME_PATH;
+  const destination = session === 'signed-in' ? TODAY_PATH : HOME_PATH;
   return (
     <Link
       to={to ?? destination}
-      className="pressable -ml-2 inline-flex min-h-12 items-center gap-2 rounded-control px-2 text-[1.5rem] font-extrabold tracking-tight lg:text-[2.1875rem]"
+      className={`pressable -ml-2 inline-flex min-h-12 items-center gap-2 rounded-control px-2 text-[1.5rem] font-extrabold tracking-tight ${compact ? '' : 'lg:text-[2.1875rem]'}`}
     >
-      <BrandMark className="size-8 lg:size-12" />
+      <BrandMark className={`size-8 ${compact ? '' : 'lg:size-12'}`} />
       <span>Revue</span>
     </Link>
   );
