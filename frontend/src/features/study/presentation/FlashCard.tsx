@@ -1,7 +1,8 @@
 import { Lightbulb } from 'lucide-react';
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { primaryButton } from '../../../shared/ui/buttonStyles';
 import { CardSource } from '../../../shared/ui/CardSource';
+import { FocusRequestContext } from '../../../shared/ui/FocusRequestContext';
 
 // A two-sided card, like a paper flashcard: the question on the front, the answer on the back.
 // Checking the answer is deliberate; tapping the card surface never flips it. After reveal,
@@ -32,11 +33,12 @@ export function FlashCard({
   const questionRef = useRef<HTMLHeadingElement>(null);
   const answerRef = useRef<HTMLHeadingElement>(null);
   const hintVisible = showRecallHint && !answerShown;
+  const requestFocus = useContext(FocusRequestContext);
 
   // The side facing the student takes focus, so a screen reader reads the question, then the answer.
   useEffect(() => {
-    (showingBack ? answerRef : questionRef).current?.focus();
-  }, [showingBack]);
+    requestFocus((showingBack ? answerRef : questionRef).current);
+  }, [showingBack, requestFocus]);
 
   function revealAnswer() {
     setAnswerShown(true);

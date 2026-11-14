@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import { Link, Navigate } from 'react-router';
 import { ArrowRight, Check, Layers, LoaderCircle } from 'lucide-react';
 import { ReviewFailure, type RatingRequest, type StudyCard } from '../application/reviews';
-import { useBatchQueue, useForgetTodayQueue, useReviewGateway, useTodayQueue } from './ReviewProvider';
+import { useBatchQueue, useSubmitRating, useTodayQueue } from './ReviewProvider';
 import { SavedCard } from './SavedCard';
 import { RatingButtons } from './RatingButtons';
 import type { Rating } from './ratings';
@@ -10,12 +10,12 @@ import { nextReviewText, reviewAction } from './TodayPage';
 import { primaryButton, secondaryButton } from '../../../shared/ui/buttonStyles';
 import { REVIEW_PATH, SIGN_IN_PATH, TODAY_PATH } from '../../../shared/navigation/paths';
 import { WhenSlow } from '../../../shared/ui/WhenSlow';
+import { FocusRequestContext } from '../../../shared/ui/FocusRequestContext';
 
 const reviewPanel = 'rounded-card bg-surface p-compact-gutter py-6 shadow-card sm:p-8';
 
 export function ReviewPage() {
   const [finished, setFinished] = useState<{ count: number; note: string } | null>(null);
-  const [round, setRound] = useState(0);
   const reviewed = useRef(new Set<string>());
   return (
     <div className="pb-4 sm:pb-6">
@@ -32,14 +32,10 @@ export function ReviewPage() {
         <ReviewCompletion
           count={finished.count}
           note={finished.note}
-          onContinue={() => {
-            setRound((value) => value + 1);
-            setFinished(null);
-          }}
+          onContinue={() => setFinished(null)}
         />
       ) : (
         <LoadBatch
-          key={round}
           onConfirmed={(id) => reviewed.current.add(id)}
           onFinish={(note = '') => setFinished({ count: reviewed.current.size, note })}
         />
@@ -53,26 +49,21 @@ type BatchCallbacks = { onFinish: Finish; onConfirmed: (id: string) => void };
 function LoadBatch({ onFinish, onConfirmed }: Readonly<BatchCallbacks>) {
   const query = useBatchQueue();
   if (query.isPending) return <WhenSlow><div className={reviewPanel}><ReviewStatus text="Loading your cards…" /></div></WhenSlow>;
-  if (query.error instanceof ReviewFailure && query.error.kind === 'signed-out')
-    return <Navigate to={`${SIGN_IN_PATH}?returnTo=${REVIEW_PATH}`} replace />;
-  if (query.isLoadingError)
+  if (query.isError)
     return <div className={reviewPanel}><QueueError error={query.error} retry={() => void query.refetch()} busy={query.isFetching} /></div>;
-  // Background refreshes must not unmount an active batch or discard its pending rating.
-  return <ReviewBatch initialCards={query.data.cards} onFinish={onFinish} onConfirmed={onConfirmed} />;
+  return <ReviewBatch cards={query.data.cards} onFinish={onFinish} onConfirmed={onConfirmed} />;
 }
 
 function ReviewBatch({
-  initialCards,
+  cards,
   onFinish,
   onConfirmed,
-}: Readonly<{ initialCards: StudyCard[] } & BatchCallbacks>) {
-  const [cards] = useState(initialCards);
+}: Readonly<{ cards: StudyCard[] } & BatchCallbacks>) {
   const [index, setIndex] = useState(0);
   const [status, setStatus] = useState<'ready' | 'saving' | 'unknown' | 'signed-out'>('ready');
   const pending = useRef<RatingRequest | null>(null);
   const busy = useRef(false);
-  const gateway = useReviewGateway();
-  const forgetTodayQueue = useForgetTodayQueue();
+  const submitRating = useSubmitRating();
   if (cards.length === 0)
     return (
       <div className={reviewPanel}>
@@ -87,9 +78,8 @@ function ReviewBatch({
     busy.current = true;
     pending.current = input;
     setStatus('saving');
-    forgetTodayQueue();
     try {
-      await gateway.rate(card.id, input);
+      await submitRating(card.id, input);
       pending.current = null;
       onConfirmed(card.id);
       if (index + 1 === cards.length) onFinish();
@@ -204,10 +194,11 @@ function ReviewCompletion({
 }: Readonly<{ count: number; note: string; onContinue: () => void }>) {
   const query = useTodayQueue();
   const heading = useRef<HTMLHeadingElement>(null);
+  const requestFocus = useContext(FocusRequestContext);
   const loaded = query.isSuccess;
   useEffect(() => {
-    if (loaded) heading.current?.focus();
-  }, [loaded]);
+    if (loaded) requestFocus(heading.current);
+  }, [loaded, requestFocus]);
   const remaining = query.data ? query.data.dueCards + query.data.newCards : 0;
   const Icon = count > 0 ? Check : Layers;
   return (

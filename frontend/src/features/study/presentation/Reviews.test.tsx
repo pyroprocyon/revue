@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { jsonResponse, renderApp } from '../../../test/renderApp';
 import type { RatingRequest, StudyQueue } from '../application/reviews';
 import { lastConfirmedProfile } from '../../account/presentation/confirmedProfile';
+import { focusManager } from '@tanstack/react-query';
 
 const card = {
   id: '23',
@@ -55,30 +56,78 @@ function api(queue = empty, write?: (input: RatingRequest) => Promise<Response>)
 }
 
 describe('saved daily study', () => {
-  it('returns to sign-in when a background queue refresh reports an expired session', async () => {
+  it.each(['confirmed', 'lost'])('refreshes Today when a rating settles after leaving the batch (%s response)', async (response) => {
+    let finish: (() => void) | undefined;
+    const fixture = api(ready, (input) => new Promise<Response>((resolve, reject) => {
+      finish = () => {
+        fixture.setQueue(done);
+        if (response === 'lost') reject(new TypeError('lost response'));
+        else resolve(jsonResponse(200, { cardId: card.id, requestId: input.requestId, scheduleVersion: 1 }));
+      };
+    }));
+    renderApp('/review');
+    fireEvent.click(await screen.findByRole('button', { name: 'Show answer' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Good:/ }));
+    await waitFor(() => expect(finish).toBeDefined());
+    fireEvent.click(screen.getByRole('link', { name: 'Finish for now' }));
+    await screen.findByRole('heading', { name: '1 card ready' });
+
+    await act(async () => finish!());
+    expect(await screen.findByRole('heading', { name: 'All caught up' })).toBeDefined();
+    expect(screen.queryByRole('heading', { name: '1 card ready' })).toBeNull();
+  });
+
+  it('replaces an unfinished Today read when the rating settles and ignores its late response', async () => {
+    let finish: (() => void) | undefined;
+    const { fetcher } = api(ready, (input) => new Promise<Response>((resolve) => {
+      finish = () => resolve(jsonResponse(200, { cardId: card.id, requestId: input.requestId, scheduleVersion: 1 }));
+    }));
+    const respond = fetcher.getMockImplementation()!;
+    let finishOldRead: (() => void) | undefined;
+    let queueReads = 0;
+    fetcher.mockImplementation((path, init) => {
+      if (path === '/api/v1/cards/due' && ++queueReads === 2) {
+        return new Promise<Response>((resolve) => { finishOldRead = () => resolve(jsonResponse(200, ready)); });
+      }
+      return respond(path, init);
+    });
+    renderApp('/review');
+    fireEvent.click(await screen.findByRole('button', { name: 'Show answer' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Good:/ }));
+    await waitFor(() => expect(finish).toBeDefined());
+    fireEvent.click(screen.getByRole('link', { name: 'Finish for now' }));
+    await waitFor(() => expect(finishOldRead).toBeDefined());
+
+    await act(async () => finish!());
+    await screen.findByRole('heading', { name: 'All caught up' });
+    await act(async () => finishOldRead!());
+    expect(screen.getByRole('heading', { name: 'All caught up' })).toBeDefined();
+    expect(screen.queryByRole('heading', { name: '1 card ready' })).toBeNull();
+  });
+
+  it('returns to sign-in when the tab-return session check reports an expired session', async () => {
     const { fetcher } = api(ready);
     const respond = fetcher.getMockImplementation()!;
-    const { queryClient } = renderApp('/review');
+    renderApp('/review');
     await screen.findByLabelText('Your answer (optional)');
     fetcher.mockImplementation((path, init) => {
       if (path === '/api/v1/cards/due' || path === '/api/v1/me') return Promise.resolve(jsonResponse(401));
       if (path === '/api/v1/auth/session') return Promise.resolve(jsonResponse(200, { signedIn: false }));
       return respond(path, init);
     });
-    await act(async () => { await queryClient.refetchQueries({ queryKey: ['reviews'] }); });
+    fireEvent(window, new Event('focus'));
     expect(await screen.findByRole('heading', { name: 'Welcome back' })).toBeDefined();
     expect(screen.queryByRole('heading', { name: card.question })).toBeNull();
   });
 
-  it.each(['failed', 'empty'])('keeps the draft and exact rating retry when a background queue refresh is %s', async (refresh) => {
+  it('keeps the draft and exact retry on tab return without fetching an unused queue', async () => {
     const inputs: RatingRequest[] = [];
     const { fetcher } = api(ready, async (input) => {
       inputs.push(input);
       if (inputs.length === 1) throw new TypeError('lost response');
       return jsonResponse(200, { cardId: card.id, requestId: input.requestId, scheduleVersion: 1 });
     });
-    const respond = fetcher.getMockImplementation()!;
-    const { queryClient } = renderApp('/review');
+    renderApp('/review');
     fireEvent.change(await screen.findByLabelText('Your answer (optional)'), {
       target: { value: 'Keep this answer through a tab return' },
     });
@@ -86,16 +135,17 @@ describe('saved daily study', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Good:/ }));
     await screen.findByRole('button', { name: 'Retry rating' });
 
-    fetcher.mockImplementation((path, init) => path === '/api/v1/cards/due'
-      ? Promise.resolve(refresh === 'failed' ? jsonResponse(503) : jsonResponse(200, done))
-      : respond(path, init));
     const queueReads = fetcher.mock.calls.filter(([path]) => path === '/api/v1/cards/due').length;
-    await act(async () => {
-      await queryClient.refetchQueries({ queryKey: ['reviews'] });
-      // Query notifications are batched on the next event-loop turn.
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-    expect(fetcher.mock.calls.filter(([path]) => path === '/api/v1/cards/due')).toHaveLength(queueReads + 1);
+    try {
+      await act(async () => {
+        focusManager.setFocused(false);
+        focusManager.setFocused(true);
+        fireEvent(window, new Event('focus'));
+      });
+      expect(fetcher.mock.calls.filter(([path]) => path === '/api/v1/cards/due')).toHaveLength(queueReads);
+    } finally {
+      focusManager.setFocused(undefined);
+    }
 
     expect(screen.getByRole('button', { name: 'Retry rating' })).toBeDefined();
     expect(screen.getByRole('heading', { name: card.answer })).toBeDefined();
@@ -105,7 +155,6 @@ describe('saved daily study', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Back to answer' }));
     expect(inputs).toHaveLength(1);
 
-    fetcher.mockImplementation(respond);
     fireEvent.click(screen.getByRole('button', { name: 'Retry rating' }));
     await screen.findByText('1 card reviewed');
     expect(inputs).toHaveLength(2);
@@ -133,6 +182,36 @@ describe('saved daily study', () => {
     await screen.findByRole('heading', { name: 'What do roots absorb?' });
     expect(progress.getAttribute('value')).toBe('1');
     expect(screen.getByLabelText('Your answer (optional)')).toHaveProperty('value', '');
+  });
+
+  it('starts a fresh batch on Continue while keeping the total confirmed reviews', async () => {
+    const { fetcher } = api(ready);
+    const respond = fetcher.getMockImplementation()!;
+    const nextCard = { ...card, id: '24', question: 'What do roots absorb?' };
+    let queue = ready;
+    fetcher.mockImplementation(async (path, init) => {
+      if (path === '/api/v1/cards/due') return jsonResponse(200, queue);
+      if (path === '/api/v1/reviews/24') {
+        const input = JSON.parse(String(init?.body)) as RatingRequest;
+        queue = done;
+        return jsonResponse(200, { cardId: nextCard.id, requestId: input.requestId, scheduleVersion: 1 });
+      }
+      const response = await respond(path, init);
+      if (path === '/api/v1/reviews/23') queue = { ...ready, cards: [nextCard] };
+      return response;
+    });
+    renderApp('/review');
+    fireEvent.click(await screen.findByRole('button', { name: 'Show answer' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Good:/ }));
+    await screen.findByRole('heading', { name: '1 card reviewed' });
+    fireEvent.click(screen.getByRole('button', { name: 'Review 1 card' }));
+    await screen.findByRole('heading', { name: nextCard.question });
+    expect(screen.getByRole('progressbar').getAttribute('value')).toBe('0');
+    expect(screen.getByLabelText('Your answer (optional)')).toHaveProperty('value', '');
+    fireEvent.click(screen.getByRole('button', { name: 'Show answer' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Good:/ }));
+    await screen.findByRole('heading', { name: '2 cards reviewed' });
+    expect(screen.getByText('All caught up.')).toBeDefined();
   });
 
   it.each(['loading', 'failed'])('keeps an exit when the completion queue is $0', async (state) => {

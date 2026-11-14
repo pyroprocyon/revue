@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router';
 import { safeAccountReturnPath } from '../application/account';
 import type { AccountProfile } from '../application/account';
@@ -11,6 +11,7 @@ import { primaryButton } from '../../../shared/ui/buttonStyles';
 import { StudyLayout } from '../../../shared/ui/StudyLayout';
 import { WhenSlow } from '../../../shared/ui/WhenSlow';
 import { WorkspaceLayout } from '../../../shared/ui/WorkspaceLayout';
+import { FocusRequestContext } from '../../../shared/ui/FocusRequestContext';
 
 type Session =
   | { status: 'loading' | 'signed-out' }
@@ -35,15 +36,22 @@ export function AccountLayout({ focused = false }: Readonly<{ focused?: boolean 
   const lastUsername = useRef(session.status === 'ready' ? session.profile.username : undefined);
   const privateContent = useRef<HTMLDivElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
+  const pendingFocus = useRef<HTMLElement | null>(null);
+  const requestFocus = useCallback((target: HTMLElement | null) => {
+    if (privateContent.current?.inert) pendingFocus.current = target;
+    else target?.focus();
+  }, []);
 
   // This effect comes before the session check on purpose. On mount it finds nothing to restore,
   // so it cannot drop the focus that the first check of a remembered account records right after.
   useEffect(() => {
     if (checking || verificationError) return;
-    const focused = previousFocus.current;
+    const requested = pendingFocus.current;
+    const focused = requested ?? previousFocus.current;
+    pendingFocus.current = null;
     previousFocus.current = null;
     if (focused && document.activeElement === document.body && privateContent.current?.contains(focused)) {
-      focused.focus({ preventScroll: true });
+      focused.focus({ preventScroll: requested === null });
     }
   }, [checking, verificationError]);
 
@@ -64,6 +72,7 @@ export function AccountLayout({ focused = false }: Readonly<{ focused?: boolean 
         if (pendingRequest !== request) return;
         if (lastUsername.current !== profile?.username || profile === null) {
           previousFocus.current = null;
+          pendingFocus.current = null;
           queryClient.clear();
         }
         lastUsername.current = profile?.username;
@@ -115,7 +124,9 @@ export function AccountLayout({ focused = false }: Readonly<{ focused?: boolean 
       </section>}
       {/* Preserve same-account drafts during verification; a different account starts fresh. */}
       {session.status === 'ready' && <div ref={privateContent} inert={checking || verificationError}>
-        <Outlet key={session.profile.username} context={session.profile} />
+        <FocusRequestContext value={requestFocus}>
+          <Outlet key={session.profile.username} context={session.profile} />
+        </FocusRequestContext>
       </div>}
     </>
   );

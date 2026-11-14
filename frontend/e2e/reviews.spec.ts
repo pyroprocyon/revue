@@ -46,11 +46,11 @@ test('saved review survives a lost response, exact retry, reload and removal', a
   });
   await page.getByRole('button', { name: /^Good:/ }).click();
   await expect(page.getByRole('button', { name: 'Retry rating' })).toBeVisible();
-  let failedRefreshes = 0;
-  await page.route('**/api/v1/cards/due', async (route) => {
-    failedRefreshes += 1;
-    await route.fulfill({ status: 503, json: {} });
+  const queueRequests: string[] = [];
+  page.on('request', (request) => {
+    if (request.url().endsWith('/api/v1/cards/due')) queueRequests.push(request.url());
   });
+  const sessionRecheck = page.waitForResponse((response) => response.url().endsWith('/api/v1/me'));
   await page.evaluate(() => {
     Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
     document.dispatchEvent(new Event('visibilitychange', { bubbles: true }));
@@ -58,14 +58,14 @@ test('saved review survives a lost response, exact retry, reload and removal', a
     document.dispatchEvent(new Event('visibilitychange', { bubbles: true }));
     Reflect.deleteProperty(document, 'visibilityState');
   });
-  await expect.poll(() => failedRefreshes).toBe(1);
+  await sessionRecheck;
+  expect(queueRequests).toHaveLength(0);
   await expect(page.getByRole('button', { name: 'Retry rating' })).toBeVisible();
   await page.screenshot({ path: info.outputPath('review-unknown.png'), fullPage: true });
   await expect(page.getByText('1 card reviewed', { exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Back to question' }).click();
   await expect(page.getByLabel('Your answer (optional)')).toHaveValue('private-browser-only-answer');
   await page.getByRole('button', { name: 'Back to answer' }).click();
-  await page.unroute('**/api/v1/cards/due');
   await page.getByRole('button', { name: 'Retry rating' }).click();
   await expect(page.getByRole('heading', { name: '1 card reviewed', exact: true })).toBeVisible();
   await expect(page.getByText('All caught up.', { exact: true })).toBeVisible();

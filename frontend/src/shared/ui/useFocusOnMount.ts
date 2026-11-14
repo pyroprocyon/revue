@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react';
+import { useContext, useEffect, useRef } from 'react';
+import { FocusRequestContext } from './FocusRequestContext';
 
 /**
  * Moves keyboard and screen reader focus to the returned element when it first appears. Use it on
@@ -7,8 +8,9 @@ import { useEffect, useRef } from 'react';
  */
 export function useFocusOnMount<T extends HTMLElement>() {
   const ref = useRef<T>(null);
+  const requestFocus = useContext(FocusRequestContext);
   useEffect(() => {
-    ref.current?.focus();
-  }, []);
+    requestFocus(ref.current);
+  }, [requestFocus]);
   return ref;
 }
