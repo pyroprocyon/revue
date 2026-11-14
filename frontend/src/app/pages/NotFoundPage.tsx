@@ -6,8 +6,9 @@ import { usePublicSession } from '../../shared/navigation/publicSession';
 import { TODAY_PATH, HOME_PATH } from '../../shared/navigation/paths';
 
 export function NotFoundPage() {
-  const signedIn = usePublicSession() === 'signed-in';
-  const homeButton = (
+  const session = usePublicSession();
+  const signedIn = session === 'signed-in';
+  const homeButton = session !== 'checking' && (
     <ActionRow>
       <Link to={signedIn ? TODAY_PATH : HOME_PATH} className={secondaryButton}>
         {signedIn ? 'Go to Today' : 'Go to the home page'}

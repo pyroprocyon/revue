@@ -35,6 +35,39 @@ async function signIn(page: Page, name: string, password = PASSWORD) {
   return result;
 }
 
+for (const width of [375, 1366]) {
+  test(`opening home with an existing session never flashes the public landing at ${width}px`, async ({ page, pilot }, info) => {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto(pilot.invitation());
+    await register(page, username());
+    await page.addInitScript(() => {
+      new MutationObserver(() => {
+        if (document.querySelector('.landing-hero')) document.documentElement.dataset.landingSeen = 'true';
+      }).observe(document, { childList: true, subtree: true });
+    });
+    let release!: () => void;
+    const pending = new Promise<void>((resolve) => { release = resolve; });
+    await page.route('**/api/v1/auth/session', async (route) => {
+      await pending;
+      await route.continue();
+    });
+    try {
+      await page.goto('/');
+      await page.screenshot({ path: info.outputPath('home-session-pending.png'), fullPage: true });
+      await expect(page.getByRole('heading', { name: 'Review before it’s due.' })).toHaveCount(0);
+      await expect(page.getByRole('status')).toHaveText('Checking your session…');
+      await page.screenshot({ path: info.outputPath('home-session-loading.png'), fullPage: true });
+      release();
+      await expect(page).toHaveURL(/\/today$/);
+      await expect(page.getByRole('heading', { name: 'Your review', exact: true })).toBeFocused();
+      expect(await page.locator('html').getAttribute('data-landing-seen')).toBeNull();
+      await page.screenshot({ path: info.outputPath('home-session-ready.png'), fullPage: true });
+    } finally {
+      release();
+    }
+  });
+}
+
 test('invited learner registers with six characters, reloads, signs out and signs back in', async ({ page, context, pilot }) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Review before it’s due.' })).toBeVisible();

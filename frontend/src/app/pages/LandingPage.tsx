@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { ArrowRight } from 'lucide-react';
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { Link, Navigate, useLocation } from 'react-router';
 import { usePublicContentQueries } from '../../features/catalog/presentation/PublicContentProvider';
 import { accountTonalButton, primaryButton } from '../../shared/ui/buttonStyles';
@@ -9,6 +9,7 @@ import { SampleCard } from '../../features/study/presentation/SampleCard';
 import { REVIEW_STEPS_INTRO, REVIEW_STEPS_TITLE, ReviewSteps } from '../../features/study/presentation/ReviewSteps';
 import { usePublicSession } from '../../shared/navigation/publicSession';
 import { LandingLayout } from './LandingLayout';
+import { LoadingScreen } from '../../shared/ui/MessageScreen';
 import { TODAY_PATH, HOW_IT_WORKS_PATH, JOIN_PATH, SETS_PATH } from '../../shared/navigation/paths';
 
 // Compact phones use a two-line hero; narrower screens and enlarged text can scroll.
@@ -21,13 +22,20 @@ export function LandingPage() {
   const session = usePublicSession();
   const { publicSetsQuery } = usePublicContentQueries();
   const queryClient = useQueryClient();
+  const scrollToGuide = useCallback((section: HTMLElement | null) => {
+    // The section may mount after ScrollOnNavigation has already handled this URL.
+    if (hash === `#${HOW_IT_WORKS_SECTION}`) section?.scrollIntoView();
+  }, [hash]);
 
   // Most visitors tap "Browse sets" next, so the list of sets loads now and opens at once.
   useEffect(() => {
+    if (session !== 'signed-out') return;
     void queryClient.query(publicSetsQuery).catch(() => {
       // The set list owns error feedback when the visitor opens it.
     });
-  }, [queryClient, publicSetsQuery]);
+  }, [queryClient, publicSetsQuery, session]);
+
+  if (session === 'checking') return <LoadingScreen text="Checking your session…" />;
 
   // Old section links still work on phones, where the inline explanation is now hidden.
   if (hash === `#${HOW_IT_WORKS_SECTION}` && (session === 'signed-in' || window.matchMedia('(width < 64rem)').matches)) {
@@ -55,6 +63,7 @@ export function LandingPage() {
         <SampleCard />
       </section>
       <section
+        ref={scrollToGuide}
         id={HOW_IT_WORKS_SECTION}
         aria-labelledby={`${HOW_IT_WORKS_SECTION}-heading`}
         className="@container hidden scroll-mt-6 lg:block lg:pt-20 lg:pb-12"

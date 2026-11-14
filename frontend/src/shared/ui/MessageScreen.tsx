@@ -3,6 +3,7 @@ import { LoaderCircle } from 'lucide-react';
 import { HomeLink } from './HeaderLinks';
 import { PageLayout } from './PageLayout';
 import { useFocusOnMount } from './useFocusOnMount';
+import { WhenSlow } from './WhenSlow';
 
 type MessageScreenProps = {
   title: string;
@@ -32,11 +33,11 @@ export function MessageScreen({ title, icon, action, children }: Readonly<Messag
 
 export function LoadingScreen({ text }: Readonly<{ text: string }>) {
   return (
-    <PageLayout top={<HomeLink />}>
+    <WhenSlow><PageLayout top={<HomeLink />}>
       <output className="my-6 flex items-center gap-3 rounded-card bg-surface px-compact-gutter py-4 text-body text-muted shadow-card sm:p-6">
         <LoaderCircle aria-hidden="true" className="size-6 shrink-0 animate-spin text-accent motion-reduce:animate-none" />
         <span>{text}</span>
       </output>
-    </PageLayout>
+    </PageLayout></WhenSlow>
   );
 }

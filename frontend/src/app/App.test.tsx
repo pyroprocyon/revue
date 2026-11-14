@@ -1,9 +1,34 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { historySet, natureSet } from '../test/fixtures';
-import { renderApp, stubFetch } from '../test/renderApp';
+import { jsonResponse, renderApp, stubFetch } from '../test/renderApp';
 
 describe('App', () => {
+  it.each(['signed-in', 'guest', 'unavailable'])('waits before choosing the homepage for a %s session', async (session) => {
+    let finish!: (response: Response) => void;
+    const pending = new Promise<Response>((resolve) => { finish = resolve; });
+    vi.stubGlobal('fetch', vi.fn(async (path: string) => {
+      if (path === '/api/v1/auth/session') return pending;
+      if (path === '/api/v1/me') return jsonResponse(200, { username: 'learner' });
+      if (path === '/api/v1/cards/due') return jsonResponse(200, {
+        totalCards: 0, availableCards: 0, dueCards: 0, newCards: 0, nextReviewDate: null, cards: [],
+      });
+      return jsonResponse(200, []);
+    }));
+    renderApp('/');
+    expect(screen.queryByRole('heading', { name: 'Review before it’s due.' })).toBeNull();
+    expect(screen.queryByRole('status')).toBeNull();
+    expect(await screen.findByRole('status')).toHaveProperty('textContent', 'Checking your session…');
+    expect(screen.queryByRole('heading', { name: 'Review before it’s due.' })).toBeNull();
+
+    await act(async () => finish(session === 'unavailable'
+      ? jsonResponse(503)
+      : jsonResponse(200, { signedIn: session === 'signed-in' })));
+    expect(await screen.findByRole('heading', {
+      name: session === 'signed-in' ? 'Your review' : 'Review before it’s due.',
+    })).toBeDefined();
+  });
+
   it('opens signup directly at the short invitation route', async () => {
     stubFetch(404);
     renderApp('/i');
@@ -45,11 +70,11 @@ describe('App', () => {
     }
   });
 
-  it('leads the home page with the headline and the way into the sets', () => {
+  it('leads the home page with the headline and the way into the sets', async () => {
     stubFetch(200, [historySet, natureSet]);
     renderApp('/');
 
-    expect(screen.getByRole('heading', { level: 1, name: 'Review before it’s due.' })).toBeDefined();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Review before it’s due.' })).toBeDefined();
     expect(screen.getByText('You do the thinking. Revue handles the timing.')).toBeDefined();
     // CSS shows the hero or footer link according to the rendered layout.
     const browseLinks = screen.getAllByRole('link', { name: 'Browse sets' });
@@ -81,11 +106,11 @@ describe('App', () => {
     expect(fetchMock).toHaveBeenCalledExactlyOnceWith('/api/v1/auth/session', expect.anything());
   });
 
-  it('says "review" only in the headline, using practice, set and comes back elsewhere', () => {
+  it('says "review" only in the headline, using practice, set and comes back elsewhere', async () => {
     stubFetch(200, [historySet, natureSet]);
     renderApp('/');
 
-    const mentions = screen.getAllByText(/\breview/i);
+    const mentions = await screen.findAllByText(/\breview/i);
     expect(mentions).toHaveLength(1);
     expect(mentions[0].closest('h1')).not.toBeNull();
   });
@@ -102,7 +127,7 @@ describe('App', () => {
     stubFetch(200, [historySet, natureSet]);
     renderApp('/');
 
-    expect(screen.getByRole('heading', { level: 2, name: 'How spaced repetition works' }).closest('section')?.id).toBe('how-it-works');
+    expect((await screen.findByRole('heading', { level: 2, name: 'How spaced repetition works' })).closest('section')?.id).toBe('how-it-works');
     fireEvent.click(screen.getByRole('link', { name: 'How it works' }));
 
     expect(screen.getByRole('heading', { level: 1, name: 'How spaced repetition works' })).toBeDefined();
@@ -111,11 +136,11 @@ describe('App', () => {
     expect(await screen.findByRole('heading', { name: 'Shared sets' })).toBeDefined();
   });
 
-  it('shows a sample card from the sets with the real rating look, and nothing to press', () => {
+  it('shows a sample card from the sets with the real rating look, and nothing to press', async () => {
     stubFetch(200, [historySet, natureSet]);
     renderApp('/');
 
-    const sample = screen.getByRole('figure', { name: 'Sample card' });
+    const sample = await screen.findByRole('figure', { name: 'Sample card' });
     expect(sample.textContent).toContain('Who wrote Noli Me Tangere?');
     expect(sample.textContent).toContain('Hard: Right, with effort');
     expect(sample.textContent).toContain('Comes back');
@@ -123,10 +148,11 @@ describe('App', () => {
     expect(sample.querySelectorAll('a, button, input')).toHaveLength(0);
   });
 
-  it('shows a not-found page for an unknown route', () => {
+  it('shows a not-found page for an unknown route', async () => {
+    stubFetch(404);
     renderApp('/no-such-page');
 
     expect(screen.getByRole('heading', { level: 1, name: 'Page not found.' })).toBeDefined();
-    expect(screen.getByRole('link', { name: 'Go to the home page' }).getAttribute('href')).toBe('/');
+    expect((await screen.findByRole('link', { name: 'Go to the home page' })).getAttribute('href')).toBe('/');
   });
 });
