@@ -1,5 +1,177 @@
 @import 'tailwindcss';
 
+.review-progress {
+  display: block;
+  width: 100%;
+  height: 0.375rem;
+  appearance: none;
+  border: 0;
+  border-radius: 9999px;
+  overflow: hidden;
+  background: var(--color-line);
+}
+
+.review-progress::-webkit-progress-bar { background: var(--color-line); }
+.review-progress::-webkit-progress-value { background: var(--color-accent); border-radius: 9999px; }
+.review-progress::-moz-progress-bar { background: var(--color-accent); border-radius: 9999px; }
+
+/* The workspace has one navigation tree at every width. Container queries also
+   let enlarged text release the phone bar into document flow. */
+.workspace-container {
+  container: workspace / inline-size;
+}
+
+.workspace-layout {
+  min-height: 100dvh;
+  max-width: 90rem;
+  margin-inline: auto;
+}
+
+.workspace-header-gutters {
+  padding-top: max(0.75rem, env(safe-area-inset-top));
+  padding-left: max(var(--spacing-compact-gutter), env(safe-area-inset-left));
+  padding-right: max(var(--spacing-compact-gutter), env(safe-area-inset-right));
+}
+
+.workspace-brand { display: flex; }
+
+.workspace-chrome {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  padding-bottom: 1rem;
+}
+
+.workspace-navigation {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.25rem;
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  padding: 0.25rem;
+}
+
+.workspace-link {
+  display: flex;
+  min-height: 3rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: var(--radius-inset);
+  padding: 0.75rem;
+  font-size: var(--text-label);
+  line-height: var(--text-label--line-height);
+  font-weight: 600;
+}
+
+.workspace-help {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.workspace-content {
+  min-width: 0;
+  padding: 1.5rem max(var(--spacing-compact-gutter), env(safe-area-inset-right)) max(2rem, env(safe-area-inset-bottom)) max(var(--spacing-compact-gutter), env(safe-area-inset-left));
+}
+
+/* The phone bar is a sticky row of the layout, not a fixed element. Older browsers
+   anchor fixed descendants of a query container to the page, so a fixed bar scrolled away. */
+@container workspace (width < 40rem) and (width >= 20rem) {
+  .workspace-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto minmax(0, 1fr);
+    column-gap: 1rem;
+  }
+
+  /* The header's children join the layout grid, so the bar can span and stick within it. */
+  .workspace-chrome { display: contents; }
+
+  .workspace-brand,
+  .workspace-help {
+    grid-row: 1;
+    align-self: center;
+    margin-top: max(0.75rem, env(safe-area-inset-top));
+    margin-bottom: 1rem;
+  }
+
+  .workspace-brand {
+    grid-column: 1;
+    margin-left: max(var(--spacing-compact-gutter), env(safe-area-inset-left));
+  }
+
+  .workspace-help { margin-right: max(var(--spacing-compact-gutter), env(safe-area-inset-right)); }
+
+  .workspace-content {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    padding-bottom: calc(7rem + env(safe-area-inset-bottom));
+  }
+
+  .workspace-navigation {
+    grid-row: 1 / -1;
+    align-self: end;
+    position: sticky;
+    bottom: 0;
+    z-index: 20;
+    gap: 0.25rem;
+    border-radius: 0;
+    border-top: 1px solid var(--color-line);
+    padding: 0.5rem max(0.5rem, env(safe-area-inset-right)) max(0.5rem, env(safe-area-inset-bottom)) max(0.5rem, env(safe-area-inset-left));
+  }
+
+  .workspace-navigation .workspace-link {
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 0.5rem 0.25rem;
+  }
+}
+
+@container workspace (width < 20rem) {
+  .workspace-chrome { grid-template-columns: 1fr; }
+  .workspace-help { grid-column: 1; grid-row: 3; justify-self: start; }
+  .workspace-navigation { grid-template-columns: 1fr; }
+  .workspace-navigation .workspace-link { justify-content: start; }
+}
+
+@container workspace (width >= 40rem) {
+  .workspace-header-gutters {
+    padding-left: max(2rem, env(safe-area-inset-left));
+    padding-right: max(2rem, env(safe-area-inset-right));
+  }
+  .workspace-content { padding: 2rem 2rem 3rem; }
+  .workspace-navigation { display: flex; gap: 0.5rem; background: transparent; padding: 0; }
+  .workspace-navigation .workspace-link { min-width: 7rem; }
+}
+
+@container workspace (width >= 64rem) {
+  .workspace-header-gutters {
+    padding-top: max(2rem, env(safe-area-inset-top));
+    padding-left: max(1.5rem, env(safe-area-inset-left));
+    padding-right: max(1.5rem, env(safe-area-inset-right));
+  }
+  .workspace-layout { display: grid; grid-template-columns: 15rem minmax(0, 1fr); }
+  .workspace-chrome {
+    position: sticky;
+    top: 0;
+    display: flex;
+    height: 100dvh;
+    overflow-y: auto;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2.5rem;
+    border-right: 1px solid var(--color-line);
+    padding-bottom: 2rem;
+  }
+  .workspace-navigation { flex-direction: column; gap: 0.5rem; }
+  .workspace-link { justify-content: start; gap: 0.75rem; }
+  .workspace-help { margin-top: auto; }
+  .workspace-content { padding: 4rem 3rem; }
+}
+
 /* Keep policy actions below the reading area when the phone has room.
    The container threshold scales with the document's text size. */
 @media (width < 40rem) and (height >= 33rem) {

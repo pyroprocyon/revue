@@ -55,7 +55,7 @@ describe('Five-card trial', () => {
     expect(screen.queryByRole('heading', { name: 'Question 1?' })).toBeNull();
     expect(screen.getByText('Note 1.')).toBeDefined();
     expect(screen.getByText('Source: Grade 6 book, page 45')).toBeDefined();
-    expect(screen.getByText('Published by Revue')).toBeDefined();
+    expect(screen.getByText('Published by Revue · Not yet checked')).toBeDefined();
     const ratings = within(screen.getByRole('group', { name: 'Rate your answer' }))
       .getAllByRole('button')
       .map((button) => button.getAttribute('aria-label'));
@@ -75,7 +75,7 @@ describe('Five-card trial', () => {
 
     expect(screen.getByRole('heading', { name: 'Answer 2.' })).toBeDefined();
     expect(screen.getByText('Source: Class notes, page 2')).toBeDefined();
-    expect(screen.getByText('Published by Revue')).toBeDefined();
+    expect(screen.getByText('Published by Revue · Not yet checked')).toBeDefined();
     expect(screen.queryByText(/^Note/)).toBeNull();
   });
 
@@ -273,7 +273,7 @@ describe('Five-card trial', () => {
     await waitFor(() => expect(view.queryClient.getQueryData(queryKey)).toEqual(replacement));
 
     expect(screen.getByRole('heading', { name: 'Answer 2.' })).toBeDefined();
-    expect(screen.getByText('Published by Revue')).toBeDefined();
+    expect(screen.getByText('Published by Revue · Not yet checked')).toBeDefined();
     rate('Easy');
     for (let card = 3; card <= 5; card++) showAnswerAndRate('Good');
     expect(within(screen.getByRole('list', { name: 'Tomorrow' })).getByText('Question 1?')).toBeDefined();

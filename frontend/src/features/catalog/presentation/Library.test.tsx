@@ -106,7 +106,7 @@ describe('saved shared sets', () => {
     api();
     renderApp('/library');
     expect(await screen.findByRole('heading', { name: 'No saved sets' })).toBeDefined();
-    expect(screen.queryByRole('link', { name: 'Today' })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Today' }).getAttribute('href')).toBe('/today');
   });
 
   it('reads the saved Library after mounting the verified account boundary', async () => {

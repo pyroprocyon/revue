@@ -10,17 +10,29 @@ async function register(page: Page, name: string) {
   await page.getByRole('textbox', { name: 'Username' }).fill(name);
   await page.getByLabel(/^Password/).fill(PASSWORD);
   await page.getByLabel('Confirm password', { exact: true }).fill(PASSWORD);
+  const returnTo = new URL(page.url()).searchParams.get('returnTo');
   const response = page.waitForResponse(result => result.url().endsWith('/api/v1/auth/register') && result.request().method() === 'POST');
   await page.getByRole('button', { name: 'Create account' }).click();
-  return response;
+  const result = await response;
+  if (result.ok() && !returnTo) {
+    await expect(page).toHaveURL(/\/today$/);
+    await page.getByRole('link', { name: 'Account', exact: true }).click();
+  }
+  return result;
 }
 
 async function signIn(page: Page, name: string, password = PASSWORD) {
   await page.getByRole('textbox', { name: 'Username' }).fill(name);
   await page.getByLabel(/^Password/).fill(password);
+  const returnTo = new URL(page.url()).searchParams.get('returnTo');
   const response = page.waitForResponse(result => result.url().endsWith('/api/v1/auth/login') && result.request().method() === 'POST');
   await page.getByRole('button', { name: 'Sign in' }).click();
-  return response;
+  const result = await response;
+  if (result.ok() && !returnTo) {
+    await expect(page).toHaveURL(/\/today$/);
+    await page.getByRole('link', { name: 'Account', exact: true }).click();
+  }
+  return result;
 }
 
 test('invited learner registers with six characters, reloads, signs out and signs back in', async ({ page, context, pilot }) => {
@@ -48,7 +60,8 @@ test('invited learner registers with six characters, reloads, signs out and sign
   await expect(page).toHaveURL(/\/library$/);
   await expect(page.getByRole('heading', { name: 'Library', exact: true })).toBeVisible();
   await page.getByRole('link', { name: 'Revue', exact: true }).click();
-  await expect(page).toHaveURL(/\/account$/);
+  await expect(page).toHaveURL(/\/today$/);
+  await page.getByRole('link', { name: 'Account', exact: true }).click();
   await expect(page.getByText(name, { exact: true })).toBeVisible();
   expect((await context.cookies()).find(cookie => cookie.name === 'SESSION')?.value).toBe(firstSession?.value);
   await page.reload();
@@ -61,7 +74,7 @@ test('invited learner registers with six characters, reloads, signs out and sign
   await expect(page).toHaveURL(/\/sign-in$/);
   expect((await page.request.get('/api/v1/me')).status()).toBe(401);
   await page.goto('/account');
-  await expect(page).toHaveURL(/\/sign-in$/);
+  await expect(page).toHaveURL(/\/sign-in\?returnTo=%2Faccount$/);
   await page.getByRole('textbox', { name: 'Username' }).fill(name);
   const password = page.getByLabel('Password', { exact: true });
   await password.fill(PASSWORD);
@@ -109,9 +122,9 @@ test('existing learners keep their shared-set destination when switching to sign
   await expect(page).toHaveURL(/\/sets\/philippine-history$/);
   await expect(page.getByRole('heading', { name: 'Philippine History', exact: true })).toBeVisible();
   const brand = page.getByRole('link', { name: 'Revue', exact: true });
-  await expect(brand).toHaveAttribute('href', '/account');
+  await expect(brand).toHaveAttribute('href', '/today');
   await brand.click();
-  await expect(page.getByText(name, { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Your review', exact: true })).toBeVisible();
 });
 
 test('two browsers keep separate accounts and a duplicate username leaves its invite usable', async ({ page, browser, pilot }) => {
@@ -196,7 +209,7 @@ test('privacy details and contact remain reachable with a keyboard and enlarged 
   await expect(page.locator('#help-and-corrections')).toBeInViewport();
 });
 
-test('returning to Account rechecks once and restores focus without shifting the content', async ({ page, pilot }) => {
+test('returning to Account rechecks quietly once and restores focus without shifting the content', async ({ page, pilot }) => {
   await page.goto(pilot.invitation());
   await register(page, username());
   const signOut = page.getByRole('button', { name: 'Sign out', exact: true });
@@ -217,19 +230,24 @@ test('returning to Account rechecks once and restores focus without shifting the
     await pending;
     await route.continue();
   });
+  const controlsPaused = () => signOut.evaluate(element => element.closest('[inert]') !== null);
   try {
+    const recheck = page.waitForRequest(request => request.url().endsWith('/api/v1/me'));
     await page.evaluate(() => {
       window.dispatchEvent(new Event('focus'));
       document.dispatchEvent(new Event('visibilitychange'));
     });
-    await expect(page.getByRole('status')).toHaveText('Checking session…');
-    expect(await signOut.evaluate(element => element.closest('[inert]') !== null)).toBe(true);
+    await recheck;
+    await expect.poll(controlsPaused).toBe(true);
+    await expect(page.getByRole('status')).toHaveCount(0);
+    await expect(page.getByText('Checking session…', { exact: true })).toHaveCount(0);
     await expect(signOut).not.toBeFocused();
     const inertHeading = page.getByText('Your account', { exact: true });
     expect(await inertHeading.evaluate(element => element.getBoundingClientRect().top + window.scrollY)).toBe(initialTop);
   } finally {
     release();
   }
+  await expect.poll(controlsPaused).toBe(false);
   await expect(page.getByRole('status')).toHaveCount(0);
   await expect(signOut).toBeFocused();
   expect(requests).toBe(1);
@@ -329,6 +347,8 @@ test('signup checks the confirmation locally and sends only one password after c
   const response = page.waitForResponse(result => result.url().endsWith('/api/v1/auth/register') && result.request().method() === 'POST');
   await confirmation.press('Enter');
   expect((await response).status()).toBe(200);
+  await expect(page).toHaveURL(/\/today$/);
+  await page.getByRole('link', { name: 'Account', exact: true }).click();
   await expect(page.getByText(name, { exact: true })).toBeVisible();
   expect(requests).toHaveLength(1);
   const sent = new URLSearchParams(requests[0]);
@@ -336,7 +356,7 @@ test('signup checks the confirmation locally and sends only one password after c
   expect(sent.get('password')).toBe(PASSWORD);
 });
 
-test('signed-in navigation keeps every public route connected to Account', async ({ page, pilot }) => {
+test('signed-in navigation keeps every public route connected to Today', async ({ page, pilot }) => {
   const name = username();
   await page.goto(pilot.invitation());
   await register(page, name);
@@ -358,12 +378,12 @@ test('signed-in navigation keeps every public route connected to Account', async
     await page.goto(route);
     await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible();
     const brand = page.getByRole('link', { name: 'Revue', exact: true });
-    await expect(brand).toHaveAttribute('href', '/account');
+    await expect(brand).toHaveAttribute('href', '/today');
     await expect(page.getByRole('link', { name: /^(Sign in|Back to sign in|Sign in to save)$/ })).toHaveCount(0);
   }
 
-  await page.getByRole('link', { name: 'Go to Account' }).click();
-  await expect(account).toBeVisible();
+  await page.getByRole('link', { name: 'Go to Today' }).click();
+  await expect(page.getByRole('heading', { name: 'Your review', exact: true })).toBeVisible();
   for (const destination of ['Account', 'Library']) {
     await page.getByRole('link', { name: destination, exact: true }).click();
     await expect(page.getByRole('link', { name: 'Privacy', exact: true })).toHaveCount(0);
@@ -384,8 +404,8 @@ test('signed-in navigation keeps every public route connected to Account', async
   await expect(account).toBeVisible();
   for (const route of ['/', '/sign-in', '/join', '/i', '/register']) {
     await page.goto(route);
-    await expect(page).toHaveURL(/\/account$/);
-    await expect(account).toBeVisible();
+    await expect(page).toHaveURL(/\/today$/);
+    await expect(page.getByRole('heading', { name: 'Your review', exact: true })).toBeVisible();
   }
   await page.goto('/sign-in?returnTo=%2Fsets%2Fphilippine-history');
   await expect(page).toHaveURL(/\/sets\/philippine-history$/);
@@ -399,6 +419,8 @@ test('signed-in navigation keeps every public route connected to Account', async
   await expect(page.getByText('This practice wasn’t saved.')).toBeVisible();
   expect((await (await page.request.get('/api/v1/me/saved-sets')).json()).items).toHaveLength(0);
   await page.getByRole('link', { name: 'Revue', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Your review', exact: true })).toBeVisible();
+  await page.getByRole('link', { name: 'Account', exact: true }).click();
   await expect(account).toBeVisible();
 
   await page.getByRole('button', { name: 'Sign out' }).click();

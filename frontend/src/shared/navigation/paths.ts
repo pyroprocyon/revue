@@ -27,3 +27,6 @@ export const ACCOUNT_PATH = '/account';
 export const HELP_PATH = '/help';
 
 export const LIBRARY_PATH = '/library';
+
+export const TODAY_PATH = '/today';
+export const REVIEW_PATH = '/review';

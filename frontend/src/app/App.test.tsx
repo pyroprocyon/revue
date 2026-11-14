@@ -1,5 +1,5 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { historySet, natureSet } from '../test/fixtures';
 import { renderApp, stubFetch } from '../test/renderApp';
 
@@ -25,6 +25,24 @@ describe('App', () => {
     expect(screen.queryByRole('alert')).toBeNull();
     expect((screen.getByLabelText('Password') as HTMLInputElement).value).toBe('');
     expect(screen.queryByLabelText('Confirm password')).toBeNull();
+  });
+
+  it('moves focus to a policy page title, but leaves a section link on its own target', async () => {
+    stubFetch(404);
+    const page = renderApp('/privacy');
+    const title = await screen.findByRole('heading', { name: 'Privacy notice' });
+    expect(document.activeElement).toBe(title);
+    page.unmount();
+
+    // jsdom has no scrollIntoView, which the app calls for a section link.
+    Element.prototype.scrollIntoView = vi.fn();
+    try {
+      renderApp('/terms#help-and-corrections');
+      const terms = await screen.findByRole('heading', { level: 1 });
+      expect(document.activeElement).not.toBe(terms);
+    } finally {
+      Reflect.deleteProperty(Element.prototype, 'scrollIntoView');
+    }
   });
 
   it('leads the home page with the headline and the way into the sets', () => {

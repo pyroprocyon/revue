@@ -157,6 +157,7 @@ test('compact account controls remain reachable at supported widths', async ({ p
   await page.getByLabel('Password', { exact: true }).fill(password);
   await page.getByLabel('Confirm password').fill(password);
   await page.getByRole('button', { name: 'Create account', exact: true }).click();
+  await page.getByRole('link', { name: 'Account', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Your account', exact: true })).toBeVisible();
   const signOut = page.getByRole('button', { name: 'Sign out', exact: true });
   const library = page.getByRole('link', { name: 'Library', exact: true });
@@ -177,6 +178,84 @@ test('compact account controls remain reachable at supported widths', async ({ p
   await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
 });
 
+test('workspace navigation stays unique and reachable across layouts and enlarged text', async ({ page, pilot }, info) => {
+  await page.goto(pilot.invitation());
+  await page.getByLabel('Username').fill(`workspace_${randomUUID().slice(0, 16)}`);
+  const password = randomUUID();
+  await page.getByLabel('Password', { exact: true }).fill(password);
+  await page.getByLabel('Confirm password').fill(password);
+  await page.getByRole('button', { name: 'Create account', exact: true }).click();
+  await expect(page).toHaveURL(/\/today$/);
+
+  for (const [width, height, textSize] of [
+    [390, 844, '100%'], [640, 900, '100%'], [768, 1024, '100%'],
+    [1024, 768, '100%'], [1366, 900, '100%'], [320, 568, '200%'],
+  ] as const) {
+    await page.setViewportSize({ width, height });
+    await page.evaluate(size => { document.documentElement.style.fontSize = size; }, textSize);
+    for (const [destination, title] of [['Account', 'Your account'], ['Library', 'Library'], ['Help', 'Help'], ['Today', 'Your review']]) {
+      const link = page.getByRole('link', { name: destination, exact: true });
+      await expect(link).toHaveCount(1);
+      await expectTouchTarget(link);
+      await link.focus();
+      await page.keyboard.press('Enter');
+      await expect(page.getByRole('heading', { name: title, exact: true })).toBeFocused();
+      await expect(link).toHaveAttribute('aria-current', 'page');
+      await expect(page.getByRole('navigation', { name: 'Your workspace' })).toHaveCount(1);
+      await expect(page.getByRole('link', { name: 'Browse sets', exact: true })).toHaveCount(0);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
+
+      if (destination === 'Account') {
+        const signOut = page.getByRole('button', { name: 'Sign out', exact: true });
+        await signOut.scrollIntoViewIfNeeded();
+        await expect(signOut).toBeInViewport({ ratio: 1 });
+        if (width === 390) {
+          const navigation = (await page.getByRole('navigation', { name: 'Your workspace' }).boundingBox())!;
+          const action = (await signOut.boundingBox())!;
+          expect(action.y + action.height).toBeLessThanOrEqual(navigation.y);
+        }
+      }
+      await page.screenshot({ path: info.outputPath(`${destination.toLowerCase()}-${width}.png`), fullPage: true });
+    }
+  }
+});
+
+test('the phone tab bar stays at the bottom of the screen while a long page scrolls', async ({ page, pilot }) => {
+  const screen = { width: 390, height: 420 };
+  await page.setViewportSize(screen);
+  await page.goto(pilot.invitation());
+  await page.getByLabel('Username').fill(`tabbar_${randomUUID().slice(0, 16)}`);
+  const password = randomUUID();
+  await page.getByLabel('Password', { exact: true }).fill(password);
+  await page.getByLabel('Confirm password').fill(password);
+  await page.getByRole('button', { name: 'Create account', exact: true }).click();
+  await expect(page).toHaveURL(/\/today$/);
+  await page.getByRole('link', { name: 'Account', exact: true }).click();
+  const signOut = page.getByRole('button', { name: 'Sign out', exact: true });
+  await expect(signOut).toBeVisible();
+  const bar = page.getByRole('navigation', { name: 'Your workspace' });
+  const barBottom = async () => {
+    const box = (await bar.boundingBox())!;
+    return Math.round(box.y + box.height);
+  };
+
+  // Chrome before 129, Firefox before 133 and Safari before 18.4 also contain fixed descendants
+  // of a query container. Layout containment reproduces that rule in the current browser.
+  for (const olderContainment of [false, true]) {
+    if (olderContainment) await page.addStyleTag({ content: '.workspace-container { contain: layout; }' });
+    expect(await page.evaluate(() => document.documentElement.scrollHeight > window.innerHeight)).toBe(true);
+    for (const edge of ['top', 'bottom'] as const) {
+      await page.evaluate((target) => {
+        window.scrollTo({ top: target === 'top' ? 0 : document.documentElement.scrollHeight, behavior: 'instant' });
+      }, edge);
+      expect(await barBottom()).toBe(screen.height);
+    }
+    await signOut.scrollIntoViewIfNeeded();
+    const action = (await signOut.boundingBox())!;
+    expect(action.y + action.height).toBeLessThanOrEqual((await bar.boundingBox())!.y);
+  }
+});
+
 test('long forms use document scrolling when the available keyboard viewport is short', async ({ page, pilot }) => {
   await page.setViewportSize({ width: 320, height: 568 });
   await page.goto(pilot.invitation());
@@ -194,6 +273,7 @@ test('long forms use document scrolling when the available keyboard viewport is 
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
   await page.getByLabel('Confirm password').fill(password);
   await page.getByRole('button', { name: 'Create account', exact: true }).click();
+  await page.getByRole('link', { name: 'Account', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Your account', exact: true })).toBeVisible();
 });
 
@@ -209,6 +289,7 @@ test('a failed session request offers retry before showing the signed-in workspa
   await expect(page.getByRole('button', { name: 'Sign out' })).toHaveCount(0);
   await page.unroute('**/api/v1/me');
   await page.getByRole('button', { name: 'Try again' }).click();
+  await page.getByRole('link', { name: 'Account', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Your account', exact: true })).toBeVisible();
 });
 

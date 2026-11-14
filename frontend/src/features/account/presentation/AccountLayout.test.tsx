@@ -8,13 +8,16 @@ import { AccountProvider } from './AccountProvider';
 import { AccountLayout } from './AccountLayout';
 import { AccountPage } from './AccountPage';
 
-function setup(draft = false, current = vi.fn().mockResolvedValue({ username: 'first_student' })) {
+function setup(
+  draft = false,
+  current = vi.fn().mockResolvedValue({ username: 'first_student' }),
+  client = new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+) {
   const gateway: AccountGateway = {
     signedIn: vi.fn().mockResolvedValue(false),
     current,
     register: vi.fn(), signIn: vi.fn(), signOut: vi.fn().mockResolvedValue(undefined),
   };
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const view = render(<QueryClientProvider client={client}>
     <AccountProvider gateway={gateway}><MemoryRouter initialEntries={['/account']}><Routes>
       <Route element={<AccountLayout />}>
@@ -49,12 +52,21 @@ describe('signed-in layout', () => {
     await screen.findByRole('heading', { name: 'Your account' });
   });
 
-  it('waits for the session before mounting private content', async () => {
-    setup();
-    expect(screen.getByRole('status').textContent).toBe('Loading your account…');
-    expect(screen.queryByRole('button', { name: 'Sign out' })).toBeNull();
-    await screen.findByRole('heading', { name: 'Your account' });
-    expect(screen.getByRole('button', { name: 'Sign out' })).toBeDefined();
+  it('waits for the session before mounting private content and reports only a slow wait', async () => {
+    vi.useFakeTimers();
+    try {
+      const pending = deferredProfile();
+      setup(false, vi.fn().mockReturnValue(pending.promise));
+      expect(screen.queryByRole('status')).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Sign out' })).toBeNull();
+      act(() => { vi.advanceTimersByTime(300); });
+      expect(screen.getByRole('status').textContent).toBe('Loading your account…');
+      await act(async () => { pending.resolve({ username: 'first_student' }); });
+      expect(screen.getByRole('button', { name: 'Sign out' })).toBeDefined();
+      expect(screen.queryByRole('status')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('pauses account actions after a failed session check until retry succeeds', async () => {
@@ -81,6 +93,7 @@ describe('signed-in layout', () => {
     fireEvent(document, new Event('visibilitychange'));
     expect(gateway.current).toHaveBeenCalledTimes(2);
     expect(input.closest('[inert]')).not.toBeNull();
+    expect(screen.queryByRole('status')).toBeNull();
     input.blur(); // Chromium blurs focused descendants when their parent becomes inert.
     await act(async () => { pending.resolve({ username: 'first_student' }); });
     expect(screen.getByRole('textbox', { name: 'Draft' })).toBe(input);
@@ -125,6 +138,39 @@ describe('signed-in layout', () => {
     await act(async () => { previous.resolve({ username: 'first_student' }); });
     expect(screen.queryByRole('heading', { name: 'Your account' })).toBeNull();
     expect(client.getQueryData(['private-library'])).toBeUndefined();
+  });
+
+  it('reopens from the last confirmed account at once, keeps its cache and rechecks with controls paused', async () => {
+    const first = setup();
+    await screen.findByRole('heading', { name: 'Your account' });
+    first.client.setQueryData(['private-library'], ['private']);
+    first.unmount();
+
+    const pending = deferredProfile();
+    setup(false, vi.fn().mockReturnValue(pending.promise), first.client);
+    const heading = screen.getByRole('heading', { name: 'Your account' });
+    expect(screen.queryByRole('status')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Sign out' }).closest('[inert]')).not.toBeNull();
+    heading.blur(); // Chromium blurs focused descendants when their parent becomes inert.
+    await act(async () => { pending.resolve({ username: 'first_student' }); });
+    expect(screen.getByRole('button', { name: 'Sign out' }).closest('[inert]')).toBeNull();
+    expect(document.activeElement).toBe(heading);
+    expect(first.client.getQueryData(['private-library'])).toEqual(['private']);
+  });
+
+  it.each([
+    { answer: { username: 'second_student' }, lands: 'second_student' },
+    { answer: null, lands: 'Sign in again' },
+  ])('drops the remembered account and its cache when the recheck answers $lands', async ({ answer, lands }) => {
+    const first = setup(true);
+    await screen.findByRole('heading', { name: 'first_student' });
+    first.client.setQueryData(['private-library'], ['first account data']);
+    first.unmount();
+
+    setup(true, vi.fn().mockResolvedValue(answer), first.client);
+    await screen.findByRole('heading', { name: lands });
+    expect(screen.queryByRole('heading', { name: 'first_student' })).toBeNull();
+    expect(first.client.getQueryData(['private-library'])).toBeUndefined();
   });
 
   it('keeps sign-out failure visible and clears cached data only after confirmed sign-out', async () => {
