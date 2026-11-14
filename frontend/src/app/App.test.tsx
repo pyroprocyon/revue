@@ -2,9 +2,11 @@ import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { historySet, natureSet } from '../test/fixtures';
 import { jsonResponse, renderApp, stubFetch } from '../test/renderApp';
+import { hasSignedInHint, saveSignedInHint } from '../shared/navigation/signedInHint';
 
 describe('App', () => {
-  it.each(['signed-in', 'guest', 'unavailable'])('waits before choosing the homepage for a %s session', async (session) => {
+  it.each(['signed-in', 'guest', 'unavailable'])('waits before choosing the homepage for a %s session in a browser that was signed in before', async (session) => {
+    saveSignedInHint(true);
     let finish!: (response: Response) => void;
     const pending = new Promise<Response>((resolve) => { finish = resolve; });
     vi.stubGlobal('fetch', vi.fn(async (path: string) => {
@@ -27,6 +29,8 @@ describe('App', () => {
     expect(await screen.findByRole('heading', {
       name: session === 'signed-in' ? 'Your review' : 'Review before it’s due.',
     })).toBeDefined();
+    // Only a confirmed guest answer clears the hint; a failed check keeps it.
+    expect(hasSignedInHint()).toBe(session !== 'guest');
   });
 
   it('opens signup directly at the short invitation route', async () => {

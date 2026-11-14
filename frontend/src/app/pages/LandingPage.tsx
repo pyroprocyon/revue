@@ -8,6 +8,7 @@ import { AccountHeaderLink, HomeLink } from '../../shared/ui/HeaderLinks';
 import { SampleCard } from '../../features/study/presentation/SampleCard';
 import { REVIEW_STEPS_INTRO, REVIEW_STEPS_TITLE, ReviewSteps } from '../../features/study/presentation/ReviewSteps';
 import { usePublicSession } from '../../shared/navigation/publicSession';
+import { hasSignedInHint } from '../../shared/navigation/signedInHint';
 import { LandingLayout } from './LandingLayout';
 import { LoadingScreen } from '../../shared/ui/MessageScreen';
 import { TODAY_PATH, HOW_IT_WORKS_PATH, JOIN_PATH, SETS_PATH } from '../../shared/navigation/paths';
@@ -35,7 +36,8 @@ export function LandingPage() {
     });
   }, [queryClient, publicSetsQuery, session]);
 
-  if (session === 'checking') return <LoadingScreen text="Checking your session…" />;
+  // Only a browser that was signed in before waits, so a guest sees the landing page at once.
+  if (session === 'checking' && hasSignedInHint()) return <LoadingScreen text="Checking your session…" />;
 
   // Old section links still work on phones, where the inline explanation is now hidden.
   if (hash === `#${HOW_IT_WORKS_SECTION}` && (session === 'signed-in' || window.matchMedia('(width < 64rem)').matches)) {
@@ -126,9 +128,10 @@ function LandingActions() {
 
 function AccountActions({ className }: Readonly<{ className: string }>) {
   const session = usePublicSession();
-  if (session === 'checking') return null;
+  // The links keep their space while the session is checked, so the page does not shift when they appear.
+  const visibility = session === 'checking' ? 'invisible' : '';
   return (
-    <nav aria-label="Account" className={`${className} flex-wrap gap-3`}>
+    <nav aria-label="Account" className={`${className} ${visibility} flex-wrap gap-3`}>
       <AccountHeaderLink appearance="account" />
       <Link to={JOIN_PATH} className={accountTonalButton}>Create account</Link>
     </nav>

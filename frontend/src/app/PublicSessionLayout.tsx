@@ -6,6 +6,7 @@ import { useAccountGateway } from '../features/account/presentation/AccountProvi
 import { forgetConfirmedProfile } from '../features/account/presentation/confirmedProfile';
 import { TODAY_PATH } from '../shared/navigation/paths';
 import { PublicSessionContext, publicSessionKey, usePublicSession } from '../shared/navigation/publicSession';
+import { saveSignedInHint } from '../shared/navigation/signedInHint';
 import { LoadingScreen } from '../shared/ui/MessageScreen';
 
 /** Gives public pages session-aware navigation while private pages confirm access at their own boundary. */
@@ -27,6 +28,11 @@ export function PublicSessionLayout() {
   useEffect(() => {
     if (signedOutConfirmed) forgetConfirmedProfile(queryClient);
   }, [signedOutConfirmed, queryClient]);
+  // A failed check has no answer, so it keeps the hint from the last confirmed one.
+  const confirmedSignedIn = session.data;
+  useEffect(() => {
+    if (confirmedSignedIn !== undefined) saveSignedInHint(confirmedSignedIn);
+  }, [confirmedSignedIn]);
   return <PublicSessionContext value={status}><Outlet /></PublicSessionContext>;
 }
 

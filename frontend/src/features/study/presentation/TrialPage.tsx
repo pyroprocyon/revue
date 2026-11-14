@@ -99,7 +99,7 @@ type TrialFinishedProps = {
 /** The end of the trial: each card with its rating and when an account would show it again. */
 function TrialFinished({ setKey, cards, ratings }: Readonly<TrialFinishedProps>) {
   const session = usePublicSession();
-  const primary = {
+  const primaryLinkBySession = {
     checking: undefined,
     'signed-in': 'back-to-set',
     'signed-out': 'another-set',
@@ -114,7 +114,7 @@ function TrialFinished({ setKey, cards, ratings }: Readonly<TrialFinishedProps>)
     <MessageScreen
       title={`You practiced ${cards.length} cards.`}
       icon={finishedIcon}
-      action={<SetLinks setKey={setKey} primary={primary[session]} />}
+      action={<SetLinks setKey={setKey} primary={primaryLinkBySession[session]} />}
     >
       <p>Example schedule, soonest first.</p>
       <div className="space-y-6">
