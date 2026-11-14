@@ -1,7 +1,7 @@
 import { createContext, useContext, useId, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useOutletContext } from 'react-router';
-import type { ReviewGateway } from '../application/reviews';
+import type { RatingRequest, ReviewGateway } from '../application/reviews';
 
 const ReviewContext = createContext<ReviewGateway | null>(null);
 export function ReviewProvider({ gateway, children }: Readonly<{ gateway: ReviewGateway; children: ReactNode }>) {
@@ -30,11 +30,22 @@ export function useTodayQueue() {
   });
 }
 
-/** A sent rating makes the cached Today summary out of date, even when its response never arrives. */
-export function useForgetTodayQueue() {
+/** Refreshes Today after a sent rating settles, including when the learner already left the batch. */
+export function useSubmitRating() {
+  const gateway = useReviewGateway();
   const queryClient = useQueryClient();
   const { username } = useOutletContext<{ username: string }>();
-  return () => queryClient.removeQueries({ queryKey: todayQueueKey(username), exact: true });
+  return async (cardId: string, input: RatingRequest) => {
+    const today = { queryKey: todayQueueKey(username), exact: true };
+    queryClient.removeQueries(today);
+    try {
+      return await gateway.rate(cardId, input);
+    } finally {
+      // A visit to Today may have started a read before this rating committed.
+      await queryClient.cancelQueries(today);
+      void queryClient.invalidateQueries(today);
+    }
+  };
 }
 
 /** A review batch always starts from its own fresh queue. A later visit never reuses it. */
@@ -48,6 +59,6 @@ export function useBatchQueue() {
     retry: false,
     networkMode: 'always',
     gcTime: 0,
-    refetchOnMount: 'always',
+    refetchOnWindowFocus: false,
   });
 }
