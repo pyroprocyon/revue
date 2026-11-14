@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test';
 import { test, expect } from './fixtures';
 import { historyCards } from '../src/test/fixtures';
+import { SIGNED_IN_HINT_KEY } from '../src/shared/navigation/signedInHint';
 
 async function delaySession(page: Page, signedIn = true) {
   let release!: () => void;
@@ -17,8 +18,33 @@ async function delaySession(page: Page, signedIn = true) {
   return release;
 }
 
+test('a guest sees the homepage at once while the session check is still pending', async ({ page }, info) => {
+  await page.setViewportSize({ width: 375, height: 800 });
+  const release = await delaySession(page, false);
+  try {
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: 'Review before it’s due.' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Browse sets' }).filter({ visible: true })).toHaveCount(1);
+    await expect(page.getByRole('status')).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Create account' }).filter({ visible: true })).toHaveCount(0);
+    const sample = page.getByRole('figure', { name: 'Sample card' });
+    const pendingBox = await sample.boundingBox();
+    await page.screenshot({ path: info.outputPath('guest-home-pending.png'), fullPage: true });
+    release();
+    await expect(page.getByRole('link', { name: 'Sign in' }).filter({ visible: true })).toHaveCount(1);
+    // The account links had their space reserved, so the page does not shift when they appear.
+    expect(await sample.boundingBox()).toEqual(pendingBox);
+    await expect(page.getByRole('status')).toHaveCount(0);
+    await page.screenshot({ path: info.outputPath('guest-home-ready.png'), fullPage: true });
+  } finally {
+    release();
+  }
+});
+
 test('an old desktop guide link scrolls after the session check reveals the landing page', async ({ page }, info) => {
   await page.setViewportSize({ width: 1366, height: 768 });
+  // A guest in a browser that was signed in before: the homepage waits, so the guide mounts late.
+  await page.addInitScript((key) => localStorage.setItem(key, 'true'), SIGNED_IN_HINT_KEY);
   const release = await delaySession(page, false);
   try {
     await page.goto('/#how-it-works');

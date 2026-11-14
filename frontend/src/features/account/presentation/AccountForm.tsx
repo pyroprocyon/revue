@@ -1,5 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { publicSessionKey } from '../../../shared/navigation/publicSession';
+import { saveSignedInHint } from '../../../shared/navigation/signedInHint';
 import { Eye, EyeOff } from 'lucide-react';
 import { useEffect, useRef, useState, type SubmitEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
@@ -59,6 +60,8 @@ export function AccountForm({ register = false }: Readonly<{ register?: boolean 
       queryClient.removeQueries({ queryKey: ['reviews'] });
       forgetConfirmedProfile(queryClient);
       queryClient.setQueryData(publicSessionKey, true);
+      // Leaving this page can skip the public layout's own update, so save the hint here too.
+      saveSignedInHint(true);
       await navigate(returnPath ?? TODAY_PATH, { replace: true });
     } catch (error_) {
       setPassword('');

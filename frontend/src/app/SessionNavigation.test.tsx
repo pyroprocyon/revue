@@ -4,6 +4,7 @@ import { focusManager } from '@tanstack/react-query';
 import { historyCards, historySet } from '../test/fixtures';
 import { jsonResponse, renderApp } from '../test/renderApp';
 import { primaryButton, secondaryButton } from '../shared/ui/buttonStyles';
+import { hasSignedInHint, saveSignedInHint } from '../shared/navigation/signedInHint';
 
 function pendingSession() {
   let resolve!: (value: Response) => void;
@@ -24,6 +25,7 @@ function pendingSession() {
 
 describe('session-dependent navigation', () => {
   it.each(['/', '/sign-in', '/join', '/i', '/register'])('keeps guest content and fast loading notices off the signed-in entry %s', async (path) => {
+    saveSignedInHint(true);
     const session = pendingSession();
     renderApp(path);
     expect(screen.queryByRole('heading')).toBeNull();
@@ -32,6 +34,28 @@ describe('session-dependent navigation', () => {
     await session.finish(true);
     await screen.findByRole('heading', { name: 'Your review' });
     expect(screen.queryByRole('textbox')).toBeNull();
+  });
+
+  it('shows a guest the homepage at once, without a session notice', async () => {
+    const session = pendingSession();
+    renderApp('/');
+    expect(screen.getByRole('heading', { name: 'Review before it’s due.' })).toBeDefined();
+    expect(screen.queryByRole('link', { name: 'Sign in' })).toBeNull();
+    expect(screen.queryByRole('status')).toBeNull();
+    await session.finish(false);
+    expect(await screen.findAllByRole('link', { name: 'Sign in' })).not.toHaveLength(0);
+    expect(screen.getByRole('heading', { name: 'Review before it’s due.' })).toBeDefined();
+    expect(screen.queryByRole('status')).toBeNull();
+    expect(hasSignedInHint()).toBe(false);
+  });
+
+  it('sends a signed-in learner from the homepage to Today and saves the hint when the browser had none', async () => {
+    const session = pendingSession();
+    renderApp('/');
+    expect(screen.getByRole('heading', { name: 'Review before it’s due.' })).toBeDefined();
+    await session.finish(true);
+    await screen.findByRole('heading', { name: 'Your review' });
+    expect(hasSignedInHint()).toBe(true);
   });
 
   it.each([
@@ -70,6 +94,8 @@ describe('session-dependent navigation', () => {
   });
 
   it('scrolls an old desktop guide link after the session check mounts its section', async () => {
+    // A guest in a browser that was signed in before: the homepage waits, so the section mounts late.
+    saveSignedInHint(true);
     const session = pendingSession();
     vi.stubGlobal('matchMedia', () => ({ matches: false }));
     const scroll = vi.fn();
