@@ -7,7 +7,6 @@ import { PageLayout } from '../../shared/ui/PageLayout';
 import { SupportLink } from '../../shared/ui/SupportLink';
 import { LoadingScreen } from '../../shared/ui/MessageScreen';
 import { useFocusOnMount } from '../../shared/ui/useFocusOnMount';
-import { WhenSlow } from '../../shared/ui/WhenSlow';
 import { WorkspaceLayout } from '../../shared/ui/WorkspaceLayout';
 import { ArrowUpRight, ChevronRight, FileText, Mail, ShieldCheck } from 'lucide-react';
 
@@ -21,7 +20,7 @@ export function HelpPage() {
   if (session === 'signed-in' || (session === 'checking' && openedFromWorkspace)) {
     return <WorkspaceLayout><HelpContent signedIn /></WorkspaceLayout>;
   }
-  if (session === 'checking') return <WhenSlow><LoadingScreen text="Checking your session…" /></WhenSlow>;
+  if (session === 'checking') return <LoadingScreen text="Checking your session…" />;
   return <PageLayout top={<HomeLink />}><HelpContent signedIn={false} /></PageLayout>;
 }
 

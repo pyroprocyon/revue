@@ -98,7 +98,12 @@ type TrialFinishedProps = {
 
 /** The end of the trial: each card with its rating and when an account would show it again. */
 function TrialFinished({ setKey, cards, ratings }: Readonly<TrialFinishedProps>) {
-  const signedIn = usePublicSession() === 'signed-in';
+  const session = usePublicSession();
+  const primary = {
+    checking: undefined,
+    'signed-in': 'back-to-set',
+    'signed-out': 'another-set',
+  } as const;
   const groups = trialSummary(cards, ratings);
   const finishedIcon = (
     <span className="mb-3 grid size-10 place-items-center rounded-full bg-accent-soft text-accent-strong">
@@ -109,7 +114,7 @@ function TrialFinished({ setKey, cards, ratings }: Readonly<TrialFinishedProps>)
     <MessageScreen
       title={`You practiced ${cards.length} cards.`}
       icon={finishedIcon}
-      action={<SetLinks setKey={setKey} primary={signedIn ? 'back-to-set' : 'another-set'} />}
+      action={<SetLinks setKey={setKey} primary={primary[session]} />}
     >
       <p>Example schedule, soonest first.</p>
       <div className="space-y-6">
@@ -168,8 +173,8 @@ function SummaryCardRow({ question, rating }: Readonly<{ question: string; ratin
 
 type SetLinksProps = {
   setKey: string;
-  /** Which link gets the primary look: after a trial, trying another set comes first. */
-  primary: 'another-set' | 'back-to-set';
+  /** No emphasis while the session is unknown; both public destinations remain usable. */
+  primary?: 'another-set' | 'back-to-set';
 };
 
 function SetLinks({ setKey, primary }: Readonly<SetLinksProps>) {
