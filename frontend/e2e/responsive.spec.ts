@@ -36,16 +36,18 @@ test('Privacy and Terms pin the sign-in link only when the phone has room', asyn
     const back = page.getByRole('link', { name: 'Back to sign in', exact: true });
     await expect(back).toBeInViewport({ ratio: 1 });
     const content = page.getByRole('main');
-    expect(await content.evaluate(element => getComputedStyle(element).overflowY)).toBe('auto');
+    expect(await content.evaluate((element) => getComputedStyle(element).overflowY)).toBe('auto');
 
     await page.setViewportSize({ width: 360, height: 480 });
-    expect(await content.evaluate(element => getComputedStyle(element).overflowY)).toBe('visible');
+    expect(await content.evaluate((element) => getComputedStyle(element).overflowY)).toBe('visible');
     await back.scrollIntoViewIfNeeded();
     await expect(back).toBeInViewport({ ratio: 1 });
 
     await page.setViewportSize({ width: 320, height: 568 });
-    await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
-    expect(await content.evaluate(element => getComputedStyle(element).overflowY)).toBe('visible');
+    await page.evaluate(() => {
+      document.documentElement.style.fontSize = '200%';
+    });
+    expect(await content.evaluate((element) => getComputedStyle(element).overflowY)).toBe('visible');
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
     await back.scrollIntoViewIfNeeded();
     await expect(back).toBeInViewport({ ratio: 1 });
@@ -69,7 +71,9 @@ test('landing action and study headings fit at 320 pixels with 200% text', async
   await page.setViewportSize({ width: 320, height: 568 });
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/');
-  await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = '200%';
+  });
   const title = page.getByRole('heading', { name: 'Review before it’s due.' });
   await expectWordOnOneLine(title, 'Review');
   await expectWordOnOneLine(title, 'before');
@@ -109,24 +113,32 @@ test('account help and trial source links offer a 48-pixel target', async ({ pag
 test('invitation and guide text keep room for whole words at 320 pixels with 200% text', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 568 });
   await page.goto('/join');
-  await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = '200%';
+  });
   await expectWordOnOneLine(page.getByRole('heading', { name: 'You’ll need an invitation' }), 'invitation');
   await page.getByRole('link', { name: 'Browse sets' }).click();
   await expect(page.getByRole('heading', { name: 'Shared sets' })).toBeVisible();
   await page.goto('/how-it-works');
-  await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = '200%';
+  });
   await expectWordOnOneLine(page.getByRole('heading', { name: 'How spaced repetition works' }), 'repetition');
   await expectWordOnOneLine(page.getByText('Answer from memory.', { exact: true }), 'Answer');
   await expectWordOnOneLine(page.getByText('Practice again later.', { exact: true }), 'Practice');
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
 });
 
-test('keyboard reveal and tabbing keep enlarged answers and ratings reachable with either motion setting', async ({ page }) => {
+test('keyboard reveal and tabbing keep enlarged answers and ratings reachable with either motion setting', async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 320, height: 568 });
   for (const reducedMotion of ['no-preference', 'reduce'] as const) {
     await page.emulateMedia({ reducedMotion });
     await page.goto('/sets/philippine-history/try');
-    await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
+    await page.evaluate(() => {
+      document.documentElement.style.fontSize = '200%';
+    });
     await page.getByRole('button', { name: 'Check answer', exact: true }).focus();
     await page.keyboard.press('Enter');
     const answer = page.getByRole('heading', { name: 'Lapulapu, the chief of Mactan' });
@@ -139,10 +151,12 @@ test('keyboard reveal and tabbing keep enlarged answers and ratings reachable wi
       const button = page.getByRole('button', { name: new RegExp(`^${rating}:`) });
       await expect(button).toBeFocused();
       // Native focus scrolling can round a fractional CSS-pixel edge at the viewport boundary.
-      await expect.poll(async () => {
-        const bounds = await button.boundingBox();
-        return bounds !== null && bounds.y >= -1 && bounds.y + bounds.height <= 569;
-      }).toBe(true);
+      await expect
+        .poll(async () => {
+          const bounds = await button.boundingBox();
+          return bounds !== null && bounds.y >= -1 && bounds.y + bounds.height <= 569;
+        })
+        .toBe(true);
     }
     await page.keyboard.press('Enter');
     await expect(page.getByText('Card 2 of 5', { exact: true })).toBeVisible();
@@ -162,9 +176,16 @@ test('compact account controls remain reachable at supported widths', async ({ p
   const signOut = page.getByRole('button', { name: 'Sign out', exact: true });
   const library = page.getByRole('link', { name: 'Library', exact: true });
 
-  for (const [width, height, textSize] of [[390, 844, '100%'], [768, 1024, '100%'], [1366, 900, '100%'], [320, 568, '200%']] as const) {
+  for (const [width, height, textSize] of [
+    [390, 844, '100%'],
+    [768, 1024, '100%'],
+    [1366, 900, '100%'],
+    [320, 568, '200%'],
+  ] as const) {
     await page.setViewportSize({ width, height });
-    await page.evaluate((size) => { document.documentElement.style.fontSize = size; }, textSize);
+    await page.evaluate((size) => {
+      document.documentElement.style.fontSize = size;
+    }, textSize);
     await expectTouchTarget(signOut);
     await expectTouchTarget(library);
     expect((await signOut.boundingBox())!.width).toBeLessThan(width * 0.65);
@@ -178,7 +199,10 @@ test('compact account controls remain reachable at supported widths', async ({ p
   await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
 });
 
-test('workspace navigation stays unique and reachable across layouts and enlarged text', async ({ page, pilot }, info) => {
+test('workspace navigation stays unique and reachable across layouts and enlarged text', async ({
+  page,
+  pilot,
+}, info) => {
   await page.goto(pilot.invitation());
   await page.getByLabel('Username').fill(`workspace_${randomUUID().slice(0, 16)}`);
   const password = randomUUID();
@@ -188,12 +212,23 @@ test('workspace navigation stays unique and reachable across layouts and enlarge
   await expect(page).toHaveURL(/\/today$/);
 
   for (const [width, height, textSize] of [
-    [390, 844, '100%'], [640, 900, '100%'], [768, 1024, '100%'],
-    [1024, 768, '100%'], [1366, 900, '100%'], [320, 568, '200%'],
+    [390, 844, '100%'],
+    [640, 900, '100%'],
+    [768, 1024, '100%'],
+    [1024, 768, '100%'],
+    [1366, 900, '100%'],
+    [320, 568, '200%'],
   ] as const) {
     await page.setViewportSize({ width, height });
-    await page.evaluate(size => { document.documentElement.style.fontSize = size; }, textSize);
-    for (const [destination, title] of [['Account', 'Your account'], ['Library', 'Library'], ['Help', 'Help'], ['Today', 'Your review']]) {
+    await page.evaluate((size) => {
+      document.documentElement.style.fontSize = size;
+    }, textSize);
+    for (const [destination, title] of [
+      ['Account', 'Your account'],
+      ['Library', 'Library'],
+      ['Help', 'Help'],
+      ['Today', 'Your review'],
+    ]) {
       const link = page.getByRole('link', { name: destination, exact: true });
       await expect(link).toHaveCount(1);
       await expectTouchTarget(link);
@@ -259,7 +294,9 @@ test('the phone tab bar stays at the bottom of the screen while a long page scro
 test('long forms use document scrolling when the available keyboard viewport is short', async ({ page, pilot }) => {
   await page.setViewportSize({ width: 320, height: 568 });
   await page.goto(pilot.invitation());
-  await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = '200%';
+  });
   await page.getByLabel('Username').fill('form_' + randomUUID().slice(0, 12));
   await page.setViewportSize({ width: 320, height: 320 });
   const password = randomUUID();
@@ -317,8 +354,11 @@ async function expectTouchTarget(link: Locator) {
     const centerX = x + width / 2;
     const centerY = y + height / 2;
     const hits = (px: number, py: number) => element.contains(document.elementFromPoint(px, py));
-    const edgesHit = hits(centerX - 23, centerY) && hits(centerX + 23, centerY)
-      && hits(centerX, centerY - 23) && hits(centerX, centerY + 23);
+    const edgesHit =
+      hits(centerX - 23, centerY) &&
+      hits(centerX + 23, centerY) &&
+      hits(centerX, centerY - 23) &&
+      hits(centerX, centerY + 23);
     return { width, height, edgesHit };
   });
   expect.soft(target.width).toBeGreaterThanOrEqual(48);

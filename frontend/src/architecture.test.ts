@@ -2,7 +2,9 @@ import { parseSync, Visitor } from 'rolldown/utils';
 import { describe, expect, it } from 'vitest';
 
 const sources = import.meta.glob<string>('./**/*.{ts,tsx}', {
-  query: '?raw', import: 'default', eager: true,
+  query: '?raw',
+  import: 'default',
+  eager: true,
 });
 
 function dependencies(file: string, source: string): string[] {
@@ -10,11 +12,21 @@ function dependencies(file: string, source: string): string[] {
   expect(parsed.errors, file).toEqual([]);
   const result: string[] = [];
   const visitor = new Visitor({
-    ImportDeclaration: (node) => { result.push(node.source.value); },
-    ExportNamedDeclaration: (node) => { if (node.source) result.push(node.source.value); },
-    ExportAllDeclaration: (node) => { result.push(node.source.value); },
-    TSImportType: (node) => { result.push(node.source.value); },
-    TSExternalModuleReference: (node) => { result.push(node.expression.value); },
+    ImportDeclaration: (node) => {
+      result.push(node.source.value);
+    },
+    ExportNamedDeclaration: (node) => {
+      if (node.source) result.push(node.source.value);
+    },
+    ExportAllDeclaration: (node) => {
+      result.push(node.source.value);
+    },
+    TSImportType: (node) => {
+      result.push(node.source.value);
+    },
+    TSExternalModuleReference: (node) => {
+      result.push(node.expression.value);
+    },
     ImportExpression: (node) => {
       if (node.source.type !== 'Literal' || typeof node.source.value !== 'string') {
         throw new Error(`${file}: imports must have a statically checkable path`);
@@ -35,31 +47,33 @@ function violations(file: string, source: string): string[] {
   if (feature?.[2] === 'domain' && file.endsWith('.tsx')) {
     return [`${file}: domain code must use .ts so the no-DOM compilation checks it`];
   }
-  return dependencies(file, source).filter((dependency) => {
-    const target = importTarget(file, dependency);
-    const targetFeature = /^\/features\/([^/]+)\/(domain|application|infrastructure|presentation)(\/|$)/.exec(target);
-    const targetLayer = targetFeature?.[2];
-    const compositionRoot = target === '/app' || target.startsWith('/app/') || /^\/main(?:\.[jt]sx?)?$/.test(target);
-    if (isTestCode(target)) return true;
-    if (shared) return target.startsWith('/features/') || compositionRoot;
-    if (!feature) return false;
-    const [, featureName, layer] = feature;
-    if (targetFeature && targetFeature[1] !== featureName && targetLayer !== 'application') return true;
-    if (layer === 'domain') {
-      const ownDomain = `/features/${featureName}/domain/`;
-      return target !== ownDomain.slice(0, -1) && !target.startsWith(ownDomain);
-    }
-    if (layer === 'application') {
-      return targetLayer === 'infrastructure' || targetLayer === 'presentation' || compositionRoot;
-    }
-    if (layer === 'presentation') {
-      return targetLayer === 'infrastructure' || compositionRoot;
-    }
-    if (layer === 'infrastructure') {
-      return targetLayer === 'presentation' || compositionRoot;
-    }
-    return false;
-  }).map((dependency) => `${file} -> ${dependency}`);
+  return dependencies(file, source)
+    .filter((dependency) => {
+      const target = importTarget(file, dependency);
+      const targetFeature = /^\/features\/([^/]+)\/(domain|application|infrastructure|presentation)(\/|$)/.exec(target);
+      const targetLayer = targetFeature?.[2];
+      const compositionRoot = target === '/app' || target.startsWith('/app/') || /^\/main(?:\.[jt]sx?)?$/.test(target);
+      if (isTestCode(target)) return true;
+      if (shared) return target.startsWith('/features/') || compositionRoot;
+      if (!feature) return false;
+      const [, featureName, layer] = feature;
+      if (targetFeature && targetFeature[1] !== featureName && targetLayer !== 'application') return true;
+      if (layer === 'domain') {
+        const ownDomain = `/features/${featureName}/domain/`;
+        return target !== ownDomain.slice(0, -1) && !target.startsWith(ownDomain);
+      }
+      if (layer === 'application') {
+        return targetLayer === 'infrastructure' || targetLayer === 'presentation' || compositionRoot;
+      }
+      if (layer === 'presentation') {
+        return targetLayer === 'infrastructure' || compositionRoot;
+      }
+      if (layer === 'infrastructure') {
+        return targetLayer === 'presentation' || compositionRoot;
+      }
+      return false;
+    })
+    .map((dependency) => `${file} -> ${dependency}`);
 }
 
 function importTarget(file: string, dependency: string): string {
@@ -117,7 +131,9 @@ describe('frontend architecture', () => {
 
   it('detects framework imports, type imports and dynamic adapter imports', () => {
     expect(violations('./features/study/domain/example.ts', "import type { ReactNode } from 'react';")).toHaveLength(1);
-    expect(violations('./features/catalog/application/example.ts', "import('../infrastructure/http');")).toHaveLength(1);
+    expect(violations('./features/catalog/application/example.ts', "import('../infrastructure/http');")).toHaveLength(
+      1,
+    );
     expect(violations('./shared/example.ts', "export * from '../app/App';")).toHaveLength(1);
   });
 
@@ -137,9 +153,12 @@ describe('frontend architecture', () => {
     expect(violations('./features/account/domain/example.ts', "import type React = require('react');")).toHaveLength(1);
   });
 
-  it.each(['application', 'infrastructure', 'presentation'])('keeps the %s layer out of the browser entry point', (layer) => {
-    expect(violations(`./features/account/${layer}/example.ts`, "import '../../../main';")).toHaveLength(1);
-  });
+  it.each(['application', 'infrastructure', 'presentation'])(
+    'keeps the %s layer out of the browser entry point',
+    (layer) => {
+      expect(violations(`./features/account/${layer}/example.ts`, "import '../../../main';")).toHaveLength(1);
+    },
+  );
 
   it('rejects production files outside the declared architecture', () => {
     expect(violations('./accountClient.ts', 'export const value = 1;')).toHaveLength(1);
@@ -156,13 +175,15 @@ describe('frontend architecture', () => {
   });
 
   it('rejects imports that cannot be checked statically', () => {
-    expect(() => violations('./features/account/presentation/form.ts', 'import(adapterPath);'))
-      .toThrow('imports must have a statically checkable path');
+    expect(() => violations('./features/account/presentation/form.ts', 'import(adapterPath);')).toThrow(
+      'imports must have a statically checkable path',
+    );
   });
 
   it.each(['application', 'presentation'])('keeps shared/%s independent of feature code', (folder) => {
-    expect(violations(`./shared/${folder}/example.ts`, "import '../../features/catalog/application/publicContent';"))
-      .toHaveLength(1);
+    expect(
+      violations(`./shared/${folder}/example.ts`, "import '../../features/catalog/application/publicContent';"),
+    ).toHaveLength(1);
   });
 
   it.each([
@@ -178,7 +199,9 @@ describe('frontend architecture', () => {
   });
 
   it('allows app composition in subfolders named after a feature layer', () => {
-    expect(violations('./app/presentation/example.ts', "import '../../features/account/infrastructure/http';")).toEqual([]);
+    expect(violations('./app/presentation/example.ts', "import '../../features/account/infrastructure/http';")).toEqual(
+      [],
+    );
   });
 
   it.each([
@@ -191,38 +214,49 @@ describe('frontend architecture', () => {
   });
 
   it('allows a domain to import its own directory index', () => {
-    expect(violations('./features/account/domain/example.ts', "import type { AccountId } from '../domain';")).toEqual([]);
+    expect(violations('./features/account/domain/example.ts', "import type { AccountId } from '../domain';")).toEqual(
+      [],
+    );
   });
   it.each(['domain', 'infrastructure', 'presentation'])('rejects another feature’s %s internals', (layer) => {
     expect(violations('./features/study/presentation/example.ts', `import '../../catalog/${layer}';`)).toHaveLength(1);
   });
 
   it('allows another feature’s application contract', () => {
-    expect(violations('./features/study/presentation/example.ts', "import type { PublicContentReader } from '../../catalog/application/publicContent';"))
-      .toEqual([]);
+    expect(
+      violations(
+        './features/study/presentation/example.ts',
+        "import type { PublicContentReader } from '../../catalog/application/publicContent';",
+      ),
+    ).toEqual([]);
   });
 
   it('rejects a cycle through otherwise allowed application imports', () => {
-    expect(featureCycles([
-      ['./features/study/application/trial.ts', "import '../../catalog/application/publicContent';"],
-      ['./features/catalog/application/publicContent.ts', "export * from '../../study/application/trial';"],
-    ])).toEqual(['study -> catalog -> study']);
+    expect(
+      featureCycles([
+        ['./features/study/application/trial.ts', "import '../../catalog/application/publicContent';"],
+        ['./features/catalog/application/publicContent.ts', "export * from '../../study/application/trial';"],
+      ]),
+    ).toEqual(['study -> catalog -> study']);
   });
 
   it('finds indirect feature cycles, including literal dynamic imports', () => {
-    expect(featureCycles([
-      ['./features/study/application/trial.ts', "import('../../catalog/application/publicContent');"],
-      ['./features/catalog/application/publicContent.ts', "import '../../account/application/account';"],
-      ['./features/account/application/account.ts', "import '../../study/application/trial';"],
-    ])).toEqual(['study -> catalog -> account -> study']);
+    expect(
+      featureCycles([
+        ['./features/study/application/trial.ts', "import('../../catalog/application/publicContent');"],
+        ['./features/catalog/application/publicContent.ts', "import '../../account/application/account';"],
+        ['./features/account/application/account.ts', "import '../../study/application/trial';"],
+      ]),
+    ).toEqual(['study -> catalog -> account -> study']);
   });
 
   it('allows multiple features to use the same application API without a cycle', () => {
-    expect(featureCycles([
-      ['./features/study/application/trial.ts', "import '../../catalog/application/publicContent';"],
-      ['./features/account/application/account.ts', "import '../../catalog/application/publicContent';"],
-      ['./features/catalog/application/publicContent.ts', 'export type SetKey = string;'],
-    ])).toEqual([]);
+    expect(
+      featureCycles([
+        ['./features/study/application/trial.ts', "import '../../catalog/application/publicContent';"],
+        ['./features/account/application/account.ts', "import '../../catalog/application/publicContent';"],
+        ['./features/catalog/application/publicContent.ts', 'export type SetKey = string;'],
+      ]),
+    ).toEqual([]);
   });
-
 });

@@ -13,35 +13,51 @@ function setup(register = true, entry = '/register') {
     signedIn: vi.fn().mockResolvedValue(false),
     register: vi.fn().mockResolvedValue({ username: 'student' }),
     signIn: vi.fn().mockResolvedValue({ username: 'student' }),
-    signOut: vi.fn().mockResolvedValue(undefined), current: vi.fn().mockResolvedValue(null),
+    signOut: vi.fn().mockResolvedValue(undefined),
+    current: vi.fn().mockResolvedValue(null),
   };
-  render(<QueryClientProvider client={new QueryClient()}><MemoryRouter initialEntries={[entry]}>
-    <AccountProvider gateway={gateway}><Routes>
-      <Route path="/register" element={<AccountForm register={register} />} />
-      <Route path="/sign-in" element={<AccountForm />} />
-      <Route path="/sets/example" element={<p>Original set</p>} />
-      <Route path="/today" element={<p>Today ready</p>} />
-    </Routes></AccountProvider>
-  </MemoryRouter></QueryClientProvider>);
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <MemoryRouter initialEntries={[entry]}>
+        <AccountProvider gateway={gateway}>
+          <Routes>
+            <Route path="/register" element={<AccountForm register={register} />} />
+            <Route path="/sign-in" element={<AccountForm />} />
+            <Route path="/sets/example" element={<p>Original set</p>} />
+            <Route path="/today" element={<p>Today ready</p>} />
+          </Routes>
+        </AccountProvider>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
   return gateway;
 }
 
-beforeEach(() => { window.history.replaceState({}, '', '/register'); });
+beforeEach(() => {
+  window.history.replaceState({}, '', '/register');
+});
 
 describe('pilot account forms', () => {
-  it.each([8, 22, 43])('accepts a %i-character invitation and removes its fragment before registration', async (length) => {
-    const invitation = 'a'.repeat(length);
-    window.history.replaceState({}, '', `/i#${invitation}`);
-    const gateway = setup();
-    fireEvent.change(screen.getByRole('textbox', { name: /^Username/ }), { target: { value: 'student' } });
-    fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: testPassword } });
-    fireEvent.change(screen.getByLabelText('Confirm password'), { target: { value: testPassword } });
-    fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
-    await waitFor(() => expect(gateway.register).toHaveBeenCalledWith({
-      username: 'student', password: testPassword, invitation,
-    }));
-    expect(window.location.hash).toBe('');
-  });
+  it.each([8, 22, 43])(
+    'accepts a %i-character invitation and removes its fragment before registration',
+    async (length) => {
+      const invitation = 'a'.repeat(length);
+      window.history.replaceState({}, '', `/i#${invitation}`);
+      const gateway = setup();
+      fireEvent.change(screen.getByRole('textbox', { name: /^Username/ }), { target: { value: 'student' } });
+      fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: testPassword } });
+      fireEvent.change(screen.getByLabelText('Confirm password'), { target: { value: testPassword } });
+      fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
+      await waitFor(() =>
+        expect(gateway.register).toHaveBeenCalledWith({
+          username: 'student',
+          password: testPassword,
+          invitation,
+        }),
+      );
+      expect(window.location.hash).toBe('');
+    },
+  );
 
   it('registers with a six-character password, clears the invitation fragment and navigates on confirmation', async () => {
     const invite = 'a'.repeat(43);
@@ -60,26 +76,29 @@ describe('pilot account forms', () => {
     expect(window.location.hash).toBe('');
   });
 
-  it.each([false, true])('consumes a newly arriving invitation without resetting the form (initial invitation: %s)', async (alreadyInvited) => {
-    if (alreadyInvited) window.history.replaceState({}, '', `/register#invite=${'a'.repeat(43)}`);
-    const gateway = setup(true, '/register?returnTo=%2Fsets%2Fexample');
-    fireEvent.change(screen.getByRole('textbox', { name: /Username/ }), { target: { value: 'student' } });
-    fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: testPassword } });
-    fireEvent.change(screen.getByLabelText('Confirm password'), { target: { value: testPassword } });
-    const invitation = 'b'.repeat(43);
-    const history = { keep: 'existing history state' };
-    window.history.replaceState(history, '', `/register?returnTo=%2Fsets%2Fexample#invite=${invitation}`);
-    fireEvent(window, new HashChangeEvent('hashchange'));
-    await waitFor(() => expect(window.location.hash).toBe(''));
-    expect(window.location.search).toBe('?returnTo=%2Fsets%2Fexample');
-    expect(window.history.state).toEqual(history);
-    expect((screen.getByRole('textbox', { name: /Username/ }) as HTMLInputElement).value).toBe('student');
-    expect((screen.getByLabelText(/^Password/) as HTMLInputElement).value).toBe(testPassword);
-    expect((screen.getByRole('button', { name: 'Create account' }) as HTMLButtonElement).disabled).toBe(false);
-    fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
-    await screen.findByText('Original set');
-    expect(gateway.register).toHaveBeenCalledWith({ username: 'student', password: testPassword, invitation });
-  });
+  it.each([false, true])(
+    'consumes a newly arriving invitation without resetting the form (initial invitation: %s)',
+    async (alreadyInvited) => {
+      if (alreadyInvited) window.history.replaceState({}, '', `/register#invite=${'a'.repeat(43)}`);
+      const gateway = setup(true, '/register?returnTo=%2Fsets%2Fexample');
+      fireEvent.change(screen.getByRole('textbox', { name: /Username/ }), { target: { value: 'student' } });
+      fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: testPassword } });
+      fireEvent.change(screen.getByLabelText('Confirm password'), { target: { value: testPassword } });
+      const invitation = 'b'.repeat(43);
+      const history = { keep: 'existing history state' };
+      window.history.replaceState(history, '', `/register?returnTo=%2Fsets%2Fexample#invite=${invitation}`);
+      fireEvent(window, new HashChangeEvent('hashchange'));
+      await waitFor(() => expect(window.location.hash).toBe(''));
+      expect(window.location.search).toBe('?returnTo=%2Fsets%2Fexample');
+      expect(window.history.state).toEqual(history);
+      expect((screen.getByRole('textbox', { name: /Username/ }) as HTMLInputElement).value).toBe('student');
+      expect((screen.getByLabelText(/^Password/) as HTMLInputElement).value).toBe(testPassword);
+      expect((screen.getByRole('button', { name: 'Create account' }) as HTMLButtonElement).disabled).toBe(false);
+      fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
+      await screen.findByText('Original set');
+      expect(gateway.register).toHaveBeenCalledWith({ username: 'student', password: testPassword, invitation });
+    },
+  );
 
   it('opens policy notices separately so reading them keeps the invitation form mounted', () => {
     window.history.replaceState({}, '', `/register#invite=${'a'.repeat(43)}`);
@@ -132,7 +151,11 @@ describe('pilot account forms', () => {
     expect(screen.queryByRole('alert')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
     await screen.findByText('Today ready');
-    expect(gateway.register).toHaveBeenCalledExactlyOnceWith({ username: 'student', password: testPassword, invitation });
+    expect(gateway.register).toHaveBeenCalledExactlyOnceWith({
+      username: 'student',
+      password: testPassword,
+      invitation,
+    });
   });
 
   it('clears both signup passwords after a server rejection while preserving the username', async () => {

@@ -2,6 +2,7 @@ import { createContext, useContext, useId, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useOutletContext } from 'react-router';
 import type { RatingRequest, ReviewGateway } from '../application/reviews';
+import { reviewKeys } from '../../../shared/cache/queryKeys';
 
 const ReviewContext = createContext<ReviewGateway | null>(null);
 export function ReviewProvider({ gateway, children }: Readonly<{ gateway: ReviewGateway; children: ReactNode }>) {
@@ -13,16 +14,12 @@ export function useReviewGateway() {
   return gateway;
 }
 
-function todayQueueKey(username: string) {
-  return ['reviews', username, 'today'];
-}
-
 /** Today's summary stays cached per learner. A return visit shows it at once and refreshes it. */
 export function useTodayQueue() {
   const gateway = useReviewGateway();
   const { username } = useOutletContext<{ username: string }>();
   return useQuery({
-    queryKey: todayQueueKey(username),
+    queryKey: reviewKeys.today(username),
     queryFn: () => gateway.queue(),
     retry: false,
     networkMode: 'always',
@@ -36,7 +33,7 @@ export function useSubmitRating() {
   const queryClient = useQueryClient();
   const { username } = useOutletContext<{ username: string }>();
   return async (cardId: string, input: RatingRequest) => {
-    const today = { queryKey: todayQueueKey(username), exact: true };
+    const today = { queryKey: reviewKeys.today(username), exact: true };
     queryClient.removeQueries(today);
     try {
       return await gateway.rate(cardId, input);
@@ -54,7 +51,7 @@ export function useBatchQueue() {
   const visit = useId();
   const { username } = useOutletContext<{ username: string }>();
   return useQuery({
-    queryKey: ['reviews', username, 'batch', visit],
+    queryKey: reviewKeys.batch(username, visit),
     queryFn: () => gateway.queue(),
     retry: false,
     networkMode: 'always',

@@ -6,6 +6,8 @@ import { Link, useParams } from 'react-router';
 import type { PublicSet } from '../application/publicContent';
 import { usePublicContentQueries } from './PublicContentProvider';
 import { chip, primaryButton, secondaryButton } from '../../../shared/ui/buttonStyles';
+import { TRIAL_CARD_COUNT } from '../../../shared/product/studyRules';
+import { cardCountLabel } from '../../../shared/ui/cardCount';
 import { FactLine } from '../../../shared/ui/FactLine';
 import { AllSetsLink, HomeLink } from '../../../shared/ui/HeaderLinks';
 import { LoadFailed } from '../../../shared/ui/LoadFailed';
@@ -23,7 +25,10 @@ export function SetPage() {
   const publicSet = useQuery({
     ...publicSetQuery(shareCode ?? setKey, shareCode === undefined ? 'key' : 'share'),
     // Coming from the set list, the summary is already known, so the page shows it at once.
-    placeholderData: () => queryClient.getQueryData(publicSetsQuery.queryKey)?.items.find((set) => shareCode === undefined ? set.setKey === setKey : set.shareCode === shareCode),
+    placeholderData: () =>
+      queryClient
+        .getQueryData(publicSetsQuery.queryKey)
+        ?.items.find((set) => (shareCode === undefined ? set.setKey === setKey : set.shareCode === shareCode)),
   });
 
   if (publicSet.isPending) {
@@ -64,9 +69,11 @@ function SetDetails({ publicSet }: Readonly<{ publicSet: PublicSet }>) {
 
   const actions = (
     <div className="grid gap-4">
-      <div className={publicSet.saveAllowed ? "grid items-start gap-3 @min-[26rem]:grid-cols-2" : undefined}>
+      <div className={publicSet.saveAllowed ? 'grid items-start gap-3 @min-[26rem]:grid-cols-2' : undefined}>
         <TrialAction publicSet={publicSet} />
-        {publicSet.saveAllowed && <SaveSetAction key={publicSet.setKey} shareCode={publicSet.shareCode} setKey={publicSet.setKey} />}
+        {publicSet.saveAllowed && (
+          <SaveSetAction key={publicSet.setKey} shareCode={publicSet.shareCode} setKey={publicSet.setKey} />
+        )}
       </div>
       <div className="border-t border-line pt-2">
         <ShareLinks title={publicSet.title} path={setSharePath(publicSet.shareCode)} />
@@ -83,8 +90,10 @@ function SetDetails({ publicSet }: Readonly<{ publicSet: PublicSet }>) {
     <div className="lg:[--container-page:46rem]">
       <PageLayout top={top} actions={actions}>
         <article className="mt-2 flex flex-col rounded-card bg-surface px-compact-gutter py-4 shadow-card sm:p-6 lg:mt-8 lg:p-8">
-          <p className={`${chip} self-start`}>{publicSet.saveAllowed ? "Shared set" : "Practice set"}</p>
-          <h1 className="mt-3 text-title font-extrabold tracking-tight text-balance lg:text-title-lg">{publicSet.title}</h1>
+          <p className={`${chip} self-start`}>{publicSet.saveAllowed ? 'Shared set' : 'Practice set'}</p>
+          <h1 className="mt-3 text-title font-extrabold tracking-tight text-balance lg:text-title-lg">
+            {publicSet.title}
+          </h1>
           <p className="mt-2 text-body text-muted lg:mt-3 lg:max-w-[54ch] lg:text-lg">{publicSet.description}</p>
           <FactLine
             facts={[`Published by ${publicSet.publisherName}`, 'Not yet checked', cardCountLabel(publicSet.cardCount)]}
@@ -103,14 +112,15 @@ function SetDetails({ publicSet }: Readonly<{ publicSet: PublicSet }>) {
 
 function TrialAction({ publicSet }: Readonly<{ publicSet: PublicSet }>) {
   const className = `${primaryButton} w-full`;
+  const label = `Try ${TRIAL_CARD_COUNT} cards`;
   if (!publicSet.trialAvailable) {
     return (
       <div>
         <button type="button" disabled className={className}>
-          Try 5 cards
+          {label}
         </button>
         <p className="mt-2 text-support text-muted">
-          The trial needs 5 cards, and this set has {cardCountLabel(publicSet.cardCount)} right now.
+          The trial needs {TRIAL_CARD_COUNT} cards, and this set has {cardCountLabel(publicSet.cardCount)} right now.
         </p>
       </div>
     );
@@ -118,14 +128,9 @@ function TrialAction({ publicSet }: Readonly<{ publicSet: PublicSet }>) {
   return (
     <div>
       <Link to={trialPath(publicSet.setKey)} className={className} aria-describedby="trial-save-note">
-        Try 5 cards
+        {label}
         <ArrowRight aria-hidden="true" size={20} strokeWidth={2} className="shrink-0" />
       </Link>
     </div>
   );
-}
-
-/** A non-breaking space keeps the number and "cards" on the same line. */
-function cardCountLabel(count: number): string {
-  return count === 1 ? '1 card' : `${count} cards`;
 }

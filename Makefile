@@ -25,7 +25,7 @@ NODE_RUN := $(abspath scripts/with-node.sh)
 # Every Compose target needs a local .env file and a running Docker engine.
 PREREQS := .env check-docker
 
-.PHONY: format-java e2e invite lint install-hooks tooling-test quality quality-local sonar sonar-ide sonar-ide-check help start stop up down restart rebuild rebuild-clean logs ps db db-shell reset test check build frontend-install check-docker check-java smoke
+.PHONY: format-java format-frontend e2e invite lint install-hooks tooling-test quality quality-local sonar sonar-ide sonar-ide-check help start stop up down restart rebuild rebuild-clean logs ps db db-shell reset test check build frontend-install check-docker check-java smoke
 
 help: ## Show this list
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z_-]+:.*## / {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -98,6 +98,9 @@ lint: frontend-install ## Lint frontend code and validate Python/shell tooling s
 
 format-java: check-java ## Apply the four-space, 120-column Java style to production and test Java
 	cd "$(BACKEND_DIR)" && ./mvnw spotless:apply
+
+format-frontend: frontend-install ## Apply the Prettier style to frontend TypeScript
+	cd "$(FRONTEND_DIR)" && bash "$(NODE_RUN)" npm run format
 
 invite: .env ## Print the stable local and public pilot invitation links
 	python3 scripts/issue-pilot-invite.py

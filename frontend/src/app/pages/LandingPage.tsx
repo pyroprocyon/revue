@@ -10,7 +10,7 @@ import { REVIEW_STEPS_INTRO, REVIEW_STEPS_TITLE, ReviewSteps } from '../../featu
 import { usePublicSession } from '../../shared/navigation/publicSession';
 import { shouldWaitForSession } from '../../shared/navigation/signedInHint';
 import { LandingLayout } from './LandingLayout';
-import { LoadingScreen } from '../../shared/ui/MessageScreen';
+import { SessionCheckScreen } from '../../shared/ui/MessageScreen';
 import { TODAY_PATH, HOW_IT_WORKS_PATH, JOIN_PATH, SETS_PATH } from '../../shared/navigation/paths';
 
 // Compact phones use a two-line hero; narrower screens and enlarged text can scroll.
@@ -23,10 +23,13 @@ export function LandingPage() {
   const session = usePublicSession();
   const { publicSetsQuery } = usePublicContentQueries();
   const queryClient = useQueryClient();
-  const scrollToGuide = useCallback((section: HTMLElement | null) => {
-    // The section may mount after ScrollOnNavigation has already handled this URL.
-    if (hash === `#${HOW_IT_WORKS_SECTION}`) section?.scrollIntoView();
-  }, [hash]);
+  const scrollToGuide = useCallback(
+    (section: HTMLElement | null) => {
+      // The section may mount after ScrollOnNavigation has already handled this URL.
+      if (hash === `#${HOW_IT_WORKS_SECTION}`) section?.scrollIntoView();
+    },
+    [hash],
+  );
 
   // Most visitors tap "Browse sets" next, so the list of sets loads now and opens at once.
   useEffect(() => {
@@ -37,10 +40,13 @@ export function LandingPage() {
   }, [queryClient, publicSetsQuery, session]);
 
   // A missing hint allows immediate guest entry; unreadable storage must wait for the session.
-  if (session === 'checking' && shouldWaitForSession()) return <LoadingScreen text="Checking your session…" />;
+  if (session === 'checking' && shouldWaitForSession()) return <SessionCheckScreen />;
 
   // Old section links still work on phones, where the inline explanation is now hidden.
-  if (hash === `#${HOW_IT_WORKS_SECTION}` && (session === 'signed-in' || window.matchMedia('(width < 64rem)').matches)) {
+  if (
+    hash === `#${HOW_IT_WORKS_SECTION}` &&
+    (session === 'signed-in' || window.matchMedia('(width < 64rem)').matches)
+  ) {
     return <Navigate to={HOW_IT_WORKS_PATH} replace />;
   }
 
@@ -48,16 +54,18 @@ export function LandingPage() {
 
   return (
     <LandingLayout
-      top={<>
-        <HomeLink />
-        <Link
-          to={HOW_IT_WORKS_PATH}
-          className="pressable -mr-2 ml-auto inline-flex min-h-12 items-center rounded-control px-2 text-label font-medium text-muted hover:text-accent lg:hidden"
-        >
-          How it works
-        </Link>
-        <AccountActions className="ml-auto hidden py-1 lg:flex" />
-      </>}
+      top={
+        <>
+          <HomeLink />
+          <Link
+            to={HOW_IT_WORKS_PATH}
+            className="pressable -mr-2 ml-auto inline-flex min-h-12 items-center rounded-control px-2 text-label font-medium text-muted hover:text-accent lg:hidden"
+          >
+            How it works
+          </Link>
+          <AccountActions className="ml-auto hidden py-1 lg:flex" />
+        </>
+      }
       actions={<LandingActions />}
     >
       <section className="flex flex-1 flex-col gap-4 max-lg:justify-center-safe sm:gap-8 lg:grid lg:flex-none lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-16 lg:pt-14">
@@ -77,7 +85,9 @@ export function LandingPage() {
           {REVIEW_STEPS_TITLE}
         </h2>
         <p className="mt-3 max-w-2xl text-body text-muted lg:text-[1.1875rem]">{REVIEW_STEPS_INTRO}</p>
-        <div className="mt-8"><ReviewSteps /></div>
+        <div className="mt-8">
+          <ReviewSteps />
+        </div>
       </section>
     </LandingLayout>
   );
@@ -87,8 +97,7 @@ function HeroText() {
   return (
     <div className="landing-hero min-w-0">
       <h1 className="text-hero font-extrabold tracking-[-0.03em] max-sm:text-hero-compact lg:text-hero-lg">
-        <span className="text-accent lg:block">Review</span>{' '}
-        <span className="lg:block">before</span>{' '}
+        <span className="text-accent lg:block">Review</span> <span className="lg:block">before</span>{' '}
         <span className="block">
           <span className="relative inline-block">
             {'it’s'}
@@ -133,17 +142,16 @@ function AccountActions({ className }: Readonly<{ className: string }>) {
   return (
     <nav aria-label="Account" className={`${className} ${visibility} flex-wrap gap-3`}>
       <AccountHeaderLink appearance="account" />
-      <Link to={JOIN_PATH} className={accountTonalButton}>Create account</Link>
+      <Link to={JOIN_PATH} className={accountTonalButton}>
+        Create account
+      </Link>
     </nav>
   );
 }
 
 function BrowseSetsButton() {
   return (
-    <Link
-      to={SETS_PATH}
-      className={`${primaryButton} w-full lg:min-h-14 lg:w-auto lg:gap-3 lg:px-6 lg:shadow-control`}
-    >
+    <Link to={SETS_PATH} className={`${primaryButton} w-full lg:min-h-14 lg:w-auto lg:gap-3 lg:px-6 lg:shadow-control`}>
       <span className="text-lg/6 lg:text-xl/7">Browse sets</span>
       <ArrowRight aria-hidden="true" className="shrink-0" size={20} />
     </Link>

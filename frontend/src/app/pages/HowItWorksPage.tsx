@@ -7,15 +7,19 @@ import { PageLayout } from '../../shared/ui/PageLayout';
 import { useFocusOnMount } from '../../shared/ui/useFocusOnMount';
 
 export function HowItWorksPage() {
-  const headingRef = useFocusOnMount<HTMLHeadingElement>();
+  const headingFocus = useFocusOnMount<HTMLHeadingElement>();
   return (
     <PageLayout
       top={<HomeLink />}
-      actions={<Link to={SETS_PATH} className={`${primaryButton} w-full sm:w-auto`}>Browse sets</Link>}
+      actions={
+        <Link to={SETS_PATH} className={`${primaryButton} w-full sm:w-auto`}>
+          Browse sets
+        </Link>
+      }
     >
       <section className="@container py-4 sm:py-8 lg:py-12">
         <div className="rounded-card bg-highlight-soft p-compact-gutter sm:p-6">
-          <h1 ref={headingRef} tabIndex={-1} className="text-title font-extrabold tracking-tight text-balance outline-none">
+          <h1 {...headingFocus} className="text-title font-extrabold tracking-tight text-balance outline-none">
             {REVIEW_STEPS_TITLE}
           </h1>
           <p className="mt-3 text-body text-muted">{REVIEW_STEPS_INTRO}</p>

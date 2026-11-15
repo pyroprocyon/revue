@@ -3,7 +3,7 @@ import { historySet, natureSet } from '../src/test/fixtures';
 
 test('catalog pages survive preview navigation, browser history and reloads', async ({ page }) => {
   let failNextPage = true;
-  await page.route('**/api/v1/public-sets**', async route => {
+  await page.route('**/api/v1/public-sets**', async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname.endsWith('/philippine-nature')) {
       await route.fulfill({ json: natureSet });

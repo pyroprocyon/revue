@@ -18,11 +18,13 @@ export function NextReviewPanel({ label, when, note }: Readonly<NextReviewPanelP
   );
 }
 
-// Twelve day squares in a 4 by 3 grid; the eighth is the highlighted review day.
-const CALENDAR_DAYS = Array.from({ length: 12 }, (_, day) => ({
-  x: 14 + (day % 4) * 16,
-  y: 34 + Math.floor(day / 4) * 13,
-  isReviewDay: day === 7,
+const CALENDAR_COLUMNS = 4;
+const CALENDAR_DAY_COUNT = 12;
+const REVIEW_DAY_INDEX = 7;
+const CALENDAR_DAYS = Array.from({ length: CALENDAR_DAY_COUNT }, (_, day) => ({
+  x: 14 + (day % CALENDAR_COLUMNS) * 16,
+  y: 34 + Math.floor(day / CALENDAR_COLUMNS) * 13,
+  isReviewDay: day === REVIEW_DAY_INDEX,
 }));
 
 function CalendarArt() {

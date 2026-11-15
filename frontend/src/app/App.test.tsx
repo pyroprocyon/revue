@@ -5,33 +5,51 @@ import { jsonResponse, renderApp, stubFetch } from '../test/renderApp';
 import { shouldWaitForSession, saveSignedInHint } from '../shared/navigation/signedInHint';
 
 describe('App', () => {
-  it.each(['signed-in', 'guest', 'unavailable'])('waits before choosing the homepage for a %s session in a browser that was signed in before', async (session) => {
-    saveSignedInHint(true);
-    let finish!: (response: Response) => void;
-    const pending = new Promise<Response>((resolve) => { finish = resolve; });
-    vi.stubGlobal('fetch', vi.fn(async (path: string) => {
-      if (path === '/api/v1/auth/session') return pending;
-      if (path === '/api/v1/me') return jsonResponse(200, { username: 'learner' });
-      if (path === '/api/v1/cards/due') return jsonResponse(200, {
-        totalCards: 0, availableCards: 0, dueCards: 0, newCards: 0, nextReviewDate: null, cards: [],
+  it.each(['signed-in', 'guest', 'unavailable'])(
+    'waits before choosing the homepage for a %s session in a browser that was signed in before',
+    async (session) => {
+      saveSignedInHint(true);
+      let finish!: (response: Response) => void;
+      const pending = new Promise<Response>((resolve) => {
+        finish = resolve;
       });
-      return jsonResponse(200, []);
-    }));
-    renderApp('/');
-    expect(screen.queryByRole('heading', { name: 'Review before it’s due.' })).toBeNull();
-    expect(screen.queryByRole('status')).toBeNull();
-    expect(await screen.findByRole('status')).toHaveProperty('textContent', 'Checking your session…');
-    expect(screen.queryByRole('heading', { name: 'Review before it’s due.' })).toBeNull();
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (path: string) => {
+          if (path === '/api/v1/auth/session') return pending;
+          if (path === '/api/v1/me') return jsonResponse(200, { username: 'learner' });
+          if (path === '/api/v1/cards/due')
+            return jsonResponse(200, {
+              totalCards: 0,
+              availableCards: 0,
+              dueCards: 0,
+              newCards: 0,
+              nextReviewDate: null,
+              cards: [],
+            });
+          return jsonResponse(200, []);
+        }),
+      );
+      renderApp('/');
+      expect(screen.queryByRole('heading', { name: 'Review before it’s due.' })).toBeNull();
+      expect(screen.queryByRole('status')).toBeNull();
+      expect(await screen.findByRole('status')).toHaveProperty('textContent', 'Checking your session…');
+      expect(screen.queryByRole('heading', { name: 'Review before it’s due.' })).toBeNull();
 
-    await act(async () => finish(session === 'unavailable'
-      ? jsonResponse(503)
-      : jsonResponse(200, { signedIn: session === 'signed-in' })));
-    expect(await screen.findByRole('heading', {
-      name: session === 'signed-in' ? 'Your review' : 'Review before it’s due.',
-    })).toBeDefined();
-    // Only a confirmed guest answer clears the hint; a failed check keeps it.
-    expect(shouldWaitForSession()).toBe(session !== 'guest');
-  });
+      await act(async () =>
+        finish(
+          session === 'unavailable' ? jsonResponse(503) : jsonResponse(200, { signedIn: session === 'signed-in' }),
+        ),
+      );
+      expect(
+        await screen.findByRole('heading', {
+          name: session === 'signed-in' ? 'Your review' : 'Review before it’s due.',
+        }),
+      ).toBeDefined();
+      // Only a confirmed guest answer clears the hint; a failed check keeps it.
+      expect(shouldWaitForSession()).toBe(session !== 'guest');
+    },
+  );
 
   it('opens signup directly at the short invitation route', async () => {
     stubFetch(404);
@@ -131,7 +149,9 @@ describe('App', () => {
     stubFetch(200, [historySet, natureSet]);
     renderApp('/');
 
-    expect((await screen.findByRole('heading', { level: 2, name: 'How spaced repetition works' })).closest('section')?.id).toBe('how-it-works');
+    expect(
+      (await screen.findByRole('heading', { level: 2, name: 'How spaced repetition works' })).closest('section')?.id,
+    ).toBe('how-it-works');
     fireEvent.click(screen.getByRole('link', { name: 'How it works' }));
 
     expect(screen.getByRole('heading', { level: 1, name: 'How spaced repetition works' })).toBeDefined();

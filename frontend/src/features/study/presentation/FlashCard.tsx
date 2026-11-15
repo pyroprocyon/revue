@@ -144,7 +144,6 @@ type CardSideProps = {
   hidden: boolean;
   back?: boolean;
   headerAction?: ReactNode;
-  /** The side's buttons, at the bottom of the card. */
   footer: ReactNode;
   children: ReactNode;
 };
@@ -161,7 +160,11 @@ function CardSide({ label, hidden, back = false, headerAction, footer, children 
       className={`col-start-1 row-start-1 flex min-w-0 flex-col wrap-anywhere rounded-card bg-surface px-compact-gutter py-4 text-center shadow-card backface-hidden sm:p-6 ${back ? 'rotate-y-180' : ''}`}
     >
       <div className="flex min-h-12 flex-wrap items-center justify-between gap-x-3">
-        <p className={`rounded-full px-3 py-1 text-left text-label font-semibold ${back ? 'bg-accent-soft text-accent' : 'bg-subtle text-muted'}`}>{label}</p>
+        <p
+          className={`rounded-full px-3 py-1 text-left text-label font-semibold ${back ? 'bg-accent-soft text-accent' : 'bg-subtle text-muted'}`}
+        >
+          {label}
+        </p>
         {headerAction}
       </div>
       <div className="mx-auto flex w-full max-w-xl flex-1 flex-col justify-center py-6">{children}</div>

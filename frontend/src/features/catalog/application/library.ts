@@ -13,7 +13,9 @@ export type LibraryPage = { items: SavedSet[]; nextCursor: string | null };
 export type LibraryFailureReason = 'signed-out' | 'unavailable' | 'expired-form' | 'unknown' | 'load';
 
 export class LibraryFailure extends Error {
-  constructor(public readonly reason: LibraryFailureReason) { super(reason); }
+  constructor(public readonly reason: LibraryFailureReason) {
+    super(reason);
+  }
 }
 
 /** Only confirmed server state belongs in the saved library. null membership means signed out. */

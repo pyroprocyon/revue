@@ -5,6 +5,8 @@ import { useId, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import type { PublicContentReader, TrialCard, TrialCards } from '../../catalog/application/publicContent';
 import { trialCardsQuery } from '../../catalog/application/publicContentQueries';
+import { TRIAL_CARD_COUNT } from '../../../shared/product/studyRules';
+import { cardNoun } from '../../../shared/ui/cardCount';
 import { primaryButton, secondaryButton } from '../../../shared/ui/buttonStyles';
 import { BackButton } from '../../../shared/ui/HeaderLinks';
 import { LoadFailed } from '../../../shared/ui/LoadFailed';
@@ -31,7 +33,7 @@ export function TrialPage({ reader }: Readonly<{ reader: Pick<PublicContentReade
   if (trialCards.data === null) {
     return (
       <MessageScreen
-        title="The 5-card trial isn't available right now."
+        title={`The ${TRIAL_CARD_COUNT}-card trial isn't available right now.`}
         action={<SetLinks setKey={setKey} primary="back-to-set" />}
       >
         <p>Check back later.</p>
@@ -74,7 +76,12 @@ function Trial({ setKey, initialContent }: Readonly<{ setKey: string; initialCon
       <h1 className="sr-only">Try {cardCount} cards</h1>
       <TrialProgress position={cardIndex + 1} cardCount={cardCount} />
       {/* A new key per card, so each card starts on its front instead of turning back over. */}
-      <FlashCard key={card.key} card={card} publisherName={content.publisherName} ratingControls={<RatingButtons onRate={rate} />} />
+      <FlashCard
+        key={card.key}
+        card={card}
+        publisherName={content.publisherName}
+        ratingControls={<RatingButtons onRate={rate} />}
+      />
     </StudyLayout>
   );
 }
@@ -145,8 +152,12 @@ function ReviewTimingGroup({ when, cards, first }: Readonly<ReviewTimingGroupPro
       <div
         className={`flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 rounded-inset px-3 py-2 ${first ? 'bg-highlight-soft' : 'bg-subtle'}`}
       >
-        <h2 id={headingId} className="text-section font-bold text-ink">{when}</h2>
-        <p className="text-label font-semibold text-muted">{cards.length} {cards.length === 1 ? 'card' : 'cards'}</p>
+        <h2 id={headingId} className="text-section font-bold text-ink">
+          {when}
+        </h2>
+        <p className="text-label font-semibold text-muted">
+          {cards.length} {cardNoun(cards.length)}
+        </p>
       </div>
       <ul aria-labelledby={headingId} className="mt-1 divide-y divide-line">
         {cards.map(({ card, rating }) => (
@@ -160,7 +171,7 @@ function ReviewTimingGroup({ when, cards, first }: Readonly<ReviewTimingGroupPro
 function SummaryCardRow({ question, rating }: Readonly<{ question: string; rating: Rating }>) {
   return (
     <li className="flex items-start gap-3 py-3">
-      <span className={`mt-0.5 grid size-8 shrink-0 place-items-center rounded-inset ${RATINGS[rating].tint}`}>
+      <span className={`mt-0.5 grid size-8 shrink-0 place-items-center rounded-inset ${RATINGS[rating].tintClass}`}>
         <RecallMeter rating={rating} />
       </span>
       <div className="min-w-0 flex-1">

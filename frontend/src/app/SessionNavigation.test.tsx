@@ -8,13 +8,21 @@ import { shouldWaitForSession, saveSignedInHint } from '../shared/navigation/sig
 
 function pendingSession() {
   let resolve!: (value: Response) => void;
-  const response = new Promise<Response>((done) => { resolve = done; });
+  const response = new Promise<Response>((done) => {
+    resolve = done;
+  });
   const fetcher = vi.fn(async (path: string) => {
     if (path === '/api/v1/auth/session') return response;
     if (path === '/api/v1/me') return jsonResponse(200, { username: 'learner' });
-    if (path === '/api/v1/cards/due') return jsonResponse(200, {
-      totalCards: 0, availableCards: 0, dueCards: 0, newCards: 0, nextReviewDate: null, cards: [],
-    });
+    if (path === '/api/v1/cards/due')
+      return jsonResponse(200, {
+        totalCards: 0,
+        availableCards: 0,
+        dueCards: 0,
+        newCards: 0,
+        nextReviewDate: null,
+        cards: [],
+      });
     if (path === '/api/v1/public-sets/philippine-history/demo-cards') return jsonResponse(200, historyCards);
     if (path === '/api/v1/public-sets') return jsonResponse(200, [historySet]);
     return jsonResponse(404);
@@ -28,33 +36,43 @@ function pendingSession() {
 }
 
 describe('session-dependent navigation', () => {
-  it.each(['signed-in', 'guest', 'failed'])('waits for a %s session when browser storage is blocked', async (outcome) => {
-    const blocked = () => { throw new DOMException('Storage blocked', 'SecurityError'); };
-    vi.stubGlobal('localStorage', { getItem: blocked, setItem: blocked, removeItem: blocked });
-    const session = pendingSession();
-    renderApp('/');
-    expect(screen.queryByRole('heading', { name: 'Review before it’s due.' })).toBeNull();
-    expect(screen.queryByRole('status')).toBeNull();
-    expect(await screen.findByRole('status')).toHaveProperty('textContent', 'Checking your session…');
-    if (outcome === 'failed') await session.fail();
-    else await session.finish(outcome === 'signed-in');
-    expect(await screen.findByRole('heading', {
-      name: outcome === 'signed-in' ? 'Your review' : 'Review before it’s due.',
-    })).toBeDefined();
-    expect(screen.queryByRole('status')).toBeNull();
-  });
+  it.each(['signed-in', 'guest', 'failed'])(
+    'waits for a %s session when browser storage is blocked',
+    async (outcome) => {
+      const blocked = () => {
+        throw new DOMException('Storage blocked', 'SecurityError');
+      };
+      vi.stubGlobal('localStorage', { getItem: blocked, setItem: blocked, removeItem: blocked });
+      const session = pendingSession();
+      renderApp('/');
+      expect(screen.queryByRole('heading', { name: 'Review before it’s due.' })).toBeNull();
+      expect(screen.queryByRole('status')).toBeNull();
+      expect(await screen.findByRole('status')).toHaveProperty('textContent', 'Checking your session…');
+      if (outcome === 'failed') await session.fail();
+      else await session.finish(outcome === 'signed-in');
+      expect(
+        await screen.findByRole('heading', {
+          name: outcome === 'signed-in' ? 'Your review' : 'Review before it’s due.',
+        }),
+      ).toBeDefined();
+      expect(screen.queryByRole('status')).toBeNull();
+    },
+  );
 
-  it.each(['/', '/sign-in', '/join', '/i', '/register'])('keeps guest content and fast loading notices off the signed-in entry %s', async (path) => {
-    saveSignedInHint(true);
-    const session = pendingSession();
-    renderApp(path);
-    expect(screen.queryByRole('heading')).toBeNull();
-    expect(screen.queryByRole('textbox')).toBeNull();
-    expect(screen.queryByRole('status')).toBeNull();
-    await session.finish(true);
-    await screen.findByRole('heading', { name: 'Your review' });
-    expect(screen.queryByRole('textbox')).toBeNull();
-  });
+  it.each(['/', '/sign-in', '/join', '/i', '/register'])(
+    'keeps guest content and fast loading notices off the signed-in entry %s',
+    async (path) => {
+      saveSignedInHint(true);
+      const session = pendingSession();
+      renderApp(path);
+      expect(screen.queryByRole('heading')).toBeNull();
+      expect(screen.queryByRole('textbox')).toBeNull();
+      expect(screen.queryByRole('status')).toBeNull();
+      await session.finish(true);
+      await screen.findByRole('heading', { name: 'Your review' });
+      expect(screen.queryByRole('textbox')).toBeNull();
+    },
+  );
 
   it('shows a guest the homepage at once, without a session notice', async () => {
     const session = pendingSession();
@@ -83,35 +101,41 @@ describe('session-dependent navigation', () => {
     ['/terms', 'Terms', 'Back to sign in', 'Back to Today'],
     ['/sets', 'Shared sets', 'Sign in', 'Account'],
     ['/missing-page', 'Page not found.', 'Go to the home page', 'Go to Today'],
-  ])('keeps public content readable without guessing the account action on %s', async (path, title, guestAction, accountAction) => {
-    const session = pendingSession();
-    renderApp(path);
-    await screen.findByRole('heading', { name: title });
-    expect(screen.queryByRole('link', { name: guestAction })).toBeNull();
-    expect(screen.queryByRole('link', { name: accountAction })).toBeNull();
-    await session.finish(true);
-    expect(await screen.findByRole('link', { name: accountAction })).toBeDefined();
-    expect(screen.queryByRole('link', { name: guestAction })).toBeNull();
-  });
+  ])(
+    'keeps public content readable without guessing the account action on %s',
+    async (path, title, guestAction, accountAction) => {
+      const session = pendingSession();
+      renderApp(path);
+      await screen.findByRole('heading', { name: title });
+      expect(screen.queryByRole('link', { name: guestAction })).toBeNull();
+      expect(screen.queryByRole('link', { name: accountAction })).toBeNull();
+      await session.finish(true);
+      expect(await screen.findByRole('link', { name: accountAction })).toBeDefined();
+      expect(screen.queryByRole('link', { name: guestAction })).toBeNull();
+    },
+  );
 
-  it.each([true, false])('keeps completed trial actions neutral until the session is known (signed in: %s)', async (signedIn) => {
-    const session = pendingSession();
-    renderApp('/sets/philippine-history/try');
-    await screen.findByRole('heading', { name: 'Question 1?' });
-    for (let card = 0; card < 5; card++) {
-      fireEvent.click(screen.getByRole('button', { name: 'Check answer' }));
-      fireEvent.click(screen.getByRole('button', { name: /^Good:/ }));
-    }
-    const heading = screen.getByRole('heading', { name: 'You practiced 5 cards.' });
-    const another = screen.getByRole('link', { name: 'Try another set' });
-    const back = screen.getByRole('link', { name: 'Back to the set' });
-    expect(another.className).toBe(secondaryButton);
-    expect(back.className).toBe(secondaryButton);
-    await session.finish(signedIn);
-    await waitFor(() => expect((signedIn ? back : another).className).toBe(primaryButton));
-    expect((signedIn ? another : back).className).toBe(secondaryButton);
-    expect(document.activeElement).toBe(heading);
-  });
+  it.each([true, false])(
+    'keeps completed trial actions neutral until the session is known (signed in: %s)',
+    async (signedIn) => {
+      const session = pendingSession();
+      renderApp('/sets/philippine-history/try');
+      await screen.findByRole('heading', { name: 'Question 1?' });
+      for (let card = 0; card < 5; card++) {
+        fireEvent.click(screen.getByRole('button', { name: 'Check answer' }));
+        fireEvent.click(screen.getByRole('button', { name: /^Good:/ }));
+      }
+      const heading = screen.getByRole('heading', { name: 'You practiced 5 cards.' });
+      const another = screen.getByRole('link', { name: 'Try another set' });
+      const back = screen.getByRole('link', { name: 'Back to the set' });
+      expect(another.className).toBe(secondaryButton);
+      expect(back.className).toBe(secondaryButton);
+      await session.finish(signedIn);
+      await waitFor(() => expect((signedIn ? back : another).className).toBe(primaryButton));
+      expect((signedIn ? another : back).className).toBe(secondaryButton);
+      expect(document.activeElement).toBe(heading);
+    },
+  );
 
   it('scrolls an old desktop guide link after the session check mounts its section', async () => {
     // A guest in a browser that was signed in before: the homepage waits, so the section mounts late.
@@ -138,15 +162,26 @@ describe('session-dependent navigation', () => {
     await screen.findByRole('link', { name: 'Account' });
     const respond = session.fetcher.getMockImplementation()!;
     let finish!: (value: Response) => void;
-    session.fetcher.mockImplementation((path) => path === '/api/v1/auth/session'
-      ? new Promise<Response>((resolve) => { finish = resolve; }) : respond(path));
+    session.fetcher.mockImplementation((path) =>
+      path === '/api/v1/auth/session'
+        ? new Promise<Response>((resolve) => {
+            finish = resolve;
+          })
+        : respond(path),
+    );
     try {
-      await act(async () => { focusManager.setFocused(false); focusManager.setFocused(true); });
+      await act(async () => {
+        focusManager.setFocused(false);
+        focusManager.setFocused(true);
+      });
       await waitFor(() => expect(finish).toBeDefined());
       expect(screen.getByRole('link', { name: 'Account' })).toBeDefined();
       await act(async () => finish(jsonResponse(503)));
       expect(screen.getByRole('link', { name: 'Account' })).toBeDefined();
-      await act(async () => { focusManager.setFocused(false); focusManager.setFocused(true); });
+      await act(async () => {
+        focusManager.setFocused(false);
+        focusManager.setFocused(true);
+      });
       await act(async () => finish(jsonResponse(200, { signedIn: false })));
       expect(await screen.findByRole('link', { name: 'Sign in' })).toBeDefined();
       expect(screen.queryByRole('link', { name: 'Account' })).toBeNull();

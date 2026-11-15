@@ -1,6 +1,6 @@
 import { ChevronLeft } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router';
-import { ACCOUNT_PATH, TODAY_PATH, HOME_PATH, SETS_PATH, SIGN_IN_PATH } from '../navigation/paths';
+import { ACCOUNT_PATH, TODAY_PATH, HOME_PATH, SETS_PATH, signInPath } from '../navigation/paths';
 import { usePublicSession } from '../navigation/publicSession';
 import { BrandMark } from './BrandMark';
 import { accountOutlinedButton } from './buttonStyles';
@@ -70,16 +70,19 @@ export function BackButton({ label, fallbackPath }: Readonly<BackButtonProps>) {
 export function AccountHeaderLink({ appearance = 'text' }: Readonly<{ appearance?: 'text' | 'account' }>) {
   const location = useLocation();
   const session = usePublicSession();
-  const className = appearance === 'account'
-    ? accountOutlinedButton
-    : 'pressable -mr-2 ml-auto inline-flex min-h-12 items-center rounded-control px-2 text-label font-semibold text-accent';
+  const className =
+    appearance === 'account'
+      ? accountOutlinedButton
+      : 'pressable -mr-2 ml-auto inline-flex min-h-12 items-center rounded-control px-2 text-label font-semibold text-accent';
   if (session === 'checking') return null;
-  if (session === 'signed-in') return <Link to={ACCOUNT_PATH} className={className}>Account</Link>;
+  if (session === 'signed-in')
+    return (
+      <Link to={ACCOUNT_PATH} className={className}>
+        Account
+      </Link>
+    );
   return (
-    <Link
-      to={`${SIGN_IN_PATH}?returnTo=${encodeURIComponent(location.pathname)}`}
-      className={className}
-    >
+    <Link to={signInPath(location.pathname)} className={className}>
       Sign in
     </Link>
   );

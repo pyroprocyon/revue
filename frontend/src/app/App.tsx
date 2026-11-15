@@ -25,45 +25,65 @@ import { NotFoundPage } from './pages/NotFoundPage';
 import { SetPage } from '../features/catalog/presentation/SetPage';
 import { SetsPage } from '../features/catalog/presentation/SetsPage';
 import { TrialPage } from '../features/study/presentation/TrialPage';
-import { TODAY_PATH, REVIEW_PATH, HELP_PATH, LIBRARY_PATH, HOME_PATH, HOW_IT_WORKS_PATH, SETS_PATH, SET_ROUTE, TRIAL_ROUTE, SIGN_IN_PATH, REGISTER_PATH, ACCOUNT_PATH, INVITE_PATH, SET_SHARE_ROUTE, JOIN_PATH } from '../shared/navigation/paths';
+import {
+  TODAY_PATH,
+  REVIEW_PATH,
+  HELP_PATH,
+  LIBRARY_PATH,
+  HOME_PATH,
+  HOW_IT_WORKS_PATH,
+  SETS_PATH,
+  SET_ROUTE,
+  TRIAL_ROUTE,
+  SIGN_IN_PATH,
+  REGISTER_PATH,
+  ACCOUNT_PATH,
+  INVITE_PATH,
+  SET_SHARE_ROUTE,
+  JOIN_PATH,
+  PRIVACY_PATH,
+  TERMS_PATH,
+} from '../shared/navigation/paths';
 
 /** Public journeys choose their layout; private routes share the confirmed account boundary. */
 export function App() {
   return (
     <AccountProvider gateway={httpAccount}>
-    <ReviewProvider gateway={httpReviews}>
-    <LibraryProvider gateway={httpLibrary}>
-    <PublicContentProvider reader={httpPublicContent}>
-      <ScrollOnNavigation />
-      <Routes>
-        <Route element={<PublicSessionLayout />}>
-          <Route path={HOME_PATH} element={<LandingPage />} />
-          <Route path={HOW_IT_WORKS_PATH} element={<HowItWorksPage />} />
-          <Route path={HELP_PATH} element={<HelpPage />} />
-          <Route path={SETS_PATH} element={<SetsPage />} />
-          <Route path={SET_ROUTE} element={<SetPage />} />
-          <Route path={SET_SHARE_ROUTE} element={<SetPage />} />
-          <Route path={TRIAL_ROUTE} element={<TrialPage reader={httpPublicContent} />} />
-          <Route element={<GuestRoute />}>
-            <Route path={SIGN_IN_PATH} element={<AccountForm key="sign-in" />} />
-            <Route path={JOIN_PATH} element={<JoinPage />} />
-            <Route path={INVITE_PATH} element={<AccountForm key="signup" register />} />
-            <Route path={REGISTER_PATH} element={<AccountForm key="signup" register />} />
-          </Route>
-          <Route path="/privacy" element={<PrivacyPage />} />
-          <Route path="/terms" element={<TermsPage />} />
-          <Route path="*" element={<NotFoundPage />} />
-        </Route>
-        <Route element={<AccountLayout />}>
-          <Route path={TODAY_PATH} element={<TodayPage />} />
-          <Route path={LIBRARY_PATH} element={<LibraryPage />} />
-          <Route path={ACCOUNT_PATH} element={<AccountPage />} />
-        </Route>
-        <Route element={<AccountLayout focused />}><Route path={REVIEW_PATH} element={<ReviewPage />} /></Route>
-      </Routes>
-    </PublicContentProvider>
-    </LibraryProvider>
-    </ReviewProvider>
+      <ReviewProvider gateway={httpReviews}>
+        <LibraryProvider gateway={httpLibrary}>
+          <PublicContentProvider reader={httpPublicContent}>
+            <ScrollOnNavigation />
+            <Routes>
+              <Route element={<PublicSessionLayout />}>
+                <Route path={HOME_PATH} element={<LandingPage />} />
+                <Route path={HOW_IT_WORKS_PATH} element={<HowItWorksPage />} />
+                <Route path={HELP_PATH} element={<HelpPage />} />
+                <Route path={SETS_PATH} element={<SetsPage />} />
+                <Route path={SET_ROUTE} element={<SetPage />} />
+                <Route path={SET_SHARE_ROUTE} element={<SetPage />} />
+                <Route path={TRIAL_ROUTE} element={<TrialPage reader={httpPublicContent} />} />
+                <Route element={<GuestRoute />}>
+                  <Route path={SIGN_IN_PATH} element={<AccountForm key="sign-in" />} />
+                  <Route path={JOIN_PATH} element={<JoinPage />} />
+                  <Route path={INVITE_PATH} element={<AccountForm key="signup" register />} />
+                  <Route path={REGISTER_PATH} element={<AccountForm key="signup" register />} />
+                </Route>
+                <Route path={PRIVACY_PATH} element={<PrivacyPage />} />
+                <Route path={TERMS_PATH} element={<TermsPage />} />
+                <Route path="*" element={<NotFoundPage />} />
+              </Route>
+              <Route element={<AccountLayout />}>
+                <Route path={TODAY_PATH} element={<TodayPage />} />
+                <Route path={LIBRARY_PATH} element={<LibraryPage />} />
+                <Route path={ACCOUNT_PATH} element={<AccountPage />} />
+              </Route>
+              <Route element={<AccountLayout focused />}>
+                <Route path={REVIEW_PATH} element={<ReviewPage />} />
+              </Route>
+            </Routes>
+          </PublicContentProvider>
+        </LibraryProvider>
+      </ReviewProvider>
     </AccountProvider>
   );
 }
