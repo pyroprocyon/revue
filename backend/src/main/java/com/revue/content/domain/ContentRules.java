@@ -96,8 +96,7 @@ public final class ContentRules {
 
     private static void checkKey(String key, String label, List<String> problems) {
         if (!KEY.matcher(key).matches()) {
-            problems.add(
-                label + " must be lowercase letters and digits joined by hyphens, such as " + "why-sweating-cools");
+            problems.add(label + " must be lowercase letters and digits joined by hyphens, such as why-sweating-cools");
         }
     }
 

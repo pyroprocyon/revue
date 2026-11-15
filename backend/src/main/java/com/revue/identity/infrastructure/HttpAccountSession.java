@@ -29,7 +29,6 @@ public class HttpAccountSession implements AccountSession {
     private final SessionAuthenticationStrategy strategy;
     private final CookieCsrfTokenRepository csrf;
 
-    /** Creates the HTTP session adapter with the configured authentication and CSRF strategies. */
     public HttpAccountSession(
         SecurityContextRepository repository,
         SessionAuthenticationStrategy strategy,

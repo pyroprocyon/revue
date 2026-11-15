@@ -13,7 +13,6 @@ import org.springframework.stereotype.Repository;
 public class JpaAccountQueries implements AccountQueries {
     private final EntityManager entityManager;
 
-    /** Creates the account query adapter using the current persistence context. */
     public JpaAccountQueries(EntityManager entityManager) {
         this.entityManager = entityManager;
     }

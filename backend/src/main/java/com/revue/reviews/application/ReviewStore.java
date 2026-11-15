@@ -1,5 +1,7 @@
 package com.revue.reviews.application;
 
+import com.revue.reviews.domain.AttemptMode;
+import com.revue.reviews.domain.ReviewRating;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -9,8 +11,40 @@ import org.jspecify.annotations.Nullable;
 
 /** Persistence port for bounded queues and immutable rating results. */
 public interface ReviewStore {
+    int DAILY_NEW_CARD_LIMIT = 10;
+
     /** Exact original inputs, used for idempotent replay. */
-    record Rating(String rating, String attemptMode, UUID requestId, long expectedVersion, int contentVersion) {
+    record Rating(
+        ReviewRating rating,
+        AttemptMode attemptMode,
+        UUID requestId,
+        long expectedVersion,
+        int contentVersion) {
+        /** Throws {@link ReviewProblem} for a rating or attempt mode outside the supported values. */
+        public static Rating parse(
+            @Nullable String rating,
+            @Nullable String attemptMode,
+            UUID requestId,
+            long expectedVersion,
+            int contentVersion) {
+            return new Rating(
+                supported(ReviewRating.class, rating),
+                supported(AttemptMode.class, attemptMode),
+                requestId,
+                expectedVersion,
+                contentVersion);
+        }
+
+        private static <E extends Enum<E>> E supported(Class<E> type, @Nullable String name) {
+            if (name == null) {
+                throw new ReviewProblem(ReviewProblem.Kind.INVALID_RATING);
+            }
+            try {
+                return Enum.valueOf(type, name);
+            } catch (IllegalArgumentException _) {
+                throw new ReviewProblem(ReviewProblem.Kind.INVALID_RATING);
+            }
+        }
     }
 
     /** Response reconstructed exclusively from the committed log. */

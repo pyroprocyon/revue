@@ -129,32 +129,26 @@ public final class PublishedSet {
         }
     }
 
-    /** Returns the stable set key used by published links. */
     public String key() {
         return key;
     }
 
-    /** Returns the current published title. */
     public String title() {
         return title;
     }
 
-    /** Returns the current published description. */
     public String description() {
         return description;
     }
 
-    /** Returns the attributed publisher's display name. */
     public String publisherName() {
         return publisherName;
     }
 
-    /** Returns the published subject label. */
     public String subject() {
         return subject;
     }
 
-    /** Returns the retirement time, or null while the set is available. */
     public @Nullable Instant retiredAt() {
         return retiredAt;
     }

@@ -12,12 +12,10 @@ public class PublicSetService {
     private static final int TRIAL_CARD_COUNT = 5;
     private final PublicSetQueries queries;
 
-    /** Creates the public catalog service with its query port. */
     public PublicSetService(PublicSetQueries queries) {
         this.queries = queries;
     }
 
-    /** Lists the currently available published sets. */
     public CatalogPage list(@Nullable String after, int limit) {
         if (limit < 1 || limit > 100) {
             throw new IllegalArgumentException("Page size must be between 1 and 100");
@@ -33,7 +31,6 @@ public class PublicSetService {
         return new CatalogPage(visible.stream().map(PublicSetService::summaryOf).toList(), next);
     }
 
-    /** Finds a public summary for an available set key. */
     public Optional<PublicSetSummary> summary(String setKey) {
         return queries.summary(setKey).map(PublicSetService::summaryOf);
     }

@@ -11,7 +11,6 @@ public class CatalogPublisher {
     private final PublicationState state;
     private final ContentLoader loader;
 
-    /** Creates the publisher with the shared revision store and content reconciler. */
     public CatalogPublisher(PublicationState state, ContentLoader loader) {
         this.state = state;
         this.loader = loader;

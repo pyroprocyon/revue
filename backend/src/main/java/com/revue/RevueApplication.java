@@ -7,7 +7,6 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 @SpringBootApplication
 public class RevueApplication {
 
-    /** Starts the HTTP application using the configured Spring environment. */
     public static void main(String[] args) {
         var context = SpringApplication.run(RevueApplication.class, args);
         var environment = context.getEnvironment();

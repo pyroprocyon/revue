@@ -11,13 +11,11 @@ public class LibraryProblem extends RuntimeException {
         INVALID_PAGE
     }
 
-    /** Creates a bounded failure. */
     public LibraryProblem(Kind kind) {
         super(kind.name());
         this.kind = kind;
     }
 
-    /** Returns the safe failure category. */
     public Kind kind() {
         return kind;
     }

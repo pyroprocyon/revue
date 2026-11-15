@@ -15,7 +15,6 @@ public class LibraryService {
     private final LibraryStore store;
     private final MemoryModel memory;
 
-    /** Wires the session boundary, library store and scheduler's initial state. */
     public LibraryService(LearnerAccess learners, LibraryStore store, MemoryModel memory) {
         this.learners = learners;
         this.store = store;

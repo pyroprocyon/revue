@@ -20,7 +20,6 @@ import org.springframework.web.bind.annotation.RestController;
 public class LibraryController {
     private final LibraryService library;
 
-    /** Creates the HTTP adapter. */
     public LibraryController(LibraryService library) {
         this.library = library;
     }

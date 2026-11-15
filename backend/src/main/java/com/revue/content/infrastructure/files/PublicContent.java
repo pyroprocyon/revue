@@ -23,6 +23,9 @@ public final class PublicContent {
     static final String LOCATION = "classpath*:content/public/**/*.yaml";
 
     private static final String ROOT_MARKER = "content/public/";
+    private static final int MAX_FILES = 4096;
+    private static final int MAX_FILE_BYTES = 1024 * 1024;
+    private static final int MAX_TOTAL_BYTES = 16 * MAX_FILE_BYTES;
 
     private PublicContent() {
     }
@@ -46,7 +49,7 @@ public final class PublicContent {
             String name = nameOf(resource);
             String source = read(resource, name);
             totalBytes += source.getBytes(StandardCharsets.UTF_8).length;
-            if (totalBytes > 16 * 1024 * 1024) {
+            if (totalBytes > MAX_TOTAL_BYTES) {
                 throw new ContentUnavailableException("Public source exceeds 16 MiB");
             }
             SetDefinition set = ContentParser.parse(name, source, problems);
@@ -70,8 +73,8 @@ public final class PublicContent {
         } catch (IOException ex) {
             throw new ContentUnavailableException("Couldn't list the public content files", ex);
         }
-        if (resources.length > 4096) {
-            throw new ContentUnavailableException("Public source exceeds 4096 files");
+        if (resources.length > MAX_FILES) {
+            throw new ContentUnavailableException("Public source exceeds " + MAX_FILES + " files");
         }
         if (resources.length == 0) {
             // An empty source would retire every set, so treat it as missing instead.
@@ -82,8 +85,8 @@ public final class PublicContent {
 
     private static String read(Resource resource, String name) {
         try (var input = resource.getInputStream()) {
-            byte[] bytes = input.readNBytes(1024 * 1024 + 1);
-            if (bytes.length > 1024 * 1024) {
+            byte[] bytes = input.readNBytes(MAX_FILE_BYTES + 1);
+            if (bytes.length > MAX_FILE_BYTES) {
                 throw new ContentUnavailableException(name + ": source exceeds 1 MiB");
             }
             return new String(bytes, StandardCharsets.UTF_8);

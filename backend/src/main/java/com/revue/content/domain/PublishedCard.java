@@ -58,27 +58,22 @@ public final class PublishedCard {
         return true;
     }
 
-    /** Returns the card's stable publication key. */
     public String key() {
         return text.key();
     }
 
-    /** Returns the current immutable card definition. */
     public CardDefinition text() {
         return text;
     }
 
-    /** Returns the card's position within its published set. */
     public int position() {
         return position;
     }
 
-    /** Returns the content revision used to distinguish corrections. */
     public int contentVersion() {
         return contentVersion;
     }
 
-    /** Returns the retirement time, or null while the card is available. */
     public @Nullable Instant retiredAt() {
         return retiredAt;
     }

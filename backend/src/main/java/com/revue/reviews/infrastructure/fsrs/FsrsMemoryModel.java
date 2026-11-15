@@ -12,7 +12,6 @@ import java.time.Instant;
 public final class FsrsMemoryModel implements MemoryModel {
     private final Scheduler scheduler;
 
-    /** Creates the FSRS adapter with the configured interval-fuzzing choice. */
     public FsrsMemoryModel(boolean fuzzIntervals) {
         scheduler = Scheduler.builder()
             .desiredRetention(0.9)

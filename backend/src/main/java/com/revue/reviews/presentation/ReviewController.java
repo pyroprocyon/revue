@@ -22,7 +22,6 @@ import org.springframework.web.bind.annotation.RestController;
 public class ReviewController {
     private final ReviewService reviews;
 
-    /** Creates the HTTP edge of daily study. */
     public ReviewController(ReviewService reviews) {
         this.reviews = reviews;
     }
@@ -40,7 +39,7 @@ public class ReviewController {
         return ok(
             reviews.rate(
                 cardId,
-                new ReviewStore.Rating(
+                ReviewStore.Rating.parse(
                     input.rating(),
                     input.attemptMode(),
                     input.requestId(),

@@ -15,7 +15,6 @@ import org.springframework.web.bind.annotation.RestController;
 public class AccountController {
     private final AccountService accounts;
 
-    /** Creates the account endpoint adapter with its application service. */
     public AccountController(AccountService accounts) {
         this.accounts = accounts;
     }

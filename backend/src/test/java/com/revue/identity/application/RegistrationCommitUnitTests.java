@@ -31,11 +31,12 @@ class RegistrationCommitUnitTests {
             null,
             null,
             false);
+        Instant lockAcquiredAt = expires;
         var time = new AtomicReference<>(expires.minusSeconds(1));
         RegistrationStore store = mock(RegistrationStore.class);
         when(store.currentTime()).thenAnswer(ignored -> time.get());
         when(store.lockInvite(hash)).thenAnswer(ignored -> {
-            time.set(expires); // The transaction acquired its lock only after the invite expired.
+            time.set(lockAcquiredAt);
             return Optional.of(invite);
         });
         var command = new RegistrationCommit.UsernameRegistration(

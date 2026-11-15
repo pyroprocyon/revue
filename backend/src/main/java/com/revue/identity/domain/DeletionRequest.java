@@ -9,7 +9,6 @@ import java.util.UUID;
 public record DeletionRequest(UUID id, Instant requestedAt, Instant purgeAfter) {
     public static final Duration RECOVERY_WINDOW = Duration.ofDays(7);
 
-    /** Validates that the request contains an identity and an ordered recovery window. */
     public DeletionRequest {
         Objects.requireNonNull(id);
         Objects.requireNonNull(requestedAt);

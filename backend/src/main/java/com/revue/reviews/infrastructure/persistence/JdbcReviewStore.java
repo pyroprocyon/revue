@@ -2,6 +2,8 @@ package com.revue.reviews.infrastructure.persistence;
 
 import com.revue.AfterCommit;
 import com.revue.reviews.application.ReviewStore;
+import com.revue.reviews.domain.AttemptMode;
+import com.revue.reviews.domain.ReviewRating;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -34,7 +36,7 @@ public class JdbcReviewStore implements ReviewStore {
         ), eligible as (
             select * from library where retired_at is null and version is not null
         ), allowance as (
-            select greatest(0, 10 - count(*)) as remaining from review_logs
+            select greatest(0, :newCardLimit - count(*)) as remaining from review_logs
             where user_id = :learner and local_review_date = :today and expected_schedule_version = 0
         ), totals as (
             select (select count(*) from library) as total_cards, count(*) as available_cards,
@@ -59,7 +61,6 @@ public class JdbcReviewStore implements ReviewStore {
     private final JdbcTemplate jdbc;
     private final NamedParameterJdbcTemplate named;
 
-    /** Creates the JDBC adapter using the application's existing transaction manager. */
     public JdbcReviewStore(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
         this.named = new NamedParameterJdbcTemplate(jdbc);
@@ -78,7 +79,9 @@ public class JdbcReviewStore implements ReviewStore {
 
     @Override
     public Queue queue(UUID learner, LocalDate today, int limit) {
-        return named.query(QUEUE, Map.of("learner", learner, "today", today, "limit", limit), rows -> {
+        var parameters = Map
+            .of("learner", learner, "today", today, "limit", limit, "newCardLimit", DAILY_NEW_CARD_LIMIT);
+        return named.query(QUEUE, parameters, rows -> {
             rows.next();
             long total = rows.getLong("total_cards");
             long available = rows.getLong("available_cards");
@@ -99,8 +102,8 @@ public class JdbcReviewStore implements ReviewStore {
     public Optional<Logged> logged(UUID learner, UUID requestId) {
         return jdbc.query("select * from review_logs where user_id = ? and request_id = ?", (row, _) -> {
             var input = new Rating(
-                row.getString("rating"),
-                row.getString("attempt_mode"),
+                ReviewRating.valueOf(row.getString("rating")),
+                AttemptMode.valueOf(row.getString("attempt_mode")),
                 requestId,
                 row.getLong("expected_schedule_version"),
                 row.getInt("reviewed_content_version"));
@@ -156,8 +159,8 @@ public class JdbcReviewStore implements ReviewStore {
             learner,
             Long.parseLong(result.cardId()),
             input.requestId(),
-            input.rating(),
-            input.attemptMode(),
+            input.rating().name(),
+            input.attemptMode().name(),
             input.expectedVersion(),
             input.contentVersion(),
             Timestamp.from(result.reviewedAt()),

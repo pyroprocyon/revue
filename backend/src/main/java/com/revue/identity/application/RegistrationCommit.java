@@ -17,7 +17,6 @@ public class RegistrationCommit {
     private final RegistrationStore store;
     private final PilotInvitation pilotInvitation;
 
-    /** Creates the registration transaction boundary with its store. */
     public RegistrationCommit(RegistrationStore store, PilotInvitation pilotInvitation) {
         this.store = store;
         this.pilotInvitation = pilotInvitation;
@@ -56,7 +55,6 @@ public class RegistrationCommit {
 
     /** Prehashed credentials and invitation for a username registration. */
     public record UsernameRegistration(Username username, PasswordHash passwordHash, TokenHash invitationHash) {
-        /** Validates the prepared username registration's required values. */
         public UsernameRegistration {
             Objects.requireNonNull(username);
             Objects.requireNonNull(passwordHash);
