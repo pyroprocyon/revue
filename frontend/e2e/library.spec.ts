@@ -21,7 +21,11 @@ async function signIn(page: Page, username: string) {
   await page.getByRole('button', { name: 'Sign in' }).click();
 }
 
-test('removal refreshes Library, supports resaving, and recovers a lost response', async ({ page, context, pilot }, info) => {
+test('removal refreshes Library, supports resaving, and recovers a lost response', async ({
+  page,
+  context,
+  pilot,
+}, info) => {
   pilot.addSaveableSet();
   await register(page, pilot.invitation());
   await page.goto('/sets/published-test-set');
@@ -43,7 +47,7 @@ test('removal refreshes Library, supports resaving, and recovers a lost response
   await page.getByRole('button', { name: 'Save to Library' }).click();
   await page.getByRole('link', { name: 'Open Library', exact: true }).click();
   let lost = false;
-  await page.route('**/api/v1/sets/*/save', async route => {
+  await page.route('**/api/v1/sets/*/save', async (route) => {
     if (route.request().method() === 'DELETE' && !lost) {
       lost = true;
       const response = await route.fetch();
@@ -98,7 +102,7 @@ test('signing in from a private Library link returns to Library', async ({ page,
 
 test('Account presents the profile without reading or promoting Library content', async ({ page, pilot }) => {
   let reads = 0;
-  await page.route('**/api/v1/me/saved-sets', route => {
+  await page.route('**/api/v1/me/saved-sets', (route) => {
     reads += 1;
     return route.fulfill({ status: 503, json: {} });
   });
@@ -112,29 +116,44 @@ test('Account presents the profile without reading or promoting Library content'
   expect(reads).toBe(1);
 });
 
-test('retired-set removal warns, supports keyboard cancellation and fits narrow screens', async ({ page, pilot }, info) => {
+test('retired-set removal warns, supports keyboard cancellation and fits narrow screens', async ({
+  page,
+  pilot,
+}, info) => {
   pilot.addSaveableSet();
   await register(page, pilot.invitation());
   await page.goto('/sets/published-test-set');
   await page.getByRole('button', { name: 'Save to Library' }).click();
   // Exercise the retired presentation without retiring shared fixtures used by other journeys.
-  await page.route('**/api/v1/me/saved-sets', async route => {
+  await page.route('**/api/v1/me/saved-sets', async (route) => {
     const response = await route.fetch();
     const body = await response.json();
-    await route.fulfill({ response, json: { ...body, items: body.items.map((set: object) => ({ ...set, retired: true })) } });
+    await route.fulfill({
+      response,
+      json: { ...body, items: body.items.map((set: object) => ({ ...set, retired: true })) },
+    });
   });
   await page.getByRole('link', { name: 'Open Library', exact: true }).click();
   const remove = page.getByRole('button', { name: 'Remove from Library: Published test set' });
   let writes = 0;
-  page.on('request', request => { if (request.method() === 'DELETE') writes += 1; });
+  page.on('request', (request) => {
+    if (request.method() === 'DELETE') writes += 1;
+  });
   await remove.focus();
   await page.keyboard.press('Enter');
   const keep = page.getByRole('button', { name: 'Keep set', exact: true });
   await expect(keep).toBeFocused();
   await expect(page.getByText(/you won’t be able to save it again/)).toBeVisible();
-  for (const [label, width, height, scale] of [['phone', 360, 800, 100], ['tablet', 640, 900, 100], ['desktop', 1280, 900, 100], ['enlarged', 320, 568, 200]] as const) {
+  for (const [label, width, height, scale] of [
+    ['phone', 360, 800, 100],
+    ['tablet', 640, 900, 100],
+    ['desktop', 1280, 900, 100],
+    ['enlarged', 320, 568, 200],
+  ] as const) {
     await page.setViewportSize({ width, height });
-    await page.evaluate(size => { document.documentElement.style.fontSize = `${size}%`; }, scale);
+    await page.evaluate((size) => {
+      document.documentElement.style.fontSize = `${size}%`;
+    }, scale);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
     for (const button of [keep, page.getByRole('button', { name: 'Remove from Library', exact: true })]) {
       expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(48);
@@ -148,8 +167,8 @@ test('retired-set removal warns, supports keyboard cancellation and fits narrow 
   await expect(keep).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(page.getByRole('button', { name: 'Remove from Library', exact: true })).toBeFocused();
-  const refreshedLibrary = page.waitForResponse(response =>
-    new URL(response.url()).pathname === '/api/v1/me/saved-sets' && response.ok()
+  const refreshedLibrary = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === '/api/v1/me/saved-sets' && response.ok(),
   );
   await page.keyboard.press('Enter');
   expect((await (await refreshedLibrary).json()).items).toEqual([]);
@@ -157,7 +176,11 @@ test('retired-set removal warns, supports keyboard cancellation and fits narrow 
   expect(writes).toBe(1);
 });
 
-test('explicit save survives sign-in return, duplicate save, reload and another learner', async ({ page, browser, pilot }, info) => {
+test('explicit save survives sign-in return, duplicate save, reload and another learner', async ({
+  page,
+  browser,
+  pilot,
+}, info) => {
   pilot.addSaveableSet();
   const name = await register(page, pilot.invitation());
   await page.getByRole('link', { name: 'Library', exact: true }).click();
@@ -193,20 +216,30 @@ test('explicit save survives sign-in return, duplicate save, reload and another 
   const saved = await (await page.request.get('/api/v1/me/saved-sets')).json();
   expect(saved.items).toHaveLength(1);
   const csrf = await (await page.request.get('/api/v1/auth/csrf')).json();
-  const duplicate = await page.request.post(`/api/v1/sets/${saved.items[0].id}/save`, { headers: { [csrf.headerName]: csrf.token } });
+  const duplicate = await page.request.post(`/api/v1/sets/${saved.items[0].id}/save`, {
+    headers: { [csrf.headerName]: csrf.token },
+  });
   expect(duplicate.ok()).toBe(true);
   expect((await duplicate.json()).savedAt).toBe(saved.items[0].savedAt);
 
-  for (const [label, width, height, scale] of [['phone', 360, 800, 100], ['tablet', 768, 1024, 100], ['desktop', 1440, 900, 100], ['enlarged', 320, 568, 200], ['landscape', 740, 360, 100]] as const) {
+  for (const [label, width, height, scale] of [
+    ['phone', 360, 800, 100],
+    ['tablet', 768, 1024, 100],
+    ['desktop', 1440, 900, 100],
+    ['enlarged', 320, 568, 200],
+    ['landscape', 740, 360, 100],
+  ] as const) {
     await page.setViewportSize({ width, height });
-    await page.evaluate((size) => { document.documentElement.style.fontSize = `${size}%`; }, scale);
+    await page.evaluate((size) => {
+      document.documentElement.style.fontSize = `${size}%`;
+    }, scale);
     await page.evaluate(() => document.fonts.ready);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
     await page.screenshot({ path: info.outputPath(`library-${label}.png`), fullPage: true });
     for (const label of ['Library', 'Account']) {
       const link = page.getByRole('link', { name: label, exact: true });
       expect((await link.boundingBox())!.height).toBeGreaterThanOrEqual(48);
-      const colors = await link.evaluate(element => {
+      const colors = await link.evaluate((element) => {
         const style = getComputedStyle(element);
         return { text: style.color, background: style.backgroundColor };
       });
@@ -221,14 +254,20 @@ test('explicit save survives sign-in return, duplicate save, reload and another 
     await otherPage.goto(`${pilot.origin}/library`);
     await expect(otherPage.getByRole('heading', { name: 'No saved sets' })).toBeVisible();
     expect((await (await otherPage.request.get(`${pilot.origin}/api/v1/me/saved-sets`)).json()).items).toHaveLength(0);
-  } finally { await other.close(); }
+  } finally {
+    await other.close();
+  }
   await page.setViewportSize({ width: 360, height: 800 });
   await page.goto('/privacy');
   await expect(page.getByText(/We keep the sets you save/)).toBeVisible();
   await page.screenshot({ path: info.outputPath('privacy-saved-data-phone.png'), fullPage: true });
 });
 
-test('lost save response is unconfirmed until a duplicate-safe retry, with expired-session recovery', async ({ page, context, pilot }, info) => {
+test('lost save response is unconfirmed until a duplicate-safe retry, with expired-session recovery', async ({
+  page,
+  context,
+  pilot,
+}, info) => {
   pilot.addSaveableSet();
   await register(page, pilot.invitation());
   await page.goto('/sets/published-test-set');
@@ -262,7 +301,7 @@ test('lost save response is unconfirmed until a duplicate-safe retry, with expir
 
 test('Library read failures retain an explicit retry instead of showing an empty library', async ({ page, pilot }) => {
   await register(page, pilot.invitation());
-  await page.route('**/api/v1/me/saved-sets', route => route.abort('connectionreset'));
+  await page.route('**/api/v1/me/saved-sets', (route) => route.abort('connectionreset'));
   await page.getByRole('link', { name: 'Library', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('Library couldn’t load');
   await expect(page.getByRole('heading', { name: 'No saved sets' })).toHaveCount(0);
@@ -271,11 +310,13 @@ test('Library read failures retain an explicit retry instead of showing an empty
   await expect(page.getByRole('heading', { name: 'No saved sets' })).toBeVisible();
 });
 
-
-test('Library preserves its page through a preview and offers Previous after a failed read', async ({ page, pilot }) => {
+test('Library preserves its page through a preview and offers Previous after a failed read', async ({
+  page,
+  pilot,
+}) => {
   await register(page, pilot.invitation());
   let failSecondPage = true;
-  await page.route('**/api/v1/me/saved-sets**', async route => {
+  await page.route('**/api/v1/me/saved-sets**', async (route) => {
     const secondPage = new URL(route.request().url()).searchParams.has('after');
     if (secondPage && failSecondPage) {
       await route.fulfill({ status: 503 });
@@ -283,12 +324,18 @@ test('Library preserves its page through a preview and offers Previous after a f
     }
     await route.fulfill({
       json: {
-        items: [{
-          id: secondPage ? '2' : '1',
-          title: secondPage ? 'Philippine Nature' : 'Philippine History',
-          setKey: secondPage ? 'philippine-nature' : 'philippine-history',
-          description: 'A saved set.', publisherName: 'Revue', cardCount: 5, retired: false, saveAllowed: true,
-        }],
+        items: [
+          {
+            id: secondPage ? '2' : '1',
+            title: secondPage ? 'Philippine Nature' : 'Philippine History',
+            setKey: secondPage ? 'philippine-nature' : 'philippine-history',
+            description: 'A saved set.',
+            publisherName: 'Revue',
+            cardCount: 5,
+            retired: false,
+            saveAllowed: true,
+          },
+        ],
         nextCursor: secondPage ? null : '1',
       },
     });

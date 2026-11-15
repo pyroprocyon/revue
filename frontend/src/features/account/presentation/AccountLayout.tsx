@@ -5,7 +5,7 @@ import { safeAccountReturnPath } from '../application/account';
 import type { AccountProfile } from '../application/account';
 import { useAccountGateway } from './AccountProvider';
 import { lastConfirmedProfile, rememberConfirmedProfile } from './confirmedProfile';
-import { TODAY_PATH, SIGN_IN_PATH } from '../../../shared/navigation/paths';
+import { TODAY_PATH, signInPath } from '../../../shared/navigation/paths';
 import { HomeLink } from '../../../shared/ui/HeaderLinks';
 import { primaryButton } from '../../../shared/ui/buttonStyles';
 import { StudyLayout } from '../../../shared/ui/StudyLayout';
@@ -13,9 +13,7 @@ import { WhenSlow } from '../../../shared/ui/WhenSlow';
 import { WorkspaceLayout } from '../../../shared/ui/WorkspaceLayout';
 import { FocusRequestContext } from '../../../shared/ui/FocusRequestContext';
 
-type Session =
-  | { status: 'loading' | 'signed-out' }
-  | { status: 'ready'; profile: AccountProfile };
+type Session = { status: 'loading' | 'signed-out' } | { status: 'ready'; profile: AccountProfile };
 
 /**
  * Private routes mount only for an account the server confirmed. Returning to the tab, or opening a private page
@@ -47,11 +45,11 @@ export function AccountLayout({ focused = false }: Readonly<{ focused?: boolean 
   useEffect(() => {
     if (checking || verificationError) return;
     const requested = pendingFocus.current;
-    const focused = requested ?? previousFocus.current;
+    const focusTarget = requested ?? previousFocus.current;
     pendingFocus.current = null;
     previousFocus.current = null;
-    if (focused && document.activeElement === document.body && privateContent.current?.contains(focused)) {
-      focused.focus({ preventScroll: requested === null });
+    if (focusTarget && document.activeElement === document.body && privateContent.current?.contains(focusTarget)) {
+      focusTarget.focus({ preventScroll: requested === null });
     }
   }, [checking, verificationError]);
 
@@ -61,9 +59,9 @@ export function AccountLayout({ focused = false }: Readonly<{ focused?: boolean 
       if (pendingRequest) return;
       const request = Symbol();
       pendingRequest = request;
-      const focused = document.activeElement;
-      if (focused instanceof HTMLElement && privateContent.current?.contains(focused)) {
-        previousFocus.current = focused;
+      const activeElement = document.activeElement;
+      if (activeElement instanceof HTMLElement && privateContent.current?.contains(activeElement)) {
+        previousFocus.current = activeElement;
       }
       setChecking(true);
       setVerificationError(false);
@@ -107,27 +105,36 @@ export function AccountLayout({ focused = false }: Readonly<{ focused?: boolean 
   }, [attempt, gateway, queryClient]);
 
   if (session.status === 'signed-out') {
-    const returnPath = safeAccountReturnPath(location.pathname);
-    return <Navigate to={returnPath ? `${SIGN_IN_PATH}?${new URLSearchParams({ returnTo: returnPath })}` : SIGN_IN_PATH} replace />;
+    return <Navigate to={signInPath(safeAccountReturnPath(location.pathname))} replace />;
   }
 
   const ErrorHeading = session.status === 'ready' ? 'h2' : 'h1';
   const content = (
     <>
       {checking && session.status === 'loading' && (
-        <WhenSlow><output className="mb-4 block text-muted">Loading your account…</output></WhenSlow>
+        <WhenSlow>
+          <output className="mb-4 block text-muted">Loading your account…</output>
+        </WhenSlow>
       )}
-      {verificationError && <section className="mb-6 rounded-card bg-surface p-compact-gutter shadow-card sm:p-6">
-        <ErrorHeading className="text-title font-extrabold tracking-tight">Your account couldn’t load</ErrorHeading>
-        <p role="alert" className="mt-3 text-body text-muted">Check your connection and try again.</p>
-        <button type="button" onClick={() => setAttempt((value) => value + 1)} className={`${primaryButton} mt-6`}>Try again</button>
-      </section>}
+      {verificationError && (
+        <section className="mb-6 rounded-card bg-surface p-compact-gutter shadow-card sm:p-6">
+          <ErrorHeading className="text-title font-extrabold tracking-tight">Your account couldn’t load</ErrorHeading>
+          <p role="alert" className="mt-3 text-body text-muted">
+            Check your connection and try again.
+          </p>
+          <button type="button" onClick={() => setAttempt((value) => value + 1)} className={`${primaryButton} mt-6`}>
+            Try again
+          </button>
+        </section>
+      )}
       {/* Preserve same-account drafts during verification; a different account starts fresh. */}
-      {session.status === 'ready' && <div ref={privateContent} inert={checking || verificationError}>
-        <FocusRequestContext value={requestFocus}>
-          <Outlet key={session.profile.username} context={session.profile} />
-        </FocusRequestContext>
-      </div>}
+      {session.status === 'ready' && (
+        <div ref={privateContent} inert={checking || verificationError}>
+          <FocusRequestContext value={requestFocus}>
+            <Outlet key={session.profile.username} context={session.profile} />
+          </FocusRequestContext>
+        </div>
+      )}
     </>
   );
   return focused ? (

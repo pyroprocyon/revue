@@ -11,7 +11,9 @@ async function register(page: Page, name: string) {
   await page.getByLabel(/^Password/).fill(PASSWORD);
   await page.getByLabel('Confirm password', { exact: true }).fill(PASSWORD);
   const returnTo = new URL(page.url()).searchParams.get('returnTo');
-  const response = page.waitForResponse(result => result.url().endsWith('/api/v1/auth/register') && result.request().method() === 'POST');
+  const response = page.waitForResponse(
+    (result) => result.url().endsWith('/api/v1/auth/register') && result.request().method() === 'POST',
+  );
   await page.getByRole('button', { name: 'Create account' }).click();
   const result = await response;
   if (result.ok() && !returnTo) {
@@ -25,7 +27,9 @@ async function signIn(page: Page, name: string, password = PASSWORD) {
   await page.getByRole('textbox', { name: 'Username' }).fill(name);
   await page.getByLabel(/^Password/).fill(password);
   const returnTo = new URL(page.url()).searchParams.get('returnTo');
-  const response = page.waitForResponse(result => result.url().endsWith('/api/v1/auth/login') && result.request().method() === 'POST');
+  const response = page.waitForResponse(
+    (result) => result.url().endsWith('/api/v1/auth/login') && result.request().method() === 'POST',
+  );
   await page.getByRole('button', { name: 'Sign in' }).click();
   const result = await response;
   if (result.ok() && !returnTo) {
@@ -36,7 +40,10 @@ async function signIn(page: Page, name: string, password = PASSWORD) {
 }
 
 for (const width of [375, 1366]) {
-  test(`opening home with an existing session never flashes the public landing at ${width}px`, async ({ page, pilot }, info) => {
+  test(`opening home with an existing session never flashes the public landing at ${width}px`, async ({
+    page,
+    pilot,
+  }, info) => {
     await page.setViewportSize({ width, height: 800 });
     await page.goto(pilot.invitation());
     await register(page, username());
@@ -46,7 +53,9 @@ for (const width of [375, 1366]) {
       }).observe(document, { childList: true, subtree: true });
     });
     let release!: () => void;
-    const pending = new Promise<void>((resolve) => { release = resolve; });
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
     await page.route('**/api/v1/auth/session', async (route) => {
       await pending;
       await route.continue();
@@ -68,7 +77,11 @@ for (const width of [375, 1366]) {
   });
 }
 
-test('invited learner registers with six characters, reloads, signs out and signs back in', async ({ page, context, pilot }) => {
+test('invited learner registers with six characters, reloads, signs out and signs back in', async ({
+  page,
+  context,
+  pilot,
+}) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Review before it’s due.' })).toBeVisible();
   expect(await context.cookies()).toHaveLength(0);
@@ -87,7 +100,7 @@ test('invited learner registers with six characters, reloads, signs out and sign
   const name = username();
   await register(page, name);
   await expect(page.getByText(name, { exact: true })).toBeVisible();
-  const firstSession = (await context.cookies()).find(cookie => cookie.name === 'SESSION');
+  const firstSession = (await context.cookies()).find((cookie) => cookie.name === 'SESSION');
   expect(firstSession?.httpOnly).toBe(true);
   await page.getByRole('link', { name: 'Library', exact: true }).click();
   await expect(page).toHaveURL(/\/library$/);
@@ -96,7 +109,7 @@ test('invited learner registers with six characters, reloads, signs out and sign
   await expect(page).toHaveURL(/\/today$/);
   await page.getByRole('link', { name: 'Account', exact: true }).click();
   await expect(page.getByText(name, { exact: true })).toBeVisible();
-  expect((await context.cookies()).find(cookie => cookie.name === 'SESSION')?.value).toBe(firstSession?.value);
+  expect((await context.cookies()).find((cookie) => cookie.name === 'SESSION')?.value).toBe(firstSession?.value);
   await page.reload();
   await expect(page.getByText(name, { exact: true })).toBeVisible();
   const me = await page.request.get('/api/v1/me');
@@ -115,11 +128,13 @@ test('invited learner registers with six characters, reloads, signs out and sign
   await expect(password).toHaveAttribute('type', 'text');
   await page.getByRole('button', { name: 'Hide password' }).click();
   await expect(password).toHaveAttribute('type', 'password');
-  const loginResponse = page.waitForResponse(result => result.url().endsWith('/api/v1/auth/login') && result.request().method() === 'POST');
+  const loginResponse = page.waitForResponse(
+    (result) => result.url().endsWith('/api/v1/auth/login') && result.request().method() === 'POST',
+  );
   await password.press('Enter');
   expect((await loginResponse).status()).toBe(200);
   await expect(page.getByText(name, { exact: true })).toBeVisible();
-  expect((await context.cookies()).find(cookie => cookie.name === 'SESSION')?.value).not.toBe(firstSession?.value);
+  expect((await context.cookies()).find((cookie) => cookie.name === 'SESSION')?.value).not.toBe(firstSession?.value);
 });
 
 test('wrong and unknown credentials give the same error and a learner can retry', async ({ page, pilot }) => {
@@ -160,7 +175,11 @@ test('existing learners keep their shared-set destination when switching to sign
   await expect(page.getByRole('heading', { name: 'Your review', exact: true })).toBeVisible();
 });
 
-test('two browsers keep separate accounts and a duplicate username leaves its invite usable', async ({ page, browser, pilot }) => {
+test('two browsers keep separate accounts and a duplicate username leaves its invite usable', async ({
+  page,
+  browser,
+  pilot,
+}) => {
   const first = username();
   const firstInvite = pilot.invitation();
   await page.goto(firstInvite);
@@ -185,7 +204,9 @@ test('two browsers keep separate accounts and a duplicate username leaves its in
     await register(other, username());
     await expect(other.getByRole('alert')).toContainText('Use a valid invitation link');
     expect((await other.request.get('/api/v1/me')).status()).toBe(401);
-  } finally { await otherContext.close(); }
+  } finally {
+    await otherContext.close();
+  }
 });
 
 test('public account and policy pages keep one contact route without account cookies', async ({ page, context }) => {
@@ -196,11 +217,15 @@ test('public account and policy pages keep one contact route without account coo
     await expect(page.getByRole('link', { name: 'Sign in', exact: true })).toBeVisible();
     for (const route of ['/sign-in', '/register', '/privacy', '/terms']) {
       await page.goto(route);
-      const support = route === '/privacy'
-        ? page.getByRole('link', { name: 'Contact us', exact: true })
-        : page.locator('a[href="mailto:revuetayo@gmail.com"]');
+      const support =
+        route === '/privacy'
+          ? page.getByRole('link', { name: 'Contact us', exact: true })
+          : page.locator('a[href="mailto:revuetayo@gmail.com"]');
       await expect(support).toHaveCount(1);
-      await expect(support).toHaveAttribute('href', route === '/privacy' ? '/terms#help-and-corrections' : 'mailto:revuetayo@gmail.com');
+      await expect(support).toHaveAttribute(
+        'href',
+        route === '/privacy' ? '/terms#help-and-corrections' : 'mailto:revuetayo@gmail.com',
+      );
       await expect(support).toBeVisible();
       const size = await page.evaluate(() => ({ width: innerWidth, content: document.documentElement.scrollWidth }));
       expect(size.content).toBeLessThanOrEqual(size.width);
@@ -219,7 +244,6 @@ test('public account and policy pages keep one contact route without account coo
   expect(await context.cookies()).toHaveLength(0);
 });
 
-
 test('privacy details and contact remain reachable with a keyboard and enlarged text', async ({ page }) => {
   await page.goto('/privacy');
   const details = page.locator('details');
@@ -228,21 +252,26 @@ test('privacy details and contact remain reachable with a keyboard and enlarged 
   await page.keyboard.press('Enter');
   await expect(details).toHaveAttribute('open', '');
   const content = page.getByRole('main');
-  expect(await content.evaluate(element => element.scrollHeight > element.clientHeight)).toBe(true);
+  expect(await content.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
   await page.getByRole('link', { name: 'Skip to content', exact: true }).focus();
   await page.keyboard.press('Enter');
   await expect(content).toBeFocused();
-  const before = await content.evaluate(element => element.scrollTop);
+  const before = await content.evaluate((element) => element.scrollTop);
   await page.keyboard.press('PageDown');
-  await expect.poll(() => content.evaluate(element => element.scrollTop)).toBeGreaterThan(before);
+  await expect.poll(() => content.evaluate((element) => element.scrollTop)).toBeGreaterThan(before);
   await page.setViewportSize({ width: 320, height: 800 });
-  await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = '200%';
+  });
   await page.getByRole('link', { name: 'Contact us', exact: true }).click();
   await expect(page).toHaveURL(/\/terms#help-and-corrections$/);
   await expect(page.locator('#help-and-corrections')).toBeInViewport();
 });
 
-test('returning to Account rechecks quietly once and restores focus without shifting the content', async ({ page, pilot }) => {
+test('returning to Account rechecks quietly once and restores focus without shifting the content', async ({
+  page,
+  pilot,
+}) => {
   await page.goto(pilot.invitation());
   await register(page, username());
   const signOut = page.getByRole('button', { name: 'Sign out', exact: true });
@@ -254,18 +283,20 @@ test('returning to Account rechecks quietly once and restores focus without shif
   });
   const heading = page.getByRole('heading', { name: 'Your account' });
   await signOut.focus();
-  const initialTop = await heading.evaluate(element => element.getBoundingClientRect().top + window.scrollY);
+  const initialTop = await heading.evaluate((element) => element.getBoundingClientRect().top + window.scrollY);
   let requests = 0;
   let release!: () => void;
-  const pending = new Promise<void>(resolve => { release = resolve; });
-  await page.route('**/api/v1/me', async route => {
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('**/api/v1/me', async (route) => {
     requests += 1;
     await pending;
     await route.continue();
   });
-  const controlsPaused = () => signOut.evaluate(element => element.closest('[inert]') !== null);
+  const controlsPaused = () => signOut.evaluate((element) => element.closest('[inert]') !== null);
   try {
-    const recheck = page.waitForRequest(request => request.url().endsWith('/api/v1/me'));
+    const recheck = page.waitForRequest((request) => request.url().endsWith('/api/v1/me'));
     await page.evaluate(() => {
       window.dispatchEvent(new Event('focus'));
       document.dispatchEvent(new Event('visibilitychange'));
@@ -276,7 +307,9 @@ test('returning to Account rechecks quietly once and restores focus without shif
     await expect(page.getByText('Checking session…', { exact: true })).toHaveCount(0);
     await expect(signOut).not.toBeFocused();
     const inertHeading = page.getByText('Your account', { exact: true });
-    expect(await inertHeading.evaluate(element => element.getBoundingClientRect().top + window.scrollY)).toBe(initialTop);
+    expect(await inertHeading.evaluate((element) => element.getBoundingClientRect().top + window.scrollY)).toBe(
+      initialTop,
+    );
   } finally {
     release();
   }
@@ -286,8 +319,10 @@ test('returning to Account rechecks quietly once and restores focus without shif
   expect(requests).toBe(1);
 });
 
-
-test('an invitation opened on an already-mounted registration page enables signup without reload', async ({ page, pilot }) => {
+test('an invitation opened on an already-mounted registration page enables signup without reload', async ({
+  page,
+  pilot,
+}) => {
   await page.goto('/register');
   await expect(page.getByRole('button', { name: 'Create account' })).toBeDisabled();
   const name = username();
@@ -316,11 +351,12 @@ test('first sign-in while offline gives guidance and recovers after reconnecting
     await expect(page.getByRole('alert')).toContainText('Check your connection');
     await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeEnabled();
     await expect(page.getByLabel(/^Password/)).toHaveValue('');
-  } finally { await context.setOffline(false); }
+  } finally {
+    await context.setOffline(false);
+  }
   await signIn(page, name);
   await expect(page.getByText(name, { exact: true })).toBeVisible();
 });
-
 
 test('the same short pilot link registers two independent learners', async ({ page, browser, pilot }) => {
   const invitation = pilot.invitation(true);
@@ -344,7 +380,7 @@ test('the same short pilot link registers two independent learners', async ({ pa
 test('a short public share opens the intended set and its trial without signing in', async ({ page, pilot }) => {
   const response = await page.request.get(`${pilot.origin}/api/v1/public-sets`);
   const sets: { setKey: string; shareCode: string; title: string }[] = await response.json();
-  const set = sets.find(item => item.setKey === 'philippine-history');
+  const set = sets.find((item) => item.setKey === 'philippine-history');
   expect(set).toBeDefined();
   if (!set) throw new Error('The starter history set is required');
   await page.goto(`${pilot.origin}/s/${set.shareCode}`);
@@ -355,13 +391,13 @@ test('a short public share opens the intended set and its trial without signing 
   await expect(page.getByRole('button', { name: 'Check answer' })).toBeVisible();
 });
 
-
 test('signup checks the confirmation locally and sends only one password after correction', async ({ page, pilot }) => {
   const name = username();
   await page.goto(pilot.invitation());
   const requests: string[] = [];
-  page.on('request', request => {
-    if (request.url().endsWith('/api/v1/auth/register') && request.method() === 'POST') requests.push(request.postData() ?? '');
+  page.on('request', (request) => {
+    if (request.url().endsWith('/api/v1/auth/register') && request.method() === 'POST')
+      requests.push(request.postData() ?? '');
   });
   await page.getByLabel('Username', { exact: true }).fill(name);
   const password = page.getByLabel('Password', { exact: true });
@@ -377,7 +413,9 @@ test('signup checks the confirmation locally and sends only one password after c
   await expect(confirmation).toHaveAttribute('type', 'text');
   await expect(password).toHaveAttribute('type', 'password');
   await page.getByRole('button', { name: 'Hide confirmation password' }).click();
-  const response = page.waitForResponse(result => result.url().endsWith('/api/v1/auth/register') && result.request().method() === 'POST');
+  const response = page.waitForResponse(
+    (result) => result.url().endsWith('/api/v1/auth/register') && result.request().method() === 'POST',
+  );
   await confirmation.press('Enter');
   expect((await response).status()).toBe(200);
   await expect(page).toHaveURL(/\/today$/);
@@ -397,7 +435,7 @@ test('signed-in navigation keeps every public route connected to Today', async (
   await expect(account).toBeVisible();
 
   const sets: { setKey: string; shareCode: string }[] = await (await page.request.get('/api/v1/public-sets')).json();
-  const history = sets.find(set => set.setKey === 'philippine-history')!;
+  const history = sets.find((set) => set.setKey === 'philippine-history')!;
   const preview = '/sets/philippine-history';
   for (const [route, heading] of [
     ['/sets', 'Shared sets'],

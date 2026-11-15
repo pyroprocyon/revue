@@ -3,15 +3,17 @@ import { ArrowRight, CalendarCheck, Layers } from 'lucide-react';
 import { Link, Navigate } from 'react-router';
 import { ReviewFailure, type StudyQueue } from '../application/reviews';
 import { useTodayQueue } from './ReviewProvider';
+import { REVIEW_BATCH_SIZE, REVIEW_TIME_ZONE, REVIEW_TIME_ZONE_OFFSET } from '../../../shared/product/studyRules';
+import { cardNoun } from '../../../shared/ui/cardCount';
 import { primaryButton } from '../../../shared/ui/buttonStyles';
-import { REVIEW_PATH, SIGN_IN_PATH, TODAY_PATH } from '../../../shared/navigation/paths';
+import { REVIEW_PATH, TODAY_PATH, signInPath } from '../../../shared/navigation/paths';
 import { WhenSlow } from '../../../shared/ui/WhenSlow';
 import { WorkspacePage } from '../../../shared/ui/WorkspacePage';
 
 export function TodayPage() {
   const query = useTodayQueue();
   if (query.error instanceof ReviewFailure && query.error.kind === 'signed-out') {
-    return <Navigate to={`${SIGN_IN_PATH}?returnTo=${TODAY_PATH}`} replace />;
+    return <Navigate to={signInPath(TODAY_PATH)} replace />;
   }
   let content: ReactNode;
   if (query.isPending) {
@@ -33,22 +35,24 @@ export function TodayPage() {
   } else {
     content = <TodayContent queue={query.data} />;
   }
-  const panel = <div className="rounded-card bg-surface p-compact-gutter py-6 shadow-card sm:p-8 lg:p-10">{content}</div>;
+  const panel = (
+    <div className="rounded-card bg-surface p-compact-gutter py-6 shadow-card sm:p-8 lg:p-10">{content}</div>
+  );
   return <WorkspacePage title="Your review">{query.isPending ? <WhenSlow>{panel}</WhenSlow> : panel}</WorkspacePage>;
 }
 
 export function reviewAction(count: number) {
-  if (count >= 5) return 'Start with 5';
-  return `Review ${count} ${count === 1 ? 'card' : 'cards'}`;
+  if (count >= REVIEW_BATCH_SIZE) return `Start with ${REVIEW_BATCH_SIZE}`;
+  return `Review ${count} ${cardNoun(count)}`;
 }
 
 export function nextReviewText(date: string) {
-  const parsed = new Date(`${date}T00:00:00+08:00`);
+  const parsed = new Date(`${date}T00:00:00${REVIEW_TIME_ZONE_OFFSET}`);
   return new Intl.DateTimeFormat('en', {
     weekday: 'long',
     month: 'short',
     day: 'numeric',
-    timeZone: 'Asia/Manila',
+    timeZone: REVIEW_TIME_ZONE,
   }).format(parsed);
 }
 
@@ -61,7 +65,7 @@ function TodayContent({ queue }: Readonly<{ queue: StudyQueue }>) {
           <Layers aria-hidden="true" className="size-7" />
         </span>
         <h2 className="text-title font-bold tracking-tight">
-          {ready} {ready === 1 ? 'card' : 'cards'} ready
+          {ready} {cardNoun(ready)} ready
         </h2>
         <p className="mt-3 text-body text-muted">
           {queue.dueCards} due · {queue.newCards} new

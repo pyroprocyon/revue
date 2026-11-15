@@ -56,38 +56,52 @@ function api(queue = empty, write?: (input: RatingRequest) => Promise<Response>)
 }
 
 describe('saved daily study', () => {
-  it.each(['confirmed', 'lost'])('refreshes Today when a rating settles after leaving the batch (%s response)', async (response) => {
-    let finish: (() => void) | undefined;
-    const fixture = api(ready, (input) => new Promise<Response>((resolve, reject) => {
-      finish = () => {
-        fixture.setQueue(done);
-        if (response === 'lost') reject(new TypeError('lost response'));
-        else resolve(jsonResponse(200, { cardId: card.id, requestId: input.requestId, scheduleVersion: 1 }));
-      };
-    }));
-    renderApp('/review');
-    fireEvent.click(await screen.findByRole('button', { name: 'Show answer' }));
-    fireEvent.click(screen.getByRole('button', { name: /^Good:/ }));
-    await waitFor(() => expect(finish).toBeDefined());
-    fireEvent.click(screen.getByRole('link', { name: 'Finish for now' }));
-    await screen.findByRole('heading', { name: '1 card ready' });
+  it.each(['confirmed', 'lost'])(
+    'refreshes Today when a rating settles after leaving the batch (%s response)',
+    async (response) => {
+      let finish: (() => void) | undefined;
+      const fixture = api(
+        ready,
+        (input) =>
+          new Promise<Response>((resolve, reject) => {
+            finish = () => {
+              fixture.setQueue(done);
+              if (response === 'lost') reject(new TypeError('lost response'));
+              else resolve(jsonResponse(200, { cardId: card.id, requestId: input.requestId, scheduleVersion: 1 }));
+            };
+          }),
+      );
+      renderApp('/review');
+      fireEvent.click(await screen.findByRole('button', { name: 'Show answer' }));
+      fireEvent.click(screen.getByRole('button', { name: /^Good:/ }));
+      await waitFor(() => expect(finish).toBeDefined());
+      fireEvent.click(screen.getByRole('link', { name: 'Finish for now' }));
+      await screen.findByRole('heading', { name: '1 card ready' });
 
-    await act(async () => finish!());
-    expect(await screen.findByRole('heading', { name: 'All caught up' })).toBeDefined();
-    expect(screen.queryByRole('heading', { name: '1 card ready' })).toBeNull();
-  });
+      await act(async () => finish!());
+      expect(await screen.findByRole('heading', { name: 'All caught up' })).toBeDefined();
+      expect(screen.queryByRole('heading', { name: '1 card ready' })).toBeNull();
+    },
+  );
 
   it('replaces an unfinished Today read when the rating settles and ignores its late response', async () => {
     let finish: (() => void) | undefined;
-    const { fetcher } = api(ready, (input) => new Promise<Response>((resolve) => {
-      finish = () => resolve(jsonResponse(200, { cardId: card.id, requestId: input.requestId, scheduleVersion: 1 }));
-    }));
+    const { fetcher } = api(
+      ready,
+      (input) =>
+        new Promise<Response>((resolve) => {
+          finish = () =>
+            resolve(jsonResponse(200, { cardId: card.id, requestId: input.requestId, scheduleVersion: 1 }));
+        }),
+    );
     const respond = fetcher.getMockImplementation()!;
     let finishOldRead: (() => void) | undefined;
     let queueReads = 0;
     fetcher.mockImplementation((path, init) => {
       if (path === '/api/v1/cards/due' && ++queueReads === 2) {
-        return new Promise<Response>((resolve) => { finishOldRead = () => resolve(jsonResponse(200, ready)); });
+        return new Promise<Response>((resolve) => {
+          finishOldRead = () => resolve(jsonResponse(200, ready));
+        });
       }
       return respond(path, init);
     });
@@ -151,7 +165,10 @@ describe('saved daily study', () => {
     expect(screen.getByRole('heading', { name: card.answer })).toBeDefined();
     expect(screen.getByRole('progressbar').getAttribute('value')).toBe('0');
     fireEvent.click(screen.getByRole('button', { name: 'Back to question' }));
-    expect(screen.getByLabelText('Your answer (optional)')).toHaveProperty('value', 'Keep this answer through a tab return');
+    expect(screen.getByLabelText('Your answer (optional)')).toHaveProperty(
+      'value',
+      'Keep this answer through a tab return',
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Back to answer' }));
     expect(inputs).toHaveLength(1);
 
@@ -163,11 +180,20 @@ describe('saved daily study', () => {
 
   it('advances batch progress only after the rating is confirmed', async () => {
     let confirm: (() => void) | undefined;
-    api({ ...ready, totalCards: 2, availableCards: 2, newCards: 2,
-      cards: [card, { ...card, id: '24', question: 'What do roots absorb?' }],
-    }, (input) => new Promise<Response>((resolve) => {
-      confirm = () => resolve(jsonResponse(200, { cardId: card.id, requestId: input.requestId, scheduleVersion: 1 }));
-    }));
+    api(
+      {
+        ...ready,
+        totalCards: 2,
+        availableCards: 2,
+        newCards: 2,
+        cards: [card, { ...card, id: '24', question: 'What do roots absorb?' }],
+      },
+      (input) =>
+        new Promise<Response>((resolve) => {
+          confirm = () =>
+            resolve(jsonResponse(200, { cardId: card.id, requestId: input.requestId, scheduleVersion: 1 }));
+        }),
+    );
     renderApp('/review');
     const progress = await screen.findByRole('progressbar', { name: 'Batch progress' });
     expect(progress.getAttribute('value')).toBe('0');
@@ -239,36 +265,39 @@ describe('saved daily study', () => {
   it.each([
     { reveal: 'Show answer', mode: 'ANSWERED', rating: /^Good:/ },
     { reveal: 'I don’t know yet', mode: 'SHOWN', rating: /^Finish batch$/ },
-  ])('preserves the $mode attempt and shows the draft only after an answer attempt', async ({ reveal, mode, rating }) => {
-    const { fetcher } = api(ready);
-    renderApp('/review');
-    const question = await screen.findByRole('heading', { name: card.question });
-    fireEvent.change(screen.getByLabelText('Your answer (optional)'), { target: { value: 'My first recall' } });
-    fireEvent.click(question);
-    expect(screen.queryByRole('heading', { name: card.answer })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: reveal }));
-    expect(document.activeElement).toBe(screen.getByRole('heading', { name: card.answer }));
-    expect(screen.queryByRole('heading', { name: card.question })).toBeNull();
-    expect(screen.queryByText('Your answer') !== null).toBe(mode === 'ANSWERED');
-    fireEvent.click(screen.getByRole('button', { name: 'Back to question' }));
-    expect(document.activeElement).toBe(question);
-    const field = screen.queryByLabelText('Your answer (optional)');
-    if (mode === 'ANSWERED') {
-      expect(field).toHaveProperty('value', 'My first recall');
-      expect(field).toHaveProperty('readOnly', true);
-    } else {
-      expect(field).toBeNull();
-    }
-    expect(screen.queryByRole('button', { name: /^Good:/ })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'I don’t know yet' })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Back to answer' }));
-    expect(fetcher.mock.calls.filter(([path]) => path.includes('/reviews/'))).toHaveLength(0);
-    fireEvent.click(screen.getByRole('button', { name: rating }));
-    await screen.findByText('1 card reviewed');
-    const input = fetcher.mock.calls.find(([path]) => path.includes('/reviews/'))?.[1]?.body;
-    expect(JSON.parse(String(input))).toMatchObject({ attemptMode: mode });
-    expect(String(input)).not.toContain('My first recall');
-  });
+  ])(
+    'preserves the $mode attempt and shows the draft only after an answer attempt',
+    async ({ reveal, mode, rating }) => {
+      const { fetcher } = api(ready);
+      renderApp('/review');
+      const question = await screen.findByRole('heading', { name: card.question });
+      fireEvent.change(screen.getByLabelText('Your answer (optional)'), { target: { value: 'My first recall' } });
+      fireEvent.click(question);
+      expect(screen.queryByRole('heading', { name: card.answer })).toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: reveal }));
+      expect(document.activeElement).toBe(screen.getByRole('heading', { name: card.answer }));
+      expect(screen.queryByRole('heading', { name: card.question })).toBeNull();
+      expect(screen.queryByText('Your answer') !== null).toBe(mode === 'ANSWERED');
+      fireEvent.click(screen.getByRole('button', { name: 'Back to question' }));
+      expect(document.activeElement).toBe(question);
+      const field = screen.queryByLabelText('Your answer (optional)');
+      if (mode === 'ANSWERED') {
+        expect(field).toHaveProperty('value', 'My first recall');
+        expect(field).toHaveProperty('readOnly', true);
+      } else {
+        expect(field).toBeNull();
+      }
+      expect(screen.queryByRole('button', { name: /^Good:/ })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'I don’t know yet' })).toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: 'Back to answer' }));
+      expect(fetcher.mock.calls.filter(([path]) => path.includes('/reviews/'))).toHaveLength(0);
+      fireEvent.click(screen.getByRole('button', { name: rating }));
+      await screen.findByText('1 card reviewed');
+      const input = fetcher.mock.calls.find(([path]) => path.includes('/reviews/'))?.[1]?.body;
+      expect(JSON.parse(String(input))).toMatchObject({ attemptMode: mode });
+      expect(String(input)).not.toContain('My first recall');
+    },
+  );
 
   it.each(['/', '/sign-in', '/join', '/i', '/register'])('opens Today from the signed-in entry %s', async (path) => {
     api();
@@ -409,7 +438,8 @@ describe('signed-in navigation without flicker', () => {
     renderApp('/today');
     await screen.findByText('No cards to review yet');
     fetcher.mockImplementation((path, init) =>
-      path === '/api/v1/auth/session' ? new Promise<Response>(() => {}) : respond(path, init));
+      path === '/api/v1/auth/session' ? new Promise<Response>(() => {}) : respond(path, init),
+    );
     fireEvent.click(screen.getByRole('link', { name: 'Help' }));
     expect(await screen.findByRole('heading', { name: 'Help' })).toBeDefined();
     expect(screen.getByRole('navigation', { name: 'Your workspace' })).toBeDefined();
@@ -423,7 +453,8 @@ describe('signed-in navigation without flicker', () => {
     fireEvent.click(screen.getByRole('link', { name: 'Help' }));
     await screen.findByRole('heading', { name: 'Help' });
     fetcher.mockImplementation((path, init) =>
-      path === '/api/v1/me' ? new Promise<Response>(() => {}) : respond(path, init));
+      path === '/api/v1/me' ? new Promise<Response>(() => {}) : respond(path, init),
+    );
     fireEvent.click(screen.getByRole('link', { name: 'Today' }));
     expect(await screen.findByRole('heading', { name: '1 card ready' })).toBeDefined();
     expect(screen.getByRole('link', { name: /Review 1 card/ }).closest('[inert]')).not.toBeNull();
@@ -436,7 +467,8 @@ describe('signed-in navigation without flicker', () => {
     await screen.findByRole('heading', { name: '1 card ready' });
     expect(lastConfirmedProfile(queryClient)).toEqual({ username: 'learner' });
     fetcher.mockImplementation((path, init) =>
-      path === '/api/v1/auth/session' ? Promise.resolve(jsonResponse(200, { signedIn: false })) : respond(path, init));
+      path === '/api/v1/auth/session' ? Promise.resolve(jsonResponse(200, { signedIn: false })) : respond(path, init),
+    );
     fireEvent.click(screen.getByRole('link', { name: 'Help' }));
     await waitFor(() => expect(lastConfirmedProfile(queryClient)).toBeUndefined());
     await waitFor(() => expect(screen.queryByRole('navigation', { name: 'Your workspace' })).toBeNull());
@@ -452,7 +484,8 @@ describe('signed-in navigation without flicker', () => {
         ? new Promise<Response>((resolve) => {
             answerSession = () => resolve(jsonResponse(200, { signedIn: true }));
           })
-        : respond(path, init));
+        : respond(path, init),
+    );
     renderApp('/help');
     await waitFor(() => expect(answerSession).toBeDefined());
     expect(screen.queryByRole('heading', { name: 'Help' })).toBeNull();

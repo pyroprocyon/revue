@@ -7,8 +7,10 @@ import { SavedCard } from './SavedCard';
 import { RatingButtons } from './RatingButtons';
 import type { Rating } from './ratings';
 import { nextReviewText, reviewAction } from './TodayPage';
+import { REVIEW_BATCH_SIZE } from '../../../shared/product/studyRules';
+import { cardNoun } from '../../../shared/ui/cardCount';
 import { primaryButton, secondaryButton } from '../../../shared/ui/buttonStyles';
-import { REVIEW_PATH, SIGN_IN_PATH, TODAY_PATH } from '../../../shared/navigation/paths';
+import { REVIEW_PATH, TODAY_PATH, signInPath } from '../../../shared/navigation/paths';
 import { WhenSlow } from '../../../shared/ui/WhenSlow';
 import { FocusRequestContext } from '../../../shared/ui/FocusRequestContext';
 
@@ -21,19 +23,17 @@ export function ReviewPage() {
     <div className="pb-4 sm:pb-6">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2 sm:mb-5">
         <h1 className="text-title font-extrabold tracking-tight">Review</h1>
-        {!finished && <Link
-          to={TODAY_PATH}
-          className="pressable -mr-2 inline-flex min-h-12 items-center rounded-control px-2 text-label font-semibold text-muted"
-        >
-          Finish for now
-        </Link>}
+        {!finished && (
+          <Link
+            to={TODAY_PATH}
+            className="pressable -mr-2 inline-flex min-h-12 items-center rounded-control px-2 text-label font-semibold text-muted"
+          >
+            Finish for now
+          </Link>
+        )}
       </div>
       {finished ? (
-        <ReviewCompletion
-          count={finished.count}
-          note={finished.note}
-          onContinue={() => setFinished(null)}
-        />
+        <ReviewCompletion count={finished.count} note={finished.note} onContinue={() => setFinished(null)} />
       ) : (
         <LoadBatch
           onConfirmed={(id) => reviewed.current.add(id)}
@@ -48,17 +48,24 @@ type Finish = (note?: string) => void;
 type BatchCallbacks = { onFinish: Finish; onConfirmed: (id: string) => void };
 function LoadBatch({ onFinish, onConfirmed }: Readonly<BatchCallbacks>) {
   const query = useBatchQueue();
-  if (query.isPending) return <WhenSlow><div className={reviewPanel}><ReviewStatus text="Loading your cards…" /></div></WhenSlow>;
+  if (query.isPending)
+    return (
+      <WhenSlow>
+        <div className={reviewPanel}>
+          <ReviewStatus text="Loading your cards…" />
+        </div>
+      </WhenSlow>
+    );
   if (query.isError)
-    return <div className={reviewPanel}><QueueError error={query.error} retry={() => void query.refetch()} busy={query.isFetching} /></div>;
+    return (
+      <div className={reviewPanel}>
+        <QueueError error={query.error} retry={() => void query.refetch()} busy={query.isFetching} />
+      </div>
+    );
   return <ReviewBatch cards={query.data.cards} onFinish={onFinish} onConfirmed={onConfirmed} />;
 }
 
-function ReviewBatch({
-  cards,
-  onFinish,
-  onConfirmed,
-}: Readonly<{ cards: StudyCard[] } & BatchCallbacks>) {
+function ReviewBatch({ cards, onFinish, onConfirmed }: Readonly<{ cards: StudyCard[] } & BatchCallbacks>) {
   const [index, setIndex] = useState(0);
   const [status, setStatus] = useState<'ready' | 'saving' | 'unknown' | 'signed-out'>('ready');
   const pending = useRef<RatingRequest | null>(null);
@@ -114,7 +121,7 @@ function ReviewBatch({
     });
   }
 
-  if (status === 'signed-out') return <Navigate to={`${SIGN_IN_PATH}?returnTo=${REVIEW_PATH}`} replace />;
+  if (status === 'signed-out') return <Navigate to={signInPath(REVIEW_PATH)} replace />;
   return (
     <>
       <ReviewProgress title={card.setTitle} completed={index} total={cards.length} />
@@ -162,19 +169,28 @@ function ReviewProgress({ title, completed, total }: Readonly<{ title: string; c
     <div className="mb-3 sm:mb-5">
       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-support sm:mb-3">
         <p className="min-w-0 flex-1 basis-40 font-semibold wrap-anywhere">{title}</p>
-        <p className="text-muted" aria-live="polite">Card {completed + 1} of {total}</p>
+        <p className="text-muted" aria-live="polite">
+          Card {completed + 1} of {total}
+        </p>
       </div>
-      <progress aria-label="Batch progress" value={completed} max={total}
-        aria-valuetext={`${completed} of ${total} ${total === 1 ? 'card' : 'cards'} reviewed`}
-        className="review-progress" />
+      <progress
+        aria-label="Batch progress"
+        value={completed}
+        max={total}
+        aria-valuetext={`${completed} of ${total} ${cardNoun(total)} reviewed`}
+        className="review-progress"
+      />
     </div>
   );
 }
 
 function ReviewStatus({ text }: Readonly<{ text: string }>) {
-  return <output className="inline-flex min-h-12 items-center gap-3 text-body text-muted">
-    <LoaderCircle aria-hidden="true" className="size-5 shrink-0 animate-spin" />{text}
-  </output>;
+  return (
+    <output className="inline-flex min-h-12 items-center gap-3 text-body text-muted">
+      <LoaderCircle aria-hidden="true" className="size-5 shrink-0 animate-spin" />
+      {text}
+    </output>
+  );
 }
 
 function conflictMessage(error: ReviewFailure) {
@@ -203,25 +219,33 @@ function ReviewCompletion({
   const Icon = count > 0 ? Check : Layers;
   return (
     <section className={reviewPanel}>
-      {query.isPending && <WhenSlow><ReviewStatus text="Checking your remaining cards…" /></WhenSlow>}
+      {query.isPending && (
+        <WhenSlow>
+          <ReviewStatus text="Checking your remaining cards…" />
+        </WhenSlow>
+      )}
       {query.isError && <QueueError error={query.error} retry={() => void query.refetch()} busy={query.isFetching} />}
-      {query.isSuccess && <>
-        {note && <output className="mb-4 block text-body text-muted">{note}</output>}
-        <span className="mb-6 grid size-14 place-items-center rounded-control bg-accent-soft text-accent">
-          <Icon aria-hidden="true" className="size-7" />
-        </span>
-        <h2 ref={heading} tabIndex={-1} className="text-title font-bold outline-none">
-          {count} {count === 1 ? 'card' : 'cards'} reviewed
-        </h2>
-        <p className="mt-3 text-body text-muted">{remainingText(remaining, query.data.availableCards)}</p>
-        {remaining === 0 && query.data.availableCards > 0 && query.data.nextReviewDate && (
-          <p className="mt-4 text-label font-semibold text-accent">Next review: {nextReviewText(query.data.nextReviewDate)}</p>
-        )}
-      </>}
+      {query.isSuccess && (
+        <>
+          {note && <output className="mb-4 block text-body text-muted">{note}</output>}
+          <span className="mb-6 grid size-14 place-items-center rounded-control bg-accent-soft text-accent">
+            <Icon aria-hidden="true" className="size-7" />
+          </span>
+          <h2 ref={heading} tabIndex={-1} className="text-title font-bold outline-none">
+            {count} {cardNoun(count)} reviewed
+          </h2>
+          <p className="mt-3 text-body text-muted">{remainingText(remaining, query.data.availableCards)}</p>
+          {remaining === 0 && query.data.availableCards > 0 && query.data.nextReviewDate && (
+            <p className="mt-4 text-label font-semibold text-accent">
+              Next review: {nextReviewText(query.data.nextReviewDate)}
+            </p>
+          )}
+        </>
+      )}
       <div className="mt-8 flex flex-wrap gap-3">
         {query.isSuccess && remaining > 0 && (
           <button type="button" onClick={onContinue} className={primaryButton}>
-            {remaining >= 5 ? 'Continue with 5' : reviewAction(remaining)}
+            {remaining >= REVIEW_BATCH_SIZE ? `Continue with ${REVIEW_BATCH_SIZE}` : reviewAction(remaining)}
             <ArrowRight aria-hidden="true" className="size-5 shrink-0" />
           </button>
         )}
@@ -240,7 +264,7 @@ function remainingText(remaining: number, available: number) {
 
 function QueueError({ error, retry, busy }: Readonly<{ error: Error; retry: () => void; busy: boolean }>) {
   if (error instanceof ReviewFailure && error.kind === 'signed-out')
-    return <Navigate to={`${SIGN_IN_PATH}?returnTo=${REVIEW_PATH}`} replace />;
+    return <Navigate to={signInPath(REVIEW_PATH)} replace />;
   return (
     <div>
       <p role="alert">Your cards couldn’t load. Try again.</p>

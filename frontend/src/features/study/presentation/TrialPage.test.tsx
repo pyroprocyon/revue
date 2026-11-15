@@ -86,7 +86,9 @@ describe('Five-card trial', () => {
 
     click('Check answer');
 
-    expect(screen.getByRole('link', { name: 'Class handout' }).getAttribute('href')).toBe('https://example.com/handout-3');
+    expect(screen.getByRole('link', { name: 'Class handout' }).getAttribute('href')).toBe(
+      'https://example.com/handout-3',
+    );
   });
 
   it('flips back to reread the question, and the ratings wait on the back', async () => {
@@ -180,7 +182,10 @@ describe('Five-card trial', () => {
   });
 
   it('goes back to the set it came from', async () => {
-    stubApi({ '/api/v1/public-sets/philippine-history': historySet, '/api/v1/public-sets/philippine-history/demo-cards': historyCards });
+    stubApi({
+      '/api/v1/public-sets/philippine-history': historySet,
+      '/api/v1/public-sets/philippine-history/demo-cards': historyCards,
+    });
     renderApp(['/sets/philippine-history', '/sets/philippine-history/try']);
     await screen.findByRole('heading', { name: 'Question 1?' });
 
@@ -190,7 +195,10 @@ describe('Five-card trial', () => {
   });
 
   it('opens the set when Back is pressed on a trial opened directly', async () => {
-    stubApi({ '/api/v1/public-sets/philippine-history': historySet, '/api/v1/public-sets/philippine-history/demo-cards': historyCards });
+    stubApi({
+      '/api/v1/public-sets/philippine-history': historySet,
+      '/api/v1/public-sets/philippine-history/demo-cards': historyCards,
+    });
     renderApp('/sets/philippine-history/try');
     await screen.findByRole('heading', { name: 'Question 1?' });
 
@@ -211,7 +219,9 @@ describe('Five-card trial', () => {
     expect(document.activeElement).toBe(heading);
     expect(screen.getByText('Example schedule, soonest first.')).toBeDefined();
     expect(screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)).toEqual([
-      'Tomorrow', 'In a few days', 'In a week or more',
+      'Tomorrow',
+      'In a few days',
+      'In a week or more',
     ]);
     const sooner = within(screen.getByRole('list', { name: 'Tomorrow' })).getAllByRole('listitem');
     expect(sooner.map((row) => row.textContent)).toEqual(['Question 3?Hard', 'Question 4?Missed']);
@@ -264,12 +274,19 @@ describe('Five-card trial', () => {
     const replacement = {
       ...historyCards,
       publisherName: 'Another publisher',
-      cards: historyCards.cards.map((card) => ({
-        ...card, key: `replacement-${card.key}`, question: `New ${card.question}`, answer: `New ${card.answer}`,
-      })).reverse(),
+      cards: historyCards.cards
+        .map((card) => ({
+          ...card,
+          key: `replacement-${card.key}`,
+          question: `New ${card.question}`,
+          answer: `New ${card.answer}`,
+        }))
+        .reverse(),
     };
     fetchMock.mockImplementation(async () => jsonResponse(200, replacement));
-    act(() => { void view.queryClient.refetchQueries({ queryKey }); });
+    act(() => {
+      void view.queryClient.refetchQueries({ queryKey });
+    });
     await waitFor(() => expect(view.queryClient.getQueryData(queryKey)).toEqual(replacement));
 
     expect(screen.getByRole('heading', { name: 'Answer 2.' })).toBeDefined();
@@ -304,7 +321,7 @@ describe('Five-card trial', () => {
       ...historyCards,
       cards: historyCards.cards.map((card) => ({ ...card, question: `Other ${card.question}` })),
     };
-    const reader = { trialCards: async (key: string) => key === 'other-set' ? otherCards : historyCards };
+    const reader = { trialCards: async (key: string) => (key === 'other-set' ? otherCards : historyCards) };
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     queryClient.setQueryData(publicContentKeys.trial('philippine-history'), historyCards);
     queryClient.setQueryData(publicContentKeys.trial('other-set'), otherCards);
@@ -324,5 +341,4 @@ describe('Five-card trial', () => {
     expect(await screen.findByRole('heading', { name: 'Other Question 1?' })).toBeDefined();
     expect(screen.getByText('Card 1 of 5')).toBeDefined();
   });
-
 });

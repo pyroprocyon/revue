@@ -18,7 +18,13 @@ describe('unsaved trial', () => {
   it('keeps card-rating pairs and within-group order while showing earlier example timing first', () => {
     const groups = trialSummary(['A', 'B', 'C', 'D'], ['easy', 'hard', 'good', 'again']);
     expect(groups).toEqual([
-      { when: 'Tomorrow', cards: [{ card: 'B', rating: 'hard' }, { card: 'D', rating: 'again' }] },
+      {
+        when: 'Tomorrow',
+        cards: [
+          { card: 'B', rating: 'hard' },
+          { card: 'D', rating: 'again' },
+        ],
+      },
       { when: 'In a few days', cards: [{ card: 'C', rating: 'good' }] },
       { when: 'In a week or more', cards: [{ card: 'A', rating: 'easy' }] },
     ]);

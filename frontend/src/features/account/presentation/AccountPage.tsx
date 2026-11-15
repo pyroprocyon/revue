@@ -23,8 +23,11 @@ export function AccountPage() {
       await gateway.signOut();
       queryClient.clear();
       await navigate(SIGN_IN_PATH, { replace: true });
-    } catch { setError('We could not confirm sign-out. Please try again.'); }
-    finally { setBusy(false); }
+    } catch {
+      setError('We could not confirm sign-out. Please try again.');
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -42,10 +45,19 @@ export function AccountPage() {
           </div>
         </div>
         <div className="border-t border-line px-compact-gutter py-3 sm:px-8">
-          <button type="button" className={`${accountLink} border border-line disabled:text-muted`} disabled={busy} onClick={() => void signOut()}>
+          <button
+            type="button"
+            className={`${accountLink} border border-line disabled:text-muted`}
+            disabled={busy}
+            onClick={() => void signOut()}
+          >
             {busy ? 'Signing out…' : 'Sign out'}
           </button>
-          {error && <p role="alert" className="mt-3 text-body">{error}</p>}
+          {error && (
+            <p role="alert" className="mt-3 text-body">
+              {error}
+            </p>
+          )}
         </div>
       </div>
     </WorkspacePage>

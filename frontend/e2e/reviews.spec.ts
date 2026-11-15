@@ -127,7 +127,10 @@ test('Today and saved recall remain usable across widths and enlarged text', asy
     await page.evaluate(() => window.scrollTo({ top: 0, left: 0, behavior: 'instant' }));
     const reviewBrand = await brandBounds(page);
     for (const dimension of ['x', 'y', 'width', 'height'] as const) {
-      expect(reviewBrand[dimension], `brand ${dimension} at ${width}px / ${textSize}`).toBeCloseTo(homeBrand[dimension], 0);
+      expect(reviewBrand[dimension], `brand ${dimension} at ${width}px / ${textSize}`).toBeCloseTo(
+        homeBrand[dimension],
+        0,
+      );
     }
     await page.getByLabel('Your answer (optional)').fill('A draft kept when the viewport changes');
     const reveal = page.getByRole('button', { name: 'Show answer' });
@@ -135,7 +138,11 @@ test('Today and saved recall remain usable across widths and enlarged text', asy
     if (width === 375 && textSize === '100%') {
       await expect(page.getByRole('button', { name: 'I don’t know yet', exact: true })).toBeInViewport({ ratio: 1 });
     }
-    await page.screenshot({ path: info.outputPath(`review-front-${width}.png`), fullPage: true, animations: 'disabled' });
+    await page.screenshot({
+      path: info.outputPath(`review-front-${width}.png`),
+      fullPage: true,
+      animations: 'disabled',
+    });
     await page.getByRole('button', { name: 'Show answer' }).focus();
     await page.keyboard.press('Enter');
     const rotatingCard = page.locator('.transform-3d');
@@ -186,7 +193,10 @@ test('review session checks stay quiet and preserve the layout on iPhone SE', as
   await page.getByLabel('Your answer (optional)').fill('Keep my answer while checking the session');
 
   for (const [width, height, textSize] of [
-    [375, 667, '100%'], [320, 568, '100%'], [375, 667, '200%'], [667, 375, '100%'],
+    [375, 667, '100%'],
+    [320, 568, '100%'],
+    [375, 667, '200%'],
+    [667, 375, '100%'],
   ] as const) {
     await page.setViewportSize({ width, height });
     await expect.poll(() => page.evaluate(() => window.innerWidth)).toBe(width);
@@ -196,7 +206,9 @@ test('review session checks stay quiet and preserve the layout on iPhone SE', as
     }, textSize);
     const before = (await page.getByRole('heading', { name: 'Review', exact: true }).boundingBox())!;
     let resume!: () => void;
-    const pending = new Promise<void>((resolve) => { resume = resolve; });
+    const pending = new Promise<void>((resolve) => {
+      resume = resolve;
+    });
     await page.route('**/api/v1/me', async (route) => {
       await pending;
       await route.continue();

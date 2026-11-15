@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { CircleHelp, House, LibraryBig, UserRound } from 'lucide-react';
 import { NavLink } from 'react-router';
 import { ACCOUNT_PATH, HELP_PATH, LIBRARY_PATH, TODAY_PATH } from '../navigation/paths';
+import { OPENED_FROM_WORKSPACE } from '../navigation/routeState';
 import { HomeLink } from './HeaderLinks';
 import { SkipToContent } from './LayoutParts';
 
@@ -27,7 +28,9 @@ export function WorkspaceLayout({ children, navigationDisabled = false }: Readon
       <SkipToContent />
       <div className="workspace-layout">
         <header className="workspace-chrome workspace-header-gutters">
-          <div className="workspace-brand"><HomeLink to={TODAY_PATH} compact /></div>
+          <div className="workspace-brand">
+            <HomeLink to={TODAY_PATH} compact />
+          </div>
           <nav aria-label="Your workspace" className="workspace-navigation" inert={navigationDisabled}>
             {destinations.map(({ to, label, icon: Icon }) => (
               <NavLink key={to} to={to} className={navigationLink}>
@@ -36,7 +39,11 @@ export function WorkspaceLayout({ children, navigationDisabled = false }: Readon
               </NavLink>
             ))}
           </nav>
-          <NavLink to={HELP_PATH} state={{ fromWorkspace: true }} className={({ isActive }) => `${navigationLink({ isActive })} workspace-help`}>
+          <NavLink
+            to={HELP_PATH}
+            state={OPENED_FROM_WORKSPACE}
+            className={({ isActive }) => `${navigationLink({ isActive })} workspace-help`}
+          >
             <CircleHelp aria-hidden="true" className="size-5 shrink-0" />
             <span>Help</span>
           </NavLink>

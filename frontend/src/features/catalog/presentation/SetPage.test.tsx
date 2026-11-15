@@ -51,7 +51,9 @@ describe('Set preview', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn((path: string) =>
-        path === '/api/v1/public-sets' ? Promise.resolve(jsonResponse(200, [historySet, natureSet])) : new Promise(() => {}),
+        path === '/api/v1/public-sets'
+          ? Promise.resolve(jsonResponse(200, [historySet, natureSet]))
+          : new Promise(() => {}),
       ),
     );
     renderApp('/sets');
@@ -127,9 +129,7 @@ describe('Set preview', () => {
     renderApp(SET_PAGE);
     fireEvent.click(await screen.findByRole('button', { name: 'Copy link' }));
 
-    expect(
-      await screen.findByText(`Couldn't copy the link. Here it is: ${window.location.origin}/s/1`),
-    ).toBeDefined();
+    expect(await screen.findByText(`Couldn't copy the link. Here it is: ${window.location.origin}/s/1`)).toBeDefined();
   });
 
   it('offers the share sheet only where the browser has one', async () => {

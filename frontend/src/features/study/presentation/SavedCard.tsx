@@ -82,7 +82,9 @@ export function SavedCard({ card, renderControls }: Readonly<Props>) {
                 </ul>
               </div>
             )}
-            {card.memoryHook && <p className="mt-5 rounded-control bg-highlight-soft/60 p-4 text-body text-muted">{card.memoryHook}</p>}
+            {card.memoryHook && (
+              <p className="mt-5 rounded-control bg-highlight-soft/60 p-4 text-body text-muted">{card.memoryHook}</p>
+            )}
           </div>
         }
         ratingControls={mode === null ? null : renderControls(mode)}

@@ -16,16 +16,24 @@ function setup(
   const gateway: AccountGateway = {
     signedIn: vi.fn().mockResolvedValue(false),
     current,
-    register: vi.fn(), signIn: vi.fn(), signOut: vi.fn().mockResolvedValue(undefined),
+    register: vi.fn(),
+    signIn: vi.fn(),
+    signOut: vi.fn().mockResolvedValue(undefined),
   };
-  const view = render(<QueryClientProvider client={client}>
-    <AccountProvider gateway={gateway}><MemoryRouter initialEntries={['/account']}><Routes>
-      <Route element={<AccountLayout />}>
-        <Route path="/account" element={draft ? <Draft /> : <AccountPage />} />
-      </Route>
-      <Route path="/sign-in" element={<h1>Sign in again</h1>} />
-    </Routes></MemoryRouter></AccountProvider>
-  </QueryClientProvider>);
+  const view = render(
+    <QueryClientProvider client={client}>
+      <AccountProvider gateway={gateway}>
+        <MemoryRouter initialEntries={['/account']}>
+          <Routes>
+            <Route element={<AccountLayout />}>
+              <Route path="/account" element={draft ? <Draft /> : <AccountPage />} />
+            </Route>
+            <Route path="/sign-in" element={<h1>Sign in again</h1>} />
+          </Routes>
+        </MemoryRouter>
+      </AccountProvider>
+    </QueryClientProvider>,
+  );
   return { gateway, client, ...view };
 }
 
@@ -33,18 +41,32 @@ function setup(
 function Draft() {
   const profile = useOutletContext<AccountProfile>();
   const [value, setValue] = useState('');
-  return <><h1>{profile.username}</h1><input aria-label="Draft" value={value} onChange={(event) => setValue(event.target.value)} /></>;
+  return (
+    <>
+      <h1>{profile.username}</h1>
+      <input aria-label="Draft" value={value} onChange={(event) => setValue(event.target.value)} />
+    </>
+  );
 }
 
 function deferredProfile() {
   let resolve!: (value: AccountProfile | null) => void;
-  const promise = new Promise<AccountProfile | null>((done) => { resolve = done; });
+  const promise = new Promise<AccountProfile | null>((done) => {
+    resolve = done;
+  });
   return { promise, resolve };
+}
+
+function blurAsChromiumDoesInsideInertContent(element: HTMLElement) {
+  element.blur();
 }
 
 describe('signed-in layout', () => {
   it('shows an initial failure and retries without mounting private content early', async () => {
-    const current = vi.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValue({ username: 'first_student' });
+    const current = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValue({ username: 'first_student' });
     setup(false, current);
     await screen.findByRole('alert');
     expect(screen.queryByRole('button', { name: 'Sign out' })).toBeNull();
@@ -59,9 +81,13 @@ describe('signed-in layout', () => {
       setup(false, vi.fn().mockReturnValue(pending.promise));
       expect(screen.queryByRole('status')).toBeNull();
       expect(screen.queryByRole('button', { name: 'Sign out' })).toBeNull();
-      act(() => { vi.advanceTimersByTime(300); });
+      act(() => {
+        vi.advanceTimersByTime(300);
+      });
       expect(screen.getByRole('status').textContent).toBe('Loading your account…');
-      await act(async () => { pending.resolve({ username: 'first_student' }); });
+      await act(async () => {
+        pending.resolve({ username: 'first_student' });
+      });
       expect(screen.getByRole('button', { name: 'Sign out' })).toBeDefined();
       expect(screen.queryByRole('status')).toBeNull();
     } finally {
@@ -94,8 +120,10 @@ describe('signed-in layout', () => {
     expect(gateway.current).toHaveBeenCalledTimes(2);
     expect(input.closest('[inert]')).not.toBeNull();
     expect(screen.queryByRole('status')).toBeNull();
-    input.blur(); // Chromium blurs focused descendants when their parent becomes inert.
-    await act(async () => { pending.resolve({ username: 'first_student' }); });
+    blurAsChromiumDoesInsideInertContent(input);
+    await act(async () => {
+      pending.resolve({ username: 'first_student' });
+    });
     expect(screen.getByRole('textbox', { name: 'Draft' })).toBe(input);
     expect(document.activeElement).toBe(input);
     expect([input.selectionStart, input.selectionEnd]).toEqual([3, 8]);
@@ -135,7 +163,9 @@ describe('signed-in layout', () => {
       visibility.mockRestore();
     }
     await screen.findByRole('heading', { name: 'Sign in again' });
-    await act(async () => { previous.resolve({ username: 'first_student' }); });
+    await act(async () => {
+      previous.resolve({ username: 'first_student' });
+    });
     expect(screen.queryByRole('heading', { name: 'Your account' })).toBeNull();
     expect(client.getQueryData(['private-library'])).toBeUndefined();
   });
@@ -151,8 +181,10 @@ describe('signed-in layout', () => {
     const heading = screen.getByRole('heading', { name: 'Your account' });
     expect(screen.queryByRole('status')).toBeNull();
     expect(screen.getByRole('button', { name: 'Sign out' }).closest('[inert]')).not.toBeNull();
-    heading.blur(); // Chromium blurs focused descendants when their parent becomes inert.
-    await act(async () => { pending.resolve({ username: 'first_student' }); });
+    blurAsChromiumDoesInsideInertContent(heading);
+    await act(async () => {
+      pending.resolve({ username: 'first_student' });
+    });
     expect(screen.getByRole('button', { name: 'Sign out' }).closest('[inert]')).toBeNull();
     expect(document.activeElement).toBe(heading);
     expect(first.client.getQueryData(['private-library'])).toEqual(['private']);

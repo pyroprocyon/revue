@@ -21,10 +21,17 @@ export function trialPath(setKey: string): string {
 }
 
 export const SIGN_IN_PATH = '/sign-in';
+
+export function signInPath(returnTo?: string | null): string {
+  return returnTo ? `${SIGN_IN_PATH}?${new URLSearchParams({ returnTo })}` : SIGN_IN_PATH;
+}
+
 export const REGISTER_PATH = '/register';
 export const JOIN_PATH = '/join';
 export const ACCOUNT_PATH = '/account';
 export const HELP_PATH = '/help';
+export const PRIVACY_PATH = '/privacy';
+export const TERMS_PATH = '/terms';
 
 export const LIBRARY_PATH = '/library';
 

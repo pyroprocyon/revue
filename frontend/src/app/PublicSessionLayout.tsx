@@ -7,7 +7,7 @@ import { forgetConfirmedProfile } from '../features/account/presentation/confirm
 import { TODAY_PATH } from '../shared/navigation/paths';
 import { PublicSessionContext, publicSessionKey, usePublicSession } from '../shared/navigation/publicSession';
 import { saveSignedInHint } from '../shared/navigation/signedInHint';
-import { LoadingScreen } from '../shared/ui/MessageScreen';
+import { SessionCheckScreen } from '../shared/ui/MessageScreen';
 
 /** Gives public pages session-aware navigation while private pages confirm access at their own boundary. */
 export function PublicSessionLayout() {
@@ -33,13 +33,17 @@ export function PublicSessionLayout() {
   useEffect(() => {
     if (confirmedSignedIn !== undefined) saveSignedInHint(confirmedSignedIn);
   }, [confirmedSignedIn]);
-  return <PublicSessionContext value={status}><Outlet /></PublicSessionContext>;
+  return (
+    <PublicSessionContext value={status}>
+      <Outlet />
+    </PublicSessionContext>
+  );
 }
 
 export function GuestRoute() {
   const session = usePublicSession();
   const [search] = useSearchParams();
-  if (session === 'checking') return <LoadingScreen text="Checking your session…" />;
+  if (session === 'checking') return <SessionCheckScreen />;
   if (session === 'signed-in') {
     return <Navigate to={safeAccountReturnPath(search.get('returnTo')) ?? TODAY_PATH} replace />;
   }

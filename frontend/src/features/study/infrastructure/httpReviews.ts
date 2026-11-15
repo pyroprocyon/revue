@@ -1,12 +1,8 @@
 import { ReviewFailure, type ReviewGateway, type ReviewResult, type StudyQueue } from '../application/reviews';
+import { CSRF_PATH, sameOriginRequest, type CsrfToken } from '../../../shared/http/sameOriginRequest';
 
 async function request(path: string, init: RequestInit = {}) {
-  const response = await fetch(path, {
-    credentials: 'same-origin',
-    cache: 'no-store',
-    signal: AbortSignal.timeout(10_000),
-    ...init,
-  });
+  const response = await sameOriginRequest(path, init);
   if (response.status === 401) throw new ReviewFailure('signed-out');
   if (response.status === 403) throw new ReviewFailure('expired-form');
   if (response.status === 404) throw new ReviewFailure('unavailable');
@@ -25,8 +21,8 @@ export const httpReviews: ReviewGateway = {
   },
   async rate(cardId, input) {
     try {
-      const bootstrap = await request('/api/v1/auth/csrf');
-      const csrf = (await bootstrap.json()) as { token: string; headerName: string };
+      const bootstrap = await request(CSRF_PATH);
+      const csrf = (await bootstrap.json()) as CsrfToken;
       const response = await request(`/api/v1/reviews/${encodeURIComponent(cardId)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', [csrf.headerName]: csrf.token },

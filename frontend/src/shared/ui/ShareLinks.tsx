@@ -1,7 +1,8 @@
 import { Link2, Share2 } from 'lucide-react';
 import { useState } from 'react';
 
-const shareButton = 'pressable inline-flex min-h-12 items-center justify-center gap-2 rounded-control px-3 py-2 text-support font-semibold text-accent';
+const shareButton =
+  'pressable inline-flex min-h-12 items-center justify-center gap-2 rounded-control px-3 py-2 text-support font-semibold text-accent';
 
 type ShareLinksProps = {
   title: string;

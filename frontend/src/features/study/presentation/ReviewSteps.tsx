@@ -5,8 +5,16 @@ export const REVIEW_STEPS_INTRO = 'You revisit cards after a break. Your rating 
 
 const REVIEW_STEPS = [
   { icon: Brain, title: 'Answer from memory.', text: 'Give yourself a moment before turning the card.' },
-  { icon: ClipboardCheck, title: 'Check and rate.', text: 'Base your rating on whether you got it right and how much effort it took.' },
-  { icon: CalendarClock, title: 'Practice again later.', text: 'A tough card might come back tomorrow. One you know well can wait longer.' },
+  {
+    icon: ClipboardCheck,
+    title: 'Check and rate.',
+    text: 'Base your rating on whether you got it right and how much effort it took.',
+  },
+  {
+    icon: CalendarClock,
+    title: 'Practice again later.',
+    text: 'A tough card might come back tomorrow. One you know well can wait longer.',
+  },
 ];
 
 /**

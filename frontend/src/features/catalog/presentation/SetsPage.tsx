@@ -26,9 +26,13 @@ export function SetsPage() {
       <LoadFailed
         onRetry={() => void publicSets.refetch()}
         retrying={publicSets.isFetching}
-        recoveryAction={cursor !== undefined && (
-          <button type="button" className={secondaryButton} onClick={previousPage}>Previous</button>
-        )}
+        recoveryAction={
+          cursor !== undefined && (
+            <button type="button" className={secondaryButton} onClick={previousPage}>
+              Previous
+            </button>
+          )
+        }
       />
     );
   }
@@ -41,7 +45,14 @@ export function SetsPage() {
   }
   const { items, nextCursor } = publicSets.data;
   return (
-    <PageLayout top={<><HomeLink /><AccountHeaderLink /></>}>
+    <PageLayout
+      top={
+        <>
+          <HomeLink />
+          <AccountHeaderLink />
+        </>
+      }
+    >
       <section className="pt-2">
         <h1 className="text-title font-extrabold tracking-tight">Shared sets</h1>
         <p className="mt-2 text-body text-muted">Try a five-card practice session.</p>
@@ -75,7 +86,12 @@ function SetChoice({ publicSet }: Readonly<{ publicSet: PublicSet }>) {
         <span className="block text-section font-extrabold tracking-tight">{publicSet.title}</span>
         <span className="mt-1 block text-body text-muted">{publicSet.description}</span>
       </span>
-      <ChevronRight aria-hidden="true" size={24} strokeWidth={2} className="hidden shrink-0 text-muted @min-[20rem]:block" />
+      <ChevronRight
+        aria-hidden="true"
+        size={24}
+        strokeWidth={2}
+        className="hidden shrink-0 text-muted @min-[20rem]:block"
+      />
     </Link>
   );
 }

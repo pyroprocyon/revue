@@ -13,10 +13,16 @@ export function PageLayout({ top, actions, pinActionsOnPhone = false, children }
   const page = (
     <div className={`min-h-dvh px-1 sm:pt-4 lg:px-2 ${pinActionsOnPhone ? 'page-with-phone-actions' : ''}`}>
       <SkipToContent />
-      <header className={`${readingColumn} flex min-h-14 shrink-0 flex-wrap items-center gap-x-3 gap-y-2 pt-[env(safe-area-inset-top)]`}>
+      <header
+        className={`${readingColumn} flex min-h-14 shrink-0 flex-wrap items-center gap-x-3 gap-y-2 pt-[env(safe-area-inset-top)]`}
+      >
         {top}
       </header>
-      <main id="main-content" tabIndex={-1} className={`${readingColumn} @container flex flex-col pb-[max(1.5rem,env(safe-area-inset-bottom))] outline-none`}>
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className={`${readingColumn} @container flex flex-col pb-[max(1.5rem,env(safe-area-inset-bottom))] outline-none`}
+      >
         {children}
         {!pinActionsOnPhone && actions && <div className="pt-3">{actions}</div>}
       </main>
