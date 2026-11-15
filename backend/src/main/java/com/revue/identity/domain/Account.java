@@ -22,7 +22,6 @@ public record Account(
     @Nullable Username username) {
     public static final Duration REGISTRATION_LIFETIME = Duration.ofDays(7);
 
-    /** Validates the account identity, consent and lifecycle state. */
     public Account {
         Objects.requireNonNull(id);
         if (email == null && username == null) {
@@ -45,13 +44,11 @@ public record Account(
         return new Account(id, email, now, null, null, 0, false, now, privacyVersion, now, null, null);
     }
 
-    /** Creates an active username account. */
     public static Account registerUsername(UUID id, Username username, Instant now) {
         Objects.requireNonNull(username);
         return new Account(id, null, now, null, null, 0, false, null, null, null, null, username);
     }
 
-    /** Determines whether the account may be used at the supplied time. */
     public Access accessAt(Instant now) {
         Objects.requireNonNull(now);
         if (deletion != null) {

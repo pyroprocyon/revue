@@ -22,7 +22,6 @@ public class ReviewProblem extends RuntimeException {
         this.kind = kind;
     }
 
-    /** Returns the bounded reason. */
     public Kind kind() {
         return kind;
     }

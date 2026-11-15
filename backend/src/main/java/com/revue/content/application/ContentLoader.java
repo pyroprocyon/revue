@@ -17,10 +17,11 @@ import org.springframework.transaction.annotation.Transactional;
 /** Synchronizes the complete publication source atomically, preserving keys and history. */
 @Service
 public class ContentLoader {
+    private static final int MAX_SET_DEFINITIONS = 4096;
+
     private final PublishedSetRepository sets;
     private final Clock clock;
 
-    /** Creates the content loader with its publication store and retirement clock. */
     public ContentLoader(PublishedSetRepository sets, Clock clock) {
         this.sets = sets;
         this.clock = clock;
@@ -35,7 +36,6 @@ public class ContentLoader {
         int cardsChanged,
         int cardsRetired,
         int cardsRestored) {
-        /** Reports whether the import left all existing content unchanged. */
         public boolean changedNothing() {
             return setsAdded + setsRetired + setsRestored + cardsAdded + cardsChanged + cardsRetired
                 + cardsRestored == 0;
@@ -46,8 +46,9 @@ public class ContentLoader {
     @Transactional
     public Result load(List<SetDefinition> files) {
         List<String> problems = new ArrayList<>();
-        if (files.isEmpty() || files.size() > 4096) {
-            throw new InvalidContentException(List.of("Publication requires between 1 and 4096 set definitions"));
+        if (files.isEmpty() || files.size() > MAX_SET_DEFINITIONS) {
+            throw new InvalidContentException(
+                List.of("Publication requires between 1 and " + MAX_SET_DEFINITIONS + " set definitions"));
         }
         ContentRules.check(files, problems);
         if (!problems.isEmpty()) {

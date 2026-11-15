@@ -21,7 +21,6 @@ public class BoundedAuthenticationAdmission implements AuthenticationAdmission {
     private final AuthenticationAttemptStore attempts;
     private final MeterRegistry metrics;
 
-    /** Creates admission with shared attempts and low-cardinality operational counters. */
     public BoundedAuthenticationAdmission(AuthenticationAttemptStore attempts, MeterRegistry metrics) {
         this.attempts = attempts;
         this.metrics = metrics;

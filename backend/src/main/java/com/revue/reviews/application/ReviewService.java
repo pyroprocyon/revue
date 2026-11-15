@@ -1,5 +1,6 @@
 package com.revue.reviews.application;
 
+import com.revue.reviews.domain.AttemptMode;
 import com.revue.reviews.domain.DailyReviewScheduler;
 import com.revue.reviews.domain.MemoryModel;
 import com.revue.reviews.domain.ReviewRating;
@@ -22,7 +23,6 @@ public class ReviewService {
     private final MemoryModel memory;
     private final Clock clock;
 
-    /** Wires the current-account boundary, persistence, scheduling and identity-owned dates. */
     public ReviewService(
         LearnerAccess learners,
         ReviewStore store,
@@ -68,13 +68,13 @@ public class ReviewService {
         if (state.due() != null && state.due().isAfter(today)) {
             throw new ReviewProblem(ReviewProblem.Kind.NOT_DUE);
         }
-        if (state.version() == 0 && store.introduced(learner, today) >= 10) {
+        if (state.version() == 0 && store.introduced(learner, today) >= ReviewStore.DAILY_NEW_CARD_LIMIT) {
             throw new ReviewProblem(ReviewProblem.Kind.DAILY_LIMIT);
         }
         if (!DailyReviewScheduler.PROFILE.equals(state.schedulerId())) {
             throw new ReviewProblem(ReviewProblem.Kind.UNSUPPORTED_SCHEDULER);
         }
-        var prediction = scheduler.nextReview(state.state(), ReviewRating.valueOf(input.rating()), reviewedAt, ZONE);
+        var prediction = scheduler.nextReview(state.state(), input.rating(), reviewedAt, ZONE);
         var result = new ReviewStore.Result(
             Long.toString(cardId),
             input.requestId(),
@@ -106,13 +106,12 @@ public class ReviewService {
             || input.expectedVersion() < 0
             || input.expectedVersion() == Long.MAX_VALUE
             || input.contentVersion() < 1
-            || !("ANSWERED".equals(input.attemptMode()) || "SHOWN".equals(input.attemptMode()))
-            || !("AGAIN".equals(input.rating())
-                || "HARD".equals(input.rating())
-                || "GOOD".equals(input.rating())
-                || "EASY".equals(input.rating()))
-            || ("SHOWN".equals(input.attemptMode()) && !"AGAIN".equals(input.rating()))) {
+            || shownAnswerRatedAboveAgain(input)) {
             throw new ReviewProblem(ReviewProblem.Kind.INVALID_RATING);
         }
+    }
+
+    private static boolean shownAnswerRatedAboveAgain(ReviewStore.Rating input) {
+        return input.attemptMode() == AttemptMode.SHOWN && input.rating() != ReviewRating.AGAIN;
     }
 }

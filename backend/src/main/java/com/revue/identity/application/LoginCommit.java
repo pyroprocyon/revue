@@ -12,7 +12,6 @@ public class LoginCommit {
     private final AccountQueries accounts;
     private final Clock clock;
 
-    /** Creates the login transaction boundary with its account store and clock. */
     public LoginCommit(AccountQueries accounts, Clock clock) {
         this.accounts = accounts;
         this.clock = clock;

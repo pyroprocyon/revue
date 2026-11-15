@@ -8,7 +8,6 @@ public interface AccountSession {
     /** Rotates authentication state and records the confirmed account identity. */
     void establish(Identity identity);
 
-    /** Returns the identity stored in the current session, if present. */
     Optional<Identity> current();
 
     /** Invalidates the current authenticated session. */

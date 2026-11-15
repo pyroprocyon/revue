@@ -311,9 +311,9 @@ class ContentLoaderTests {
         CardDefinition c = card("order-c", "Question C?");
         loader.load(List.of(set("order", "Order", a, b, c)));
 
-        // Remove the first card and swap the other two, then load the same file twice.
-        loader.load(List.of(set("order", "Order", c, b)));
-        ContentLoader.Result again = loader.load(List.of(set("order", "Order", c, b)));
+        List<SetDefinition> withoutFirstCardAndOthersSwapped = List.of(set("order", "Order", c, b));
+        loader.load(withoutFirstCardAndOthersSwapped);
+        ContentLoader.Result again = loader.load(withoutFirstCardAndOthersSwapped);
 
         assertThat(again.changedNothing()).isTrue();
         assertThat(activeCardKeysInOrder("order")).containsExactly("order-c", "order-b");

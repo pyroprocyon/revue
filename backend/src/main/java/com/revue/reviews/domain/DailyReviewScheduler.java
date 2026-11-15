@@ -10,7 +10,6 @@ public final class DailyReviewScheduler {
     public static final String PROFILE = "fsrs6-java1.0.0-daily-v1";
     private final MemoryModel model;
 
-    /** Creates the daily scheduler using its memory-model port. */
     public DailyReviewScheduler(MemoryModel model) {
         this.model = model;
     }

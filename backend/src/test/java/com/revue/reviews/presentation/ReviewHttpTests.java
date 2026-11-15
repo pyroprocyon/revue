@@ -203,13 +203,38 @@ class ReviewHttpTests {
     }
 
     @Test
+    void unsupportedRatingOrAttemptModeIsRejectedWithoutSaving() throws Exception {
+        var learner = new Browser();
+        long set = publication(1);
+        long card = jdbc.queryForObject("select id from cards where set_id = ?", Long.class, set);
+        learner.save(set);
+
+        for (String submission : List
+            .of(submission("PERFECT", "ANSWERED"), submission("good", "ANSWERED"), submission("GOOD", "GUESSED"))) {
+            var result = learner
+                .send(post("/api/v1/reviews/" + card).contentType("application/json").content(submission));
+
+            assertThat(result.getResponse().getStatus()).as(submission).isEqualTo(422);
+            assertThat(body(result).get("reason").asString()).as(submission).isEqualTo("INVALID_RATING");
+        }
+        assertThat(jdbc.queryForObject("select count(*) from review_logs where user_id = ?", Integer.class, learner.id))
+            .isZero();
+    }
+
+    private static String submission(String rating, String attemptMode) {
+        return """
+            {"rating":"%s","attemptMode":"%s","requestId":"%s","expectedVersion":0,"contentVersion":1}
+            """.formatted(rating, attemptMode, UUID.randomUUID());
+    }
+
+    @Test
     void validationAndAccessNeverWriteAndChangedTextKeepsDisplayedVersion() throws Exception {
         var learner = new Browser();
         long set = publication(1);
         long card = jdbc.queryForObject("select id from cards where set_id = ?", Long.class, set);
         assertThat(learner.rate(card, rating("GOOD", 0)).getResponse().getStatus()).isEqualTo(404);
         learner.save(set);
-        var shown = new ReviewStore.Rating("GOOD", "SHOWN", UUID.randomUUID(), 0, 1);
+        var shown = ReviewStore.Rating.parse("GOOD", "SHOWN", UUID.randomUUID(), 0, 1);
         assertThat(learner.rate(card, shown).getResponse().getStatus()).isEqualTo(422);
         assertThat(
             mvc.perform(
@@ -229,7 +254,7 @@ class ReviewHttpTests {
                 Integer.class,
                 learner.id))
             .isEqualTo(1);
-        var changed = new ReviewStore.Rating("EASY", "ANSWERED", input.requestId(), 0, 1);
+        var changed = ReviewStore.Rating.parse("EASY", "ANSWERED", input.requestId(), 0, 1);
         assertThat(body(learner.rate(card, changed)).get("reason").asString()).isEqualTo("REQUEST_REUSED");
     }
 
@@ -397,7 +422,7 @@ class ReviewHttpTests {
     }
 
     private ReviewStore.Rating rating(String value, long version) {
-        return new ReviewStore.Rating(value, "ANSWERED", UUID.randomUUID(), version, 1);
+        return ReviewStore.Rating.parse(value, "ANSWERED", UUID.randomUUID(), version, 1);
     }
 
     private long publication(int cards) {

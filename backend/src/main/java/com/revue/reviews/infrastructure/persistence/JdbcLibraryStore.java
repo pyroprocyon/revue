@@ -25,7 +25,6 @@ public class JdbcLibraryStore implements LibraryStore {
         """;
     private final JdbcTemplate jdbc;
 
-    /** Creates the transactional JDBC adapter. */
     public JdbcLibraryStore(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
     }

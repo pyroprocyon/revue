@@ -20,7 +20,6 @@ public class AccountService {
     private final Clock clock;
     private final PilotInvitation pilotInvitation;
 
-    /** Creates the account use cases with their persistence, hashing and session ports. */
     public AccountService(
         AccountQueries accounts,
         RegistrationCommit registration,
@@ -109,7 +108,6 @@ public class AccountService {
         return Optional.of(new Profile(account.username().value()));
     }
 
-    /** Returns CSRF credentials through the session port. */
     public AccountSession.Csrf csrf() {
         return session.csrf();
     }

@@ -15,7 +15,6 @@ public record SignupInvite(
     @Nullable Instant redeemedAt,
     @Nullable UUID redeemedByUserId,
     boolean reusable) {
-    /** Validates the invitation's required fields and lifecycle timestamps. */
     public SignupInvite {
         Objects.requireNonNull(id);
         Objects.requireNonNull(tokenHash);

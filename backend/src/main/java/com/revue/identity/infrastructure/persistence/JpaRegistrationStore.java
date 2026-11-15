@@ -21,7 +21,6 @@ public class JpaRegistrationStore implements RegistrationStore {
 
     private final EntityManager entityManager;
 
-    /** Creates the registration store using the current persistence context. */
     public JpaRegistrationStore(EntityManager entityManager) {
         this.entityManager = entityManager;
     }

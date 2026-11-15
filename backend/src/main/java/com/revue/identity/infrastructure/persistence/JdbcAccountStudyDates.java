@@ -13,7 +13,6 @@ import org.springframework.transaction.annotation.Transactional;
 public class JdbcAccountStudyDates implements AccountStudyDates {
     private final JdbcTemplate jdbc;
 
-    /** Creates the identity-owned writer. */
     public JdbcAccountStudyDates(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
     }

@@ -11,7 +11,6 @@ import org.springframework.transaction.annotation.Transactional;
 public class JdbcAuthenticationAttemptStore implements AuthenticationAttemptStore {
     private final JdbcTemplate jdbc;
 
-    /** Creates a store using the application's shared database. */
     public JdbcAuthenticationAttemptStore(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
     }
