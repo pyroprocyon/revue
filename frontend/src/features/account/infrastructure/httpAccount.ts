@@ -3,6 +3,7 @@ import { CSRF_PATH, sameOriginRequest, type CsrfToken } from '../../../shared/ht
 
 const SESSION_CHECK_FAILED = 'We could not check your session. Please try again.';
 const ACCOUNT_LOAD_FAILED = 'We could not load your account. Please try again.';
+const REQUEST_UNCONFIRMED = 'We could not confirm the request. Check your connection, then try signing in.';
 
 let csrf: CsrfToken | null = null;
 
@@ -23,7 +24,7 @@ async function post(path: string, values?: Record<string, string>): Promise<Resp
       body: new URLSearchParams(values),
     });
   } catch {
-    throw new Error('We could not confirm the request. Check your connection, then try signing in.');
+    throw new Error(REQUEST_UNCONFIRMED);
   }
   if (!response.ok) {
     if (response.status === 403) {
@@ -35,6 +36,15 @@ async function post(path: string, values?: Record<string, string>): Promise<Resp
   }
   csrf = null;
   return response;
+}
+
+async function postForProfile(path: string, values: Record<string, string>): Promise<AccountProfile> {
+  const response = await post(path, values);
+  try {
+    return (await response.json()) as AccountProfile;
+  } catch {
+    throw new Error(REQUEST_UNCONFIRMED);
+  }
 }
 
 export const httpAccount: AccountGateway = {
@@ -54,15 +64,14 @@ export const httpAccount: AccountGateway = {
     return { username: profile.username };
   },
   async register(input: Signup) {
-    const response = await post('/api/v1/auth/register', {
+    return postForProfile('/api/v1/auth/register', {
       username: input.username,
       password: input.password,
       invitation: input.invitation,
     });
-    return response.json() as Promise<AccountProfile>;
   },
   async signIn(username, password) {
-    return (await post('/api/v1/auth/login', { username, password })).json() as Promise<AccountProfile>;
+    return postForProfile('/api/v1/auth/login', { username, password });
   },
   async signOut() {
     await post('/api/v1/auth/logout');
