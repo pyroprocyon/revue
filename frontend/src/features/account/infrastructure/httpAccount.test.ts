@@ -1,8 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { AccountGateway } from '../application/account';
 
 beforeEach(() => {
   vi.resetModules();
 });
+
+const generatedPassword = crypto.randomUUID();
+
+function csrfAnswer() {
+  return Response.json({ token: 'synthetic-csrf', headerName: 'X-XSRF-TOKEN' });
+}
+
+function answerWhoseBodyStalls() {
+  const body = new ReadableStream({
+    start(controller) {
+      controller.error(new DOMException('signal timed out', 'TimeoutError'));
+    },
+  });
+  return new Response(body, { status: 200, headers: { 'Content-Type': 'application/json' } });
+}
 
 describe('account connection recovery', () => {
   it('gives retry guidance when the first CSRF request fails and succeeds after reconnecting', async () => {
@@ -26,5 +42,25 @@ describe('account connection recovery', () => {
     const { httpAccount } = await import('./httpAccount');
     await expect(httpAccount.signIn('student', 'kanjii')).rejects.toThrow('Check your connection');
     for (const [, init] of request.mock.calls) expect(init.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it.each([
+    ['sign-in', (account: AccountGateway) => account.signIn('student', generatedPassword)],
+    [
+      'registration',
+      (account: AccountGateway) =>
+        account.register({ username: 'student', password: generatedPassword, invitation: 'synthetic' }),
+    ],
+  ])('gives the same guidance when the %s answer stalls after its headers arrive', async (_, submit) => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(csrfAnswer()).mockResolvedValueOnce(answerWhoseBodyStalls()));
+    const { httpAccount } = await import('./httpAccount');
+    await expect(submit(httpAccount)).rejects.toThrow('Check your connection');
+  });
+
+  it('accepts the empty answer to sign-out', async () => {
+    const signedOut = new Response(null, { status: 204 });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(csrfAnswer()).mockResolvedValueOnce(signedOut));
+    const { httpAccount } = await import('./httpAccount');
+    await expect(httpAccount.signOut()).resolves.toBeUndefined();
   });
 });
