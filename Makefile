@@ -25,7 +25,7 @@ NODE_RUN := $(abspath scripts/with-node.sh)
 # Every Compose target needs a local .env file and a running Docker engine.
 PREREQS := .env check-docker
 
-.PHONY: format-java format-frontend e2e invite lint install-hooks tooling-test quality quality-local sonar sonar-ide sonar-ide-check help start stop up down restart rebuild rebuild-clean logs ps db db-shell reset test check build frontend-install check-docker check-java smoke
+.PHONY: format-java format-frontend e2e invite lint install-hooks tooling-test quality quality-local sonar sonar-ide sonar-ide-check check-build-context help start stop up down restart rebuild rebuild-clean logs ps db db-shell reset test check build frontend-install check-docker check-java smoke
 
 help: ## Show this list
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z_-]+:.*## / {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -34,7 +34,7 @@ start: up ## Start the full development stack (same as make or make up)
 
 stop: down ## Stop and remove containers, keeping database data (same as make down)
 
-up: $(PREREQS) ## Build changed images and start the full development stack
+up: $(PREREQS) check-build-context ## Build changed images and start the full development stack
 	python3 scripts/issue-pilot-invite.py --ensure
 	$(COMPOSE) up --detach --build --wait $(SERVICE)
 	@$(COMPOSE) ps
@@ -49,11 +49,11 @@ down: $(PREREQS) ## Stop and remove containers (keeps the database)
 restart: $(PREREQS) ## Restart containers without rebuilding (does not pick up code changes)
 	$(COMPOSE) restart $(SERVICE)
 
-rebuild: $(PREREQS) ## Rebuild images from current code and restart changed containers
+rebuild: $(PREREQS) check-build-context ## Rebuild images from current code and restart changed containers
 	$(COMPOSE) up --detach --build --wait $(SERVICE)
 	@$(COMPOSE) ps
 
-rebuild-clean: $(PREREQS) ## Rebuild with no cache and fresh base images, then restart
+rebuild-clean: $(PREREQS) check-build-context ## Rebuild with no cache and fresh base images, then restart
 	$(COMPOSE) build --no-cache --pull $(SERVICE)
 	$(COMPOSE) up --detach --force-recreate --wait $(SERVICE)
 	@$(COMPOSE) ps
@@ -124,10 +124,10 @@ tooling-test: ## Check that analysis cannot silently omit application code or te
 quality: check-docker ## Run all checks, browser journeys and SonarQube under the checkout lock (requires Docker)
 	python3 scripts/check-sonar.py check e2e
 
-quality-local: check-docker ## Run the required local pre-PR checks under the checkout lock, including SonarQube for IDE
+quality-local: check-build-context ## Run the required local pre-PR checks under the checkout lock, including SonarQube for IDE
 	python3 scripts/quality-local-analysis.py
 
-e2e: check-docker frontend-install ## Test pilot account journeys against a disposable production app and database
+e2e: check-build-context frontend-install ## Test pilot account journeys against a disposable production app and database
 	cd "$(FRONTEND_DIR)" && bash "$(NODE_RUN)" npx --no-install playwright install --only-shell chromium
 	cd "$(FRONTEND_DIR)" && bash "$(NODE_RUN)" npm run test:e2e
 
@@ -140,7 +140,10 @@ sonar-ide: check-java ## Run the IntelliJ SonarQube plugin engine and save its f
 sonar-ide-check: sonar-ide ## Check the fresh IDE report for unresolved findings
 	python3 scripts/check-sonar-ide.py
 
-smoke: up ## Check Vite and its proxy, and the production build served by the backend
+check-build-context: check-docker ## Check the Docker build inputs with isolated fixtures
+	bash scripts/check-build-context.sh
+
+smoke: up ## Check Docker build inputs, Vite and its proxy, and the production build served by the backend
 	@frontend=$$($(COMPOSE) port frontend 5173); backend=$$($(COMPOSE) port backend 8080); \
 	  bash scripts/check-local.sh "http://$$frontend" "http://$$backend"
 
