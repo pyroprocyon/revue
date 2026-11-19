@@ -3,13 +3,19 @@ package com.revue.platform.web;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.time.Duration;
+import java.util.List;
+import org.jspecify.annotations.Nullable;
+import org.springframework.cache.concurrent.ConcurrentMapCache;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.io.Resource;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
 import org.springframework.web.servlet.HandlerInterceptor;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
+import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistration;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+import org.springframework.web.servlet.resource.CachingResourceResolver;
 import org.springframework.web.servlet.resource.EncodedResourceResolver;
 import org.springframework.web.servlet.resource.ResourceHttpRequestHandler;
 
@@ -38,17 +44,40 @@ class StaticResourceConfig implements WebMvcConfigurer {
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        registry.addResourceHandler("/assets/**")
-            .addResourceLocations(BUILD_LOCATION + "assets/")
-            .setCacheControl(CacheControl.maxAge(Duration.ofDays(365)).cachePublic().immutable())
-            .resourceChain(true)
-            .addResolver(new EncodedResourceResolver());
-        registry.addResourceHandler("/**")
-            .addResourceLocations(BUILD_LOCATION)
-            .setCacheControl(CacheControl.noCache())
-            .setUseLastModified(false)
-            .resourceChain(true)
-            .addResolver(new EncodedResourceResolver());
+        serveCompressed(
+            registry.addResourceHandler("/assets/**")
+                .addResourceLocations(BUILD_LOCATION + "assets/")
+                .setCacheControl(CacheControl.maxAge(Duration.ofDays(365)).cachePublic().immutable()));
+        serveCompressed(
+            registry.addResourceHandler("/**")
+                .addResourceLocations(BUILD_LOCATION)
+                .setCacheControl(CacheControl.noCache())
+                .setUseLastModified(false));
+    }
+
+    private static void serveCompressed(ResourceHandlerRegistration handler) {
+        handler.resourceChain(false).addResolver(new OrderedEncodingCache()).addResolver(new EncodedResourceResolver());
+    }
+
+    /**
+     * Spring's default cache key sorts accepted codings, so opposite preferences would share one cached file.
+     * {@link AcceptEncodingFilter} has already reduced the header to the served codings in preference order, so the
+     * header itself tells those preferences apart.
+     */
+    private static final class OrderedEncodingCache extends CachingResourceResolver {
+        OrderedEncodingCache() {
+            super(new ConcurrentMapCache("static-resources"));
+        }
+
+        @Override
+        protected String computeKey(
+            @Nullable HttpServletRequest request,
+            String path,
+            List<? extends Resource> locations) {
+            String key = super.computeKey(request, path, locations);
+            String preferredCodings = request == null ? null : request.getHeader(HttpHeaders.ACCEPT_ENCODING);
+            return preferredCodings == null ? key : key + "+preferred=" + preferredCodings;
+        }
     }
 
     @Override

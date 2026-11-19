@@ -15,11 +15,14 @@ class AcceptEncodingFilterTests {
     @ParameterizedTest(name = "\"{0}\" accepts \"{1}\"")
     @CsvSource(delimiter = '|', nullValues = "none", textBlock = """
         br, gzip                  | br, gzip
-        gzip, deflate, br, zstd   | gzip, br
+        gzip, deflate, br, zstd   | br, gzip
         gzip;q=0, identity        | none
         br;q=0, gzip              | gzip
         br;q=0, gzip;q=0.000      | none
-        br; q=0.001, gzip         | br, gzip
+        br; q=0.001, gzip         | gzip, br
+        gzip;q=0.5, br;q=0.5      | br, gzip
+        br;q=0.1, *;q=0.9         | gzip, br
+        gzip;q=0.5, *;q=0.5       | br, gzip
         GZIP;Q=0.5                | gzip
         x-gzip                    | gzip
         gzip;q=not-a-number       | none

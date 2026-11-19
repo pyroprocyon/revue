@@ -17,12 +17,26 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class JdbcLibraryStore implements LibraryStore {
     private static final Logger LOG = LoggerFactory.getLogger(JdbcLibraryStore.class);
-    private static final String PROJECTION = """
-        select s.id, s.set_key, s.title, s.description, s.publisher_name, s.retired_at, s.save_allowed,
-               saved.saved_at, (select count(*) from cards c where c.set_id = s.id and c.retired_at is null) card_count
-        from saved_sets saved join sets s on s.id = saved.set_id
-        where saved.user_id = ?
+    private static final String SAVED_SET_FIELDS = """
+        s.id, s.set_key, s.title, s.description, s.publisher_name, s.retired_at, s.save_allowed, saved.saved_at
         """;
+    private static final String SAVED_SET = """
+        select %s, (select count(*) from cards c where c.set_id = s.id and c.retired_at is null) as card_count
+        from saved_sets saved join sets s on s.id = saved.set_id
+        where saved.user_id = ? and s.id = ?
+        """.formatted(SAVED_SET_FIELDS);
+    private static final String SAVED_SET_PAGE = """
+        with page as (
+            select set_id, saved_at from saved_sets
+            where user_id = ? and set_id > ?
+            order by set_id limit ?
+        )
+        select %s, count(c.id) as card_count
+        from page saved join sets s on s.id = saved.set_id
+        left join cards c on c.set_id = s.id and c.retired_at is null
+        group by s.id, saved.saved_at
+        order by s.id
+        """.formatted(SAVED_SET_FIELDS);
     private final JdbcTemplate jdbc;
 
     public JdbcLibraryStore(JdbcTemplate jdbc) {
@@ -51,7 +65,7 @@ public class JdbcLibraryStore implements LibraryStore {
         if (inserted == 1) {
             AfterCommit.log(() -> logMembershipChange(learner, setId, true));
         }
-        return jdbc.queryForObject(PROJECTION + " and s.id = ?", JdbcLibraryStore::map, learner, setId);
+        return jdbc.queryForObject(SAVED_SET, JdbcLibraryStore::map, learner, setId);
     }
 
     @Override
@@ -64,8 +78,7 @@ public class JdbcLibraryStore implements LibraryStore {
 
     @Override
     public List<SavedSet> list(UUID learner, long after, int limit) {
-        return jdbc
-            .query(PROJECTION + " and s.id > ? order by s.id limit ?", JdbcLibraryStore::map, learner, after, limit);
+        return jdbc.query(SAVED_SET_PAGE, JdbcLibraryStore::map, learner, after, limit);
     }
 
     @Override

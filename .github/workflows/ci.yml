@@ -2,6 +2,8 @@ name: CI
 
 on:
   push:
+    branches: [main]
+    tags: ['**']
   pull_request:
   workflow_dispatch:
 
@@ -41,14 +43,8 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
           package-manager-cache: false
 
-      - name: Install Chromium and Linux browser dependencies
-        working-directory: frontend
-        run: |
-          npm ci
-          npx --no-install playwright install --with-deps --only-shell chromium
-
       - name: Run the shared quality checks
-        run: make quality
+        run: make quality PLAYWRIGHT_INSTALL_FLAGS=--with-deps
 
       - name: Build containers and check the local app
         run: make smoke

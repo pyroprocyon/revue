@@ -75,10 +75,12 @@ def changed_content_paths(commit):
                   "--find-renames", "--no-ext-diff", "--no-textconv", commit).split("\0")
     empty_blob = subprocess.check_output(["git", "hash-object", "--stdin"], input=b"").decode().strip()
     paths = set()
+    merge = False
     index = 0
     while index < len(entries) and entries[index]:
         header = entries[index].lstrip("\n")
         parents = len(header) - len(header.lstrip(":"))
+        merge |= parents > 1
         fields = header.split()
         blobs = fields[parents + 1:2 * (parents + 1)]
         status = fields[-1]
@@ -94,7 +96,16 @@ def changed_content_paths(commit):
         nonempty = [blob for blob in blobs if set(blob) != {"0"} and blob != empty_blob]
         if nonempty:
             paths.add(path)
+    if merge:
+        # GitGuardian scans a merge's combined diff, which omits a file whose lines all come unchanged from one parent.
+        # Those lines were scanned with that parent's commits, in this range or in the trusted base.
+        paths = {path for path in paths if merge_shows_content(commit, path)}
     return paths
+
+
+def merge_shows_content(commit, path):
+    return bool(git("--literal-pathspecs", "show", "--format=", "--cc", "--no-ext-diff", "--no-textconv", "--no-color",
+                    commit, "--", path))
 
 
 def verify_scan_report(report, expected):

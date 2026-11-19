@@ -84,32 +84,40 @@ class CapacityBaselineCheck {
                 String.join(",", reports)));
     }
 
+    private record Sample(double ms, boolean admitted) {
+    }
+
     private String measureStage(HttpClient client, int concurrency) throws Exception {
         try (var executor = Executors.newFixedThreadPool(concurrency)) {
-            List<Callable<Double>> calls = IntStream.range(0, 600)
-                .mapToObj(index -> (Callable<Double>) () -> request(client, index))
+            List<Callable<Sample>> calls = IntStream.range(0, 600)
+                .mapToObj(index -> (Callable<Sample>) () -> request(client, index))
                 .toList();
             final long start = System.nanoTime();
             var futures = executor.invokeAll(calls);
-            double seconds = (System.nanoTime() - start) / 1_000_000_000.0;
+            final double seconds = (System.nanoTime() - start) / 1_000_000_000.0;
             List<Double> samples = new ArrayList<>();
             for (var future : futures) {
-                samples.add(future.get());
+                Sample sample = future.get();
+                if (sample.admitted()) {
+                    samples.add(sample.ms());
+                }
             }
+            assertThat(samples).isNotEmpty();
             samples.sort(Double::compareTo);
             return String.format(
                 Locale.ROOT,
-                "{\"concurrency\":%d,\"requests\":600,\"errors\":0,\"requestsPerSecond\":%.2f,"
+                "{\"concurrency\":%d,\"requests\":600,\"errors\":0,\"shed\":%d,\"requestsPerSecond\":%.2f,"
                     + "\"p50Ms\":%.2f,\"p95Ms\":%.2f,\"p99Ms\":%.2f}",
                 concurrency,
-                600 / seconds,
+                600 - samples.size(),
+                samples.size() / seconds,
                 percentile(samples, .50),
                 percentile(samples, .95),
                 percentile(samples, .99));
         }
     }
 
-    private double request(HttpClient client, int index) throws Exception {
+    private Sample request(HttpClient client, int index) throws Exception {
         String path = switch (index % 3) {
             case 0 -> "/api/v1/public-sets";
             case 1 -> "/api/v1/public-sets/synthetic-0";
@@ -122,13 +130,18 @@ class CapacityBaselineCheck {
                 .GET()
                 .build(),
             HttpResponse.BodyHandlers.ofString());
+        double ms = (System.nanoTime() - start) / 1_000_000.0;
+        if (response.statusCode() == 503) {
+            assertThat(response.headers().firstValue("Retry-After")).contains("1");
+            return new Sample(ms, false);
+        }
         assertThat(response.statusCode()).isEqualTo(200);
         assertThat(response.body()).isNotBlank();
         assertThat(response.headers().firstValue("Set-Cookie")).isEmpty();
         if (index % 3 == 0) {
             assertThat(response.headers().firstValue("X-Next-Cursor")).isPresent();
         }
-        return (System.nanoTime() - start) / 1_000_000.0;
+        return new Sample(ms, true);
     }
 
     private static double percentile(List<Double> samples, double fraction) {

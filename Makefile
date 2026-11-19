@@ -121,14 +121,14 @@ install-hooks: ## Enable the local pre-push quality gate without replacing exist
 tooling-test: ## Check that analysis cannot silently omit application code or tests
 	python3 -m unittest discover -s scripts -p 'test_*.py'
 
-quality: check e2e ## Run all checks, browser journeys and SonarQube (requires Docker)
-	python3 scripts/check-sonar.py
+quality: check-docker ## Run all checks, browser journeys and SonarQube under the checkout lock (requires Docker)
+	python3 scripts/check-sonar.py check e2e
 
-quality-local: quality ## Run the required local pre-PR checks, including SonarQube for IDE
-	$(MAKE) sonar-ide-check
+quality-local: check-docker ## Run the required local pre-PR checks under the checkout lock, including SonarQube for IDE
+	python3 scripts/quality-local-analysis.py
 
 e2e: check-docker frontend-install ## Test pilot account journeys against a disposable production app and database
-	cd "$(FRONTEND_DIR)" && bash "$(NODE_RUN)" npx --no-install playwright install --only-shell chromium
+	cd "$(FRONTEND_DIR)" && bash "$(NODE_RUN)" npx --no-install playwright install $(PLAYWRIGHT_INSTALL_FLAGS) --only-shell chromium
 	cd "$(FRONTEND_DIR)" && bash "$(NODE_RUN)" npm run test:e2e
 
 sonar: check-docker check-java ## Analyze already compiled Java and installed frontend sources

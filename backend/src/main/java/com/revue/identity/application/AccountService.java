@@ -83,15 +83,19 @@ public class AccountService {
 
     /** Returns the current eligible account or rejects an invalid session. */
     public Profile current() {
-        return currentProfile().orElseThrow(LoginCommit::rejected);
+        return eligibleAccount().profile();
     }
 
     /** Public navigation can check for an eligible session without requesting private access. */
     public boolean signedIn() {
-        return currentProfile().isPresent();
+        return currentAccount().isPresent();
     }
 
-    private Optional<Profile> currentProfile() {
+    public EligibleAccount eligibleAccount() {
+        return currentAccount().orElseThrow(LoginCommit::rejected);
+    }
+
+    private Optional<EligibleAccount> currentAccount() {
         var current = session.current();
         if (current.isEmpty()) {
             return Optional.empty();
@@ -105,11 +109,16 @@ public class AccountService {
             session.clear();
             return Optional.empty();
         }
-        return Optional.of(new Profile(account.username().value()));
+        return Optional.of(new EligibleAccount(identity, new Profile(account.username().value())));
     }
 
     public AccountSession.Csrf csrf() {
         return session.csrf();
+    }
+
+    /** Account facts confirmed for this request, including the credential version checked for private access. */
+    public record EligibleAccount(AccountSession.Identity identity, Profile profile) {
+        public static final String REQUEST_ATTRIBUTE = "revue.eligibleAccount";
     }
 
     /** Public account details returned to the signed-in learner. */

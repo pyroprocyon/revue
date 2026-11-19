@@ -56,9 +56,31 @@ export const test = base.extend<object, { pilot: PilotApp }>({
           )
           .toBe(true);
 
+        // Each docker compose exec takes about 0.14 s, so invitations are created in one batch per stack,
+        // and the shared test set is inserted once.
+        function insertInvitations(reusable: boolean, count: number): string[] {
+          const tokens = Array.from({ length: count }, () => randomBytes(reusable ? 6 : 32).toString('base64url'));
+          // Only generated UUID/digest values enter this SQL; no learner input is interpolated.
+          // Start in the recent past so a small database clock adjustment cannot make the fixture future-dated, and
+          // keep the pool valid for a long debugging session.
+          const rows = tokens.map((token) => {
+            const digest = createHash('sha256').update(token).digest('hex');
+            return `('${randomUUID()}','${digest}',now()-interval '1 minute',now()+interval '6 hours',${reusable})`;
+          });
+          compose(
+            ['exec', '-T', 'db', 'psql', '-U', 'e2e', '-d', 'e2e', '-v', 'ON_ERROR_STOP=1'],
+            `insert into signup_invites(id,token_hash,created_at,expires_at,reusable) values ${rows.join(',')};`,
+          );
+          return tokens;
+        }
+        // Only one reusable link may exist at a time, so that kind is still created when a test asks for it.
+        const singleUse = insertInvitations(false, 64);
+        let saveableSetAdded = false;
+
         await provide({
           origin,
           addSaveableSet() {
+            if (saveableSetAdded) return;
             compose(
               ['exec', '-T', 'db', 'psql', '-U', 'e2e', '-d', 'e2e', '-v', 'ON_ERROR_STOP=1'],
               `
@@ -71,16 +93,10 @@ export const test = base.extend<object, { pilot: PilotApp }>({
             on conflict (content_key) do nothing;
           `,
             );
+            saveableSetAdded = true;
           },
           invitation(reusable = false) {
-            const token = randomBytes(reusable ? 6 : 32).toString('base64url');
-            const digest = createHash('sha256').update(token).digest('hex');
-            // Only generated UUID/digest values enter this SQL; no learner input is interpolated.
-            // Start in the recent past so a small database clock adjustment cannot make the fixture future-dated.
-            compose(
-              ['exec', '-T', 'db', 'psql', '-U', 'e2e', '-d', 'e2e', '-v', 'ON_ERROR_STOP=1'],
-              `insert into signup_invites(id,token_hash,created_at,expires_at,reusable) values ('${randomUUID()}','${digest}',now()-interval '1 minute',now()+interval '1 hour',${reusable});`,
-            );
+            const token = (reusable ? undefined : singleUse.shift()) ?? insertInvitations(reusable, 1)[0];
             return reusable ? `${origin}/i#${token}` : `${origin}/register#invite=${token}`;
           },
         });

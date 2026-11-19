@@ -48,13 +48,17 @@ for commit in commits:
     content = subprocess.check_output(["git", "show", commit + ":tracked.txt"], text=True)
     incidents = int("scanner-fixture-incident" in content or mode == "finding-zero")
     found |= bool(incidents)
-    files = subprocess.check_output(["git", "show", "--format=", "--name-only", commit], text=True).splitlines()
+    patch = subprocess.check_output(["git", "show", "--format=", "--cc", "--no-color", commit], text=True)
+    files = [line.removeprefix("diff --cc ") if line.startswith("diff --cc ") else line.split(" b/", 1)[1]
+             for line in patch.splitlines() if line.startswith(("diff --cc ", "diff --git "))]
     results = []
     for name in files:
         blob = subprocess.run(["git", "show", commit + ":" + name], capture_output=True)
         if b"\0" not in blob.stdout:
             results.append({"filename": name, "total_incidents": 0, "total_occurrences": 0})
-    scans.append({"entities_with_incidents": [] if mode == "skip-files" else results, "id": commit, "type": "commit", "total_incidents": incidents,
+    merge = len(subprocess.check_output(["git", "rev-list", "--parents", "-n", "1", commit], text=True).split()) > 2
+    skipped = mode == "skip-files" or (mode == "skip-merges" and merge)
+    scans.append({"entities_with_incidents": [] if skipped else results, "id": commit, "type": "commit", "total_incidents": incidents,
                   "total_occurrences": incidents, "errors": [{}] if mode == "errors" else []})
 if mode == "incomplete":
     scans = []
@@ -223,6 +227,46 @@ Path(".git/quality-called").write_text(" ".join(sys.argv[1:]))
         result = self.push()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn(self.head, self.scanned())
+
+    def test_clean_merge_of_a_file_both_sides_changed_needs_no_merge_rescan(self):
+        shared = self.root / "shared.txt"
+        lines = [f"shared fixture line {index}\n" for index in range(30)]
+        shared.write_text("".join(lines))
+        self.git("add", "shared.txt")
+        self.git("commit", "-qm", "shared base")
+        self.git("checkout", "-qb", "side")
+        shared.write_text("".join(lines[:-1] + ["side change\n"]))
+        self.git("commit", "-qam", "side change")
+        self.git("checkout", "-q", "main")
+        shared.write_text("".join(["main change\n"] + lines[1:]))
+        self.git("commit", "-qam", "main change")
+        self.git("merge", "-q", "--no-edit", "side")
+        self.head = self.git("rev-parse", "HEAD").stdout.strip()
+        self.assertEqual(self.git("show", "--cc", "--format=", self.head).stdout, "")
+        result = self.push()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(self.head, self.scanned())
+
+    def test_hand_resolved_merge_lines_the_scanner_skipped_block_publication(self):
+        shared = self.root / "shared.txt"
+        shared.write_text("base\n")
+        self.git("add", "shared.txt")
+        self.git("commit", "-qm", "shared base")
+        self.git("checkout", "-qb", "side")
+        shared.write_text("side\n")
+        self.git("commit", "-qam", "side change")
+        self.git("checkout", "-q", "main")
+        shared.write_text("main\n")
+        self.git("commit", "-qam", "main change")
+        subprocess.run(["git", "merge", "side", "-m", "merge"], cwd=self.root, env=self.environment,
+                       capture_output=True, text=True)
+        shared.write_text("hand resolved\n")
+        self.git("commit", "-qam", "resolve")
+        self.head = self.git("rev-parse", "HEAD").stdout.strip()
+        result = self.push(TEST_GG_MODE="skip-merges")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("skipped changed file contents", result.stderr)
+        self.assertFalse((self.root / ".git/quality-called").exists())
 
     def test_intermediate_finding_blocks_even_when_tip_is_clean(self):
         self.commit("scanner-fixture-incident")

@@ -46,6 +46,7 @@ class HealthEndpointTests {
     @Autowired
     private ApplicationContext context;
 
+    private static final String CREDENTIAL = "Bearer test-only-operations-token-at-least-32-characters";
     private static final String AVAILABILITY_EVENT = "service.availability_changed";
 
     @Test
@@ -78,11 +79,13 @@ class HealthEndpointTests {
             mvc.perform(get("/actuator/health")).andExpect(status().isOk());
             mvc.perform(head("/actuator/health")).andExpect(status().isOk());
             mvc.perform(get("/actuator/health/liveness")).andExpect(status().isOk());
+            mvc.perform(get("/actuator/health/readiness")).andExpect(status().isUnauthorized());
             assertThat(databaseChecks).hasValue(0);
-            mvc.perform(get("/actuator/health/readiness"))
+            mvc.perform(get("/actuator/health/readiness").header("Authorization", CREDENTIAL))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.status").value("DOWN"));
-            mvc.perform(get("/actuator/health/readiness")).andExpect(status().isServiceUnavailable());
+            mvc.perform(get("/actuator/health/readiness").header("Authorization", CREDENTIAL))
+                .andExpect(status().isServiceUnavailable());
             assertThat(databaseChecks).hasValue(2);
             assertThat(StructuredEvents.named(output, AVAILABILITY_EVENT))
                 .filteredOn(event -> "readiness_probe".equals(event.at("/entity/type").asString()))
@@ -92,7 +95,7 @@ class HealthEndpointTests {
             healthContributors.unregisterContributor("db");
             healthContributors.registerContributor("db", database);
         }
-        mvc.perform(get("/actuator/health/readiness")).andExpect(status().isOk());
+        mvc.perform(get("/actuator/health/readiness").header("Authorization", CREDENTIAL)).andExpect(status().isOk());
         assertThat(StructuredEvents.named(output, AVAILABILITY_EVENT))
             .filteredOn(event -> "readiness_probe".equals(event.at("/entity/type").asString()))
             .last()
@@ -105,6 +108,7 @@ class HealthEndpointTests {
     @Test
     @WithMockUser(authorities = "LEARNER")
     void learnerAuthorityDoesNotGrantOperationalAccess() throws Exception {
+        mvc.perform(get("/actuator/health/readiness")).andExpect(status().isForbidden());
         mvc.perform(get("/actuator/metrics")).andExpect(status().isForbidden());
     }
 
@@ -128,11 +132,11 @@ class HealthEndpointTests {
     }
 
     @Test
-    void probesArePublicAndMetricsRequireTheirOwnCredential() throws Exception {
+    void livenessIsPublicAndDiagnosticsUseTheOperatorCredential() throws Exception {
         mvc.perform(get("/actuator/health/liveness"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("UP"));
-        mvc.perform(get("/actuator/health/readiness"))
+        mvc.perform(get("/actuator/health/readiness").header("Authorization", CREDENTIAL))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("UP"));
         mvc.perform(get("/actuator/metrics")).andExpect(status().isUnauthorized());

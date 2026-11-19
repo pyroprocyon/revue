@@ -27,6 +27,13 @@ export type TrialCards = {
 
 export type PublicSetPage = { items: PublicSet[]; nextCursor: string | null };
 
+/** The server limits concurrent public catalog reads and answers an extra one with 503 and Retry-After: 1. */
+export class PublicCatalogBusy extends Error {
+  constructor() {
+    super('The public catalog is busy');
+  }
+}
+
 /** Application read port; App supplies its HTTP implementation to the screens. */
 export interface PublicContentReader {
   list(after?: string): Promise<PublicSetPage>;

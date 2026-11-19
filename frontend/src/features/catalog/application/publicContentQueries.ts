@@ -1,5 +1,8 @@
 import { queryOptions } from '@tanstack/react-query';
-import type { PublicContentReader } from './publicContent';
+import { PublicCatalogBusy, type PublicContentReader } from './publicContent';
+
+const BUSY_CATALOG_RETRIES = 2;
+const BUSY_CATALOG_RETRY_DELAY_MS = 1_000;
 
 export const publicContentKeys = {
   sets: ['public-sets'] as const,
@@ -14,7 +17,8 @@ export function publicContentQueries(reader: PublicContentReader) {
       queryOptions({
         queryKey: after ? [...publicContentKeys.sets, 'page', after] : publicContentKeys.sets,
         queryFn: () => reader.list(after),
-        retry: false,
+        retry: (failures, error) => error instanceof PublicCatalogBusy && failures < BUSY_CATALOG_RETRIES,
+        retryDelay: BUSY_CATALOG_RETRY_DELAY_MS,
       }),
     publicSetQuery: (key: string, kind: 'key' | 'share' = 'key') =>
       queryOptions({

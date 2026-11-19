@@ -24,7 +24,7 @@ public class JdbcAccountStudyDates implements AccountStudyDates {
             update users set first_study_date = coalesce(first_study_date, ?),
                 second_study_date = case when second_study_date is null and first_study_date < ?
                     then ? else second_study_date end
-            where id = ?
-            """, day, day, day, learner);
+            where id = ? and (first_study_date is null or (second_study_date is null and first_study_date < ?))
+            """, day, day, day, learner, day);
     }
 }
