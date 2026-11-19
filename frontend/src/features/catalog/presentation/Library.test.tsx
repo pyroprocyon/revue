@@ -27,7 +27,8 @@ function api({
   const fetcher = vi.fn(async (path: string, init?: RequestInit) => {
     if (path === '/api/v1/auth/session') return jsonResponse(200, { signedIn });
     if (path === '/api/v1/me') return jsonResponse(signedIn ? 200 : 401, { username: 'learner' });
-    if (path === '/api/v1/auth/csrf') return jsonResponse(200, { token: 'csrf', headerName: 'X-XSRF-TOKEN' });
+    if (path === '/api/v1/auth/csrf')
+      return jsonResponse(200, { token: 'csrf', headerName: 'X-XSRF-TOKEN', username: 'learner' });
     if (path === '/api/v1/public-sets/philippine-history')
       return jsonResponse(200, { ...historySet, saveAllowed: true });
     if (path === savePath) {
@@ -43,6 +44,7 @@ function api({
       }
       return jsonResponse(signedIn ? 200 : 401, { saved });
     }
+    if (path === '/api/v1/decks') return jsonResponse(200, { items: [] });
     if (path === '/api/v1/me/saved-sets')
       return jsonResponse(200, { items: saved ? [{ ...savedSet, retired }] : [], nextCursor: null });
     return jsonResponse(404);
@@ -116,7 +118,8 @@ describe('saved shared sets', () => {
       vi.fn(async (path: string, init?: RequestInit) => {
         if (path === '/api/v1/public-sets/philippine-history')
           return jsonResponse(200, { ...historySet, saveAllowed: true });
-        if (path === '/api/v1/auth/csrf') return jsonResponse(200, { token: 'csrf', headerName: 'X-XSRF-TOKEN' });
+        if (path === '/api/v1/auth/csrf')
+          return jsonResponse(200, { token: 'csrf', headerName: 'X-XSRF-TOKEN', username: 'learner' });
         if (path === savePath && init?.method === 'POST') {
           posted = true;
           return jsonResponse(200, savedSet);
@@ -140,10 +143,11 @@ describe('saved shared sets', () => {
     expect(fetcher.mock.calls.filter(([, init]) => init?.method === 'POST')).toEqual([]);
   });
 
-  it('distinguishes an empty library from a finished review day', async () => {
+  it('shows deck creation and hides the saved sets section when no sets are saved', async () => {
     api();
     renderApp('/library');
-    expect(await screen.findByRole('heading', { name: 'No saved sets' })).toBeDefined();
+    expect(await screen.findByRole('link', { name: 'Create a deck' })).toBeDefined();
+    expect(screen.queryByRole('heading', { name: 'Saved sets' })).toBeNull();
     expect(screen.getByRole('link', { name: 'Today' }).getAttribute('href')).toBe('/today');
   });
 
@@ -151,6 +155,7 @@ describe('saved shared sets', () => {
     api({ saved: true });
     renderApp('/library');
     expect(await screen.findByRole('heading', { name: historySet.title })).toBeDefined();
+    expect(screen.getByRole('heading', { name: 'Saved sets' })).toBeDefined();
     expect(screen.getByRole('link', { name: 'Library' }).getAttribute('aria-current')).toBe('page');
   });
 
@@ -172,11 +177,11 @@ describe('saved shared sets', () => {
     expect(
       await screen.findByText(`Removed “${historySet.title}” from your Library. Your progress is kept.`),
     ).toBeDefined();
-    expect(await screen.findByRole('heading', { name: 'No saved sets' })).toBeDefined();
+    expect(screen.queryByRole('heading', { name: 'Saved sets' })).toBeNull();
     expect(screen.queryByRole('heading', { name: historySet.title })).toBeNull();
     expect(fetcher).toHaveBeenCalledWith(
       savePath,
-      expect.objectContaining({ method: 'DELETE', headers: { 'X-XSRF-TOKEN': 'csrf' } }),
+      expect.objectContaining({ method: 'DELETE', headers: { 'X-XSRF-TOKEN': 'csrf', 'X-Revue-Learner': 'learner' } }),
     );
   });
 
@@ -190,7 +195,7 @@ describe('saved shared sets', () => {
     expect(screen.queryByText(/you won’t be able to save it again/)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: `Remove from Library: ${historySet.title}` }));
     fireEvent.click(screen.getByRole('button', { name: 'Remove from Library' }));
-    expect(await screen.findByRole('heading', { name: 'No saved sets' })).toBeDefined();
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Saved sets' })).toBeNull());
   });
 
   it('finishes confirmed removal even when the following Library refresh stalls', async () => {
@@ -199,7 +204,8 @@ describe('saved shared sets', () => {
       'fetch',
       vi.fn(async (path: string, init?: RequestInit) => {
         if (path === '/api/v1/me') return jsonResponse(200, { username: 'learner' });
-        if (path === '/api/v1/auth/csrf') return jsonResponse(200, { token: 'csrf', headerName: 'X-XSRF-TOKEN' });
+        if (path === '/api/v1/auth/csrf')
+          return jsonResponse(200, { token: 'csrf', headerName: 'X-XSRF-TOKEN', username: 'learner' });
         if (path === savePath) {
           if (init?.method === 'DELETE') {
             removed = true;
@@ -238,6 +244,6 @@ describe('saved shared sets', () => {
     expect(screen.getByRole('heading', { name: historySet.title })).toBeDefined();
     expect(screen.queryByText(/^Removed “/)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Try removing again' }));
-    expect(await screen.findByRole('heading', { name: 'No saved sets' })).toBeDefined();
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Saved sets' })).toBeNull());
   });
 });

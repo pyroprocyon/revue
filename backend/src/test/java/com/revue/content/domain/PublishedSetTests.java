@@ -43,7 +43,7 @@ class PublishedSetTests {
     @Test
     void invalidPublicationCannotPartiallyChangeAnExistingAggregate() {
         var set = PublishedSet.publish(definition(card("one", "Question?")));
-        var invalid = new CardDefinition("one", "Changed?", "Answer", List.of(), null, null, null);
+        var invalid = new CardDefinition("one", "Changed?", "Answer", null, null, null);
         var changedContent = definition(invalid);
         assertThatExceptionOfType(InvalidContentException.class).isThrownBy(() -> set.synchronize(changedContent, NOW));
         assertThat(set.cards().getFirst().text().question()).isEqualTo("Question?");
@@ -51,7 +51,7 @@ class PublishedSetTests {
     }
 
     private static CardDefinition card(String key, String question) {
-        return new CardDefinition(key, question, "Answer", List.of(), null, null, "Source");
+        return new CardDefinition(key, question, "Answer", null, null, "Source");
     }
 
     private static SetDefinition definition(CardDefinition... cards) {

@@ -109,8 +109,8 @@ class StaticServingTests {
             values (?, 'Compression', '', 'Revue', 'Science', now(), now()) returning id
             """, Long.class, key);
         jdbc.update("""
-            insert into cards(set_id,content_key,position,question,answer,key_ideas,created_at,updated_at)
-            select ?, ? || n, n, ?, ?, '{}', now(), now()
+            insert into cards(set_id,content_key,position,question,answer,created_at,updated_at)
+            select ?, ? || n, n, ?, ?, now(), now()
             from generate_series(1,5) n
             """, set, key, question, answer);
         return set;

@@ -42,6 +42,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import tools.jackson.databind.json.JsonMapper;
 
 @ExtendWith(OutputCaptureExtension.class)
 @SpringBootTest(properties = "revue.content.publish=false")
@@ -204,6 +205,26 @@ class UsernameAccountHttpTests {
         assertThat(stale.getContentAsString()).isEqualTo("{\"signedIn\":false}");
         assertThat(StructuredEvents.named(output, "auth.access_denied")).isEmpty();
         assertThat(StructuredEvents.named(output, "auth.session_invalidated")).hasSize(1);
+        assertThat(browser.send(get("/api/v1/me")).getResponse().getStatus()).isEqualTo(401);
+    }
+
+    @Test
+    void formTokenNamesItsLearnerAndLeavesAnIneligibleSessionForTheAccountCheck(CapturedOutput output)
+        throws Exception {
+        Browser browser = new Browser();
+        var json = JsonMapper.builder().build();
+        assertThat(json.readTree(browser.csrf().getResponse().getContentAsString()).get("username").isNull()).isTrue();
+        String name = username();
+        assertThat(browser.send(signup(name, "kanjii", invitation())).getResponse().getStatus()).isEqualTo(200);
+        assertThat(json.readTree(browser.csrf().getResponse().getContentAsString()).get("username").asString())
+            .isEqualTo(name);
+
+        jdbc.update("update users set credential_version = credential_version + 1 where username = ?", name);
+        var stale = browser.csrf().getResponse();
+        var token = json.readTree(stale.getContentAsString());
+        assertThat(token.get("username").isNull()).isTrue();
+        assertThat(token.get("token").asString()).isEqualTo(browser.cookies.get("XSRF-TOKEN").getValue());
+        assertThat(StructuredEvents.named(output, "auth.session_invalidated")).isEmpty();
         assertThat(browser.send(get("/api/v1/me")).getResponse().getStatus()).isEqualTo(401);
     }
 
@@ -495,8 +516,8 @@ class UsernameAccountHttpTests {
     private final class Browser {
         private final Map<String, Cookie> cookies = new HashMap<>();
 
-        void csrf() throws Exception {
-            send(get("/api/v1/auth/csrf"));
+        MvcResult csrf() throws Exception {
+            return send(get("/api/v1/auth/csrf"));
         }
 
         MvcResult send(MockHttpServletRequestBuilder request) throws Exception {

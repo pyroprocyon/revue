@@ -319,8 +319,8 @@ class LibraryHttpTests {
         for (int i = 0; i < 3; i++) {
             jdbc.update(
                 """
-                    insert into cards(set_id,content_key,position,question,answer,explanation,source,key_ideas,retired_at,created_at,updated_at)
-                    values (?,?,?,'Question','Answer','','','{}',case when ? then now() else null end,now(),now())
+                    insert into cards(set_id,content_key,position,question,answer,explanation,source,retired_at,created_at,updated_at)
+                    values (?,?,?,'Question','Answer','','',case when ? then now() else null end,now(),now())
                     """,
                 id,
                 UUID.randomUUID().toString(),

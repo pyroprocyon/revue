@@ -18,7 +18,7 @@ describe('App', () => {
         vi.fn(async (path: string) => {
           if (path === '/api/v1/auth/session') return pending;
           if (path === '/api/v1/me') return jsonResponse(200, { username: 'learner' });
-          if (path === '/api/v1/cards/due')
+          if (path.split('?')[0] === '/api/v1/cards/due')
             return jsonResponse(200, {
               totalCards: 0,
               availableCards: 0,

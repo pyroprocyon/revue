@@ -19,4 +19,35 @@ describe('account return destination', () => {
       expect(safeAccountReturnPath(path)).toBeNull();
     }
   });
+
+  it('returns to deck creation or a private deck without permitting arbitrary URL suffixes', () => {
+    for (const path of ['/library/decks/new', '/library/decks/1', '/library/decks/9223372036854775807']) {
+      expect(safeAccountReturnPath(path)).toBe(path);
+    }
+    for (const suffix of [
+      '',
+      '0',
+      '-1',
+      '1/../../account',
+      '1?user=other',
+      '1#secret',
+      'new/other',
+      '1%2Fother',
+      '1'.repeat(130),
+    ]) {
+      expect(safeAccountReturnPath(`/library/decks/${suffix}`)).toBeNull();
+    }
+  });
+
+  it('returns to the selected review topic or its explicit start route', () => {
+    for (const path of ['/review/deck-1', '/review/set-9/start']) expect(safeAccountReturnPath(path)).toBe(path);
+    for (const path of [
+      '/review/set-0',
+      '/review/deck-1/other',
+      '/review/set-1/start/other',
+      '/review/deck-1?next=2',
+    ]) {
+      expect(safeAccountReturnPath(path)).toBeNull();
+    }
+  });
 });

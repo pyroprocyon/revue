@@ -1,26 +1,22 @@
 import type { AccountGateway, AccountProfile, Signup } from '../application/account';
-import { CSRF_PATH, sameOriginRequest, type CsrfToken } from '../../../shared/http/sameOriginRequest';
+import {
+  csrfToken,
+  forgetCsrfToken,
+  prepareCsrfToken,
+  sameOriginRequest,
+} from '../../../shared/http/sameOriginRequest';
 
 const SESSION_CHECK_FAILED = 'We could not check your session. Please try again.';
 const ACCOUNT_LOAD_FAILED = 'We could not load your account. Please try again.';
 const REQUEST_UNCONFIRMED = 'We could not confirm the request. Check your connection, then try signing in.';
 
-let csrf: CsrfToken | null = null;
-
-async function refreshCsrf(): Promise<CsrfToken> {
-  const response = await sameOriginRequest(CSRF_PATH);
-  if (!response.ok) throw new Error('Please try again in a moment.');
-  csrf = (await response.json()) as CsrfToken;
-  return csrf;
-}
-
 async function post(path: string, values?: Record<string, string>): Promise<Response> {
   let response: Response;
   try {
-    const token = csrf ?? (await refreshCsrf());
+    const { headerName, token } = await csrfToken();
     response = await sameOriginRequest(path, {
       method: 'POST',
-      headers: { [token.headerName]: token.token, 'Content-Type': 'application/x-www-form-urlencoded' },
+      headers: { [headerName]: token, 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams(values),
     });
   } catch {
@@ -28,13 +24,13 @@ async function post(path: string, values?: Record<string, string>): Promise<Resp
   }
   if (!response.ok) {
     if (response.status === 403) {
-      csrf = null;
+      forgetCsrfToken();
       throw new Error('Your form expired. Please try again.');
     }
     const detail = (await response.json().catch(() => null)) as { detail?: string } | null;
     throw new Error(detail?.detail?.slice(0, 240) ?? 'Please wait a moment and try again.');
   }
-  csrf = null;
+  forgetCsrfToken();
   return response;
 }
 
@@ -48,6 +44,7 @@ async function postForProfile(path: string, values: Record<string, string>): Pro
 }
 
 export const httpAccount: AccountGateway = {
+  prepareWrite: prepareCsrfToken,
   async signedIn() {
     const response = await sameOriginRequest('/api/v1/auth/session');
     if (!response.ok) throw new Error(SESSION_CHECK_FAILED);

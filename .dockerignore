@@ -1,12 +1,22 @@
-# Keep secrets, Git history and local build output out of the image build context.
-.env
-.env.*
-.git
+*
+!backend/
+!frontend/
+!content/
+content/*
+!content/public/
+
+**/.env
+**/.env.*
+**/.git
+**/.sonar
+**/.scannerwork
+**/*.log
 **/node_modules
 backend/target
 frontend/dist
-.idea
-.vscode
+frontend/coverage
+**/.idea
+**/.vscode
 
 # Generated browser-test reports
 frontend/playwright-report/

@@ -1,5 +1,8 @@
 @import 'tailwindcss';
 
+/* Small, short phones such as the iPhone SE (375 x 667) and 360 x 640 Androids, where saved Review compacts its card. */
+@custom-variant short-phone (@media (width < 40rem) and (height < 44rem));
+
 .review-progress {
   display: block;
   width: 100%;
@@ -8,12 +11,37 @@
   border: 0;
   border-radius: 9999px;
   overflow: hidden;
-  background: var(--color-line);
+  background: var(--color-accent-soft);
 }
 
-.review-progress::-webkit-progress-bar { background: var(--color-line); }
+.review-progress::-webkit-progress-bar { background: var(--color-accent-soft); }
 .review-progress::-webkit-progress-value { background: var(--color-accent); border-radius: 9999px; }
 .review-progress::-moz-progress-bar { background: var(--color-accent); border-radius: 9999px; }
+
+@media (height >= 30rem) {
+  @container today (width >= 38rem) {
+    .today-topic-options > button {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: 1fr auto;
+      align-items: start;
+    }
+  }
+
+  @container today (width >= 40rem) {
+    .today-study-rhythm, .today-next-card {
+      display: grid;
+      align-items: center;
+    }
+
+    .today-study-rhythm { grid-template-columns: auto minmax(0, 1fr); gap: 2rem; }
+    .today-study-days { margin-top: 0; max-width: none; }
+    .today-next-card { grid-template-columns: minmax(0, 1fr) auto; gap: 1.5rem; }
+    .today-next-card > div { margin-bottom: 0; }
+    .today-next-card > a { width: auto; }
+    .today-topic-options { grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); }
+  }
+}
 
 /* The workspace has one navigation tree at every width. Container queries also
    let enlarged text release the phone bar into document flow. */
@@ -108,6 +136,7 @@
   .workspace-content {
     grid-column: 1 / -1;
     grid-row: 2;
+    padding-top: 1rem;
     padding-bottom: calc(7rem + env(safe-area-inset-bottom));
   }
 
@@ -128,13 +157,38 @@
     gap: 0.25rem;
     padding: 0.5rem 0.25rem;
   }
+
+  @media (height < 25rem) {
+    .workspace-navigation {
+      position: static;
+      grid-row: 3;
+    }
+
+    .workspace-content { padding-bottom: max(2rem, env(safe-area-inset-bottom)); }
+  }
 }
 
 @container workspace (width < 20rem) {
-  .workspace-chrome { grid-template-columns: 1fr; }
-  .workspace-help { grid-column: 1; grid-row: 3; justify-self: start; }
-  .workspace-navigation { grid-template-columns: 1fr; }
-  .workspace-navigation .workspace-link { justify-content: start; }
+  .workspace-chrome { gap: 0.25rem; padding-bottom: 0.5rem; }
+  .workspace-home-link {
+    min-width: 0;
+    min-height: 48px;
+    gap: 0.25rem;
+    margin-left: -0.25rem;
+    padding: 0.125rem 0.25rem;
+    line-height: 1.2;
+  }
+  .workspace-home-link svg { width: 32px; height: 32px; flex-shrink: 0; }
+  .workspace-navigation {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.125rem;
+    padding: 0.125rem;
+  }
+  .workspace-navigation .workspace-link { flex: 1 0 auto; }
+  .workspace-link { min-height: 48px; padding: 0.125rem 0.25rem; }
+  .workspace-link svg { display: none; }
+  .workspace-content { padding-top: 0.5rem; }
 }
 
 @container workspace (width >= 40rem) {
@@ -145,6 +199,215 @@
   .workspace-content { padding: 2rem 2rem 3rem; }
   .workspace-navigation { display: flex; gap: 0.5rem; background: transparent; padding: 0; }
   .workspace-navigation .workspace-link { min-width: 7rem; }
+}
+
+/* The deck stack is a native scroller, so the browser owns the drag, momentum and snap.
+   The stage stays in view while one snap point per deck scrolls behind it. Each card places
+   itself from --deck-progress, the scroll position measured in decks. React sets --deck-reach,
+   the upcoming decks drawn below the front deck, and --deck-stage-fitted when the stack may
+   fill the screen. */
+.deck-carousel {
+  --deck-reach: 1;
+  --deck-card-height: 10rem;
+  --deck-strip-height: max(3.5rem, 56px);
+  --deck-edge-gutter: 1rem;
+  --deck-first-lift: calc(min(var(--deck-reach), 1) * 2.25rem);
+  --deck-front-top: max(var(--deck-edge-gutter), min(var(--deck-reach), 1) * (var(--deck-strip-height) - 0.25rem));
+  --deck-stage-min: calc(var(--deck-front-top) + var(--deck-card-height) + min(var(--deck-reach), 1) * var(--deck-strip-height) + var(--deck-edge-gutter));
+  --deck-stage-max: calc(var(--deck-front-top) + var(--deck-card-height) + var(--deck-reach) * var(--deck-strip-height) + var(--deck-edge-gutter));
+  --deck-stage-height: clamp(var(--deck-stage-min), var(--deck-stage-fitted, 0px), var(--deck-stage-max));
+}
+
+.deck-carousel-scroller {
+  position: relative;
+  margin-inline: calc(-1 * var(--spacing-compact-gutter));
+}
+
+.deck-carousel-stage {
+  --deck-progress: 0;
+  display: grid;
+  gap: 0.5rem;
+  margin-inline: var(--spacing-compact-gutter);
+}
+
+.deck-carousel-snap-points {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.deck-carousel-snap-points > * {
+  height: var(--deck-strip-height);
+  scroll-snap-align: start;
+  scroll-snap-stop: normal;
+}
+
+.deck-carousel-snap-points > :last-child { height: var(--deck-stage-height); }
+
+/* Every card moves one strip height per deck scrolled, the same distance as the finger.
+   The front deck stays near the top; each deck away from it shows one title strip, above or below,
+   and is slightly narrower. Scaling from the edge that faces away from the front keeps every
+   strip exactly one strip height tall. */
+.deck-carousel-card {
+  --deck-offset: calc(var(--deck-index) - var(--deck-progress));
+  --deck-distance: max(var(--deck-offset), -1 * var(--deck-offset));
+  --deck-side: clamp(-1, var(--deck-offset) * 1000, 1);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 20%, transparent);
+  border-radius: var(--radius-card);
+  background: var(--deck-strip-fill, var(--color-accent-soft));
+  box-shadow: var(--shadow-control);
+}
+
+.deck-carousel-card[data-slot="front"] {
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.deck-carousel-card[data-paused] {
+  --deck-strip-fill: var(--color-subtle);
+  --deck-strip-ink: var(--color-muted);
+  border-color: var(--color-line);
+}
+
+.deck-carousel[data-single-deck] .deck-carousel-summary { min-height: var(--deck-card-height); }
+
+.deck-carousel-preview-art,
+.deck-carousel-card:not([data-adjacent], [data-slot="front"]) {
+  display: none;
+}
+
+.deck-carousel-peek {
+  width: 100%;
+  min-height: 48px;
+  padding: 0.5rem var(--spacing-compact-gutter);
+  border-radius: inherit;
+  color: var(--deck-strip-ink, var(--color-accent-strong));
+  font-size: var(--text-body);
+  font-weight: 600;
+  line-height: var(--text-body--line-height);
+  text-align: left;
+}
+
+/* With enlarged text or a short viewport, let the active title and its neighbors take their
+   natural height. At normal sizes keep the native scroll geometry fixed throughout a swipe. */
+@container (width >= 17rem) {
+  .deck-search-with-position { width: calc(100% - 5rem); }
+  .deck-carousel-position {
+    position: absolute;
+    top: 0;
+    inset-inline-end: 0;
+    display: flex;
+    min-height: 48px;
+    align-items: center;
+    margin-bottom: 0;
+  }
+
+  @media (height >= 380px) {
+    .deck-carousel:not([data-enlarged-text], [data-single-deck]) {
+      .deck-carousel-scroller {
+        height: var(--deck-stage-height);
+        overflow: hidden auto;
+        scrollbar-width: none;
+        scroll-snap-type: y mandatory;
+      }
+
+      .deck-carousel-scroller::-webkit-scrollbar { display: none; }
+      .deck-carousel-stage {
+        position: sticky;
+        top: 0;
+        display: block;
+        height: var(--deck-stage-height);
+        margin-inline: 0;
+      }
+
+      .deck-carousel-snap-points {
+        position: static;
+        height: auto;
+        margin-top: calc(-1 * var(--deck-stage-height));
+        overflow: visible;
+      }
+
+      .deck-carousel-card {
+        position: absolute;
+        top: var(--deck-front-top);
+        inset-inline: var(--spacing-compact-gutter);
+        z-index: var(--deck-layer);
+        display: block;
+        height: var(--deck-card-height);
+        background: color-mix(in srgb, var(--deck-strip-fill, var(--color-accent-soft)) calc(clamp(0, 2 * var(--deck-distance), 1) * 100%), var(--color-surface));
+        transform-origin: 50% calc(50% + 50% * var(--deck-side));
+        transform:
+          translateY(calc(var(--deck-offset) * var(--deck-strip-height) - var(--deck-card-lift, 0px)))
+          scale(calc(1 - 0.03 * clamp(0, var(--deck-distance), 1) - 0.006 * max(var(--deck-distance) - 1, 0)));
+      }
+
+      .deck-carousel-card[data-first-deck] {
+        --deck-card-lift: calc(var(--deck-first-lift) * (1 - min(1, var(--deck-distance))));
+      }
+
+      .deck-carousel-card[data-after-first] {
+        --deck-preview-title-lift: calc(var(--deck-first-lift) * (1 - clamp(0, 2 * var(--deck-progress), 1)) / 2);
+      }
+
+      .deck-carousel-summary,
+      .deck-carousel-preview-art {
+        --deck-title-edge: calc(clamp(-1, var(--deck-offset), 1) * (var(--deck-card-height) - var(--deck-strip-height)) / 2);
+        --deck-count-room: calc((var(--text-support) * var(--text-support--line-height) + 0.25rem) / 2 * (1 - min(var(--deck-distance), 1)));
+        transform: translateY(calc(var(--deck-title-edge) - var(--deck-count-room) - var(--deck-preview-title-lift, 0px)));
+      }
+
+      .deck-carousel-summary { pointer-events: none; }
+      .deck-carousel-count { position: absolute; top: 100%; }
+      .deck-carousel-symbol { transform: translateY(var(--deck-count-room)); }
+      .deck-carousel-title {
+        display: -webkit-box;
+        overflow: hidden;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 4;
+      }
+
+      .deck-carousel-preview-art .deck-carousel-title {
+        -webkit-line-clamp: 1;
+        color: var(--deck-strip-ink, var(--color-accent-strong));
+        font-size: var(--text-body);
+        font-weight: 600;
+        letter-spacing: normal;
+        line-height: var(--text-body--line-height);
+      }
+
+      .deck-carousel-preview-art { display: flex; }
+      .deck-carousel-preview-title { display: none; }
+      .deck-carousel-peek {
+        position: absolute;
+        inset-inline: 0;
+        height: var(--deck-strip-height);
+        padding: 0;
+      }
+
+      .deck-carousel-card[data-after-first] .deck-carousel-peek {
+        height: calc(var(--deck-strip-height) + var(--deck-first-lift));
+      }
+
+      @media (prefers-reduced-motion: no-preference) {
+        .deck-carousel-scroller { scroll-behavior: smooth; }
+      }
+    }
+  }
+}
+
+@container (width >= 38rem) {
+  .deck-carousel { --deck-card-height: 8.5rem; }
+  .deck-carousel-position {
+    position: static;
+    display: block;
+    min-height: 0;
+    margin-bottom: 0;
+  }
+  @container workspace (width < 64rem) {
+    .deck-search-with-position { width: 100%; margin-bottom: 0.5rem; }
+  }
 }
 
 @container workspace (width >= 64rem) {
@@ -246,7 +509,8 @@
 /*
  * Revue's design tokens (plan section 12), named by role so a dark theme later only needs new
  * values. Surfaces and soft shadows separate components; focus outlines remain explicit.
- * The coral highlight is decoration only; its softer tint supports dark text.
+ * Coral marks what needs attention: the bright tint as decoration beside a label, the soft tint behind
+ * dark text, and the strong shade as text.
  */
 @theme {
   /* Self-hosted Inter Variable (imported in main.tsx) with its optical-size axis, which gives large
@@ -292,6 +556,8 @@
   --color-on-accent: #ffffff;
   --color-highlight: #ff7676;
   --color-highlight-soft: #ffe6e2;
+  --color-highlight-strong: #8a2b24;
+  --color-study-day-complete: #3f7d32;
   /* The answer field and the typed answer: near-white with a soft indigo edge that passes 3:1. */
   --color-field: #fcfbff;
   --color-field-edge: #8984c4;
@@ -327,8 +593,16 @@
 
   --animate-reveal: reveal 200ms var(--ease-enter);
   --animate-fade-in: fade-in 200ms var(--ease-standard);
-  --animate-flip-to-back: flip-to-back 350ms var(--ease-standard);
-  --animate-flip-to-front: flip-to-front 350ms var(--ease-standard);
+  /* The controls for a card side stay hidden while the card is edge-on, then fade in as that side turns into view. */
+  --animate-card-side-actions: card-side-actions calc(var(--card-flip) / 2) var(--ease-standard)
+    calc(var(--card-flip) / 2) both;
+
+  @keyframes card-side-actions {
+    from {
+      opacity: 0;
+      visibility: hidden;
+    }
+  }
 
   @keyframes reveal {
     from {
@@ -342,34 +616,6 @@
       opacity: 0;
     }
   }
-
-  /*
-   * A flashcard turning over. It shrinks a little halfway, like a card lifted off the table, so the
-   * edge turning toward the viewer stays inside the screen instead of briefly adding a scrollbar.
-   */
-  @keyframes flip-to-back {
-    from {
-      transform: rotateY(0deg);
-    }
-    50% {
-      transform: rotateY(90deg) scale(0.82);
-    }
-    to {
-      transform: rotateY(180deg);
-    }
-  }
-
-  @keyframes flip-to-front {
-    from {
-      transform: rotateY(180deg);
-    }
-    50% {
-      transform: rotateY(90deg) scale(0.82);
-    }
-    to {
-      transform: rotateY(0deg);
-    }
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -378,6 +624,12 @@
     transition: none !important;
     scroll-behavior: auto !important;
   }
+}
+
+:root {
+  --card-flip: 500ms;
+  /* About one screen minus the review header and ratings, never below a typical card's height. */
+  --hidden-side-max: max(16rem, calc(100dvh - 24rem));
 }
 
 @layer base {

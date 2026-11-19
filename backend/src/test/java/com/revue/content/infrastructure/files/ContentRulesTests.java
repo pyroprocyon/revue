@@ -36,9 +36,6 @@ class ContentRulesTests {
           - key: card-two
             question: What is two?
             answer: Two.
-            key_ideas:
-              - The number two
-              - Comes after one
             explanation: Because two comes second.
             memory_hook: Two shoes.
             source: A source.
@@ -58,8 +55,6 @@ class ContentRulesTests {
         assertThat(plain.explanation()).isNull();
         assertThat(plain.source()).isEqualTo("A plain source.");
         assertThat(plain.memoryHook()).isNull();
-        assertThat(plain.keyIdeas()).isEmpty();
-        assertThat(set.cards().get(1).keyIdeas()).containsExactly("The number two", "Comes after one");
     }
 
     @Test
@@ -96,16 +91,10 @@ class ContentRulesTests {
                 "explanation must not be blank"),
             broken("blank source", "    source: A source.", "    source: ' '", "source must not be blank"),
             broken(
-                "three key ideas",
-                "      - Comes after one\n",
-                "      - Comes after one\n      - Is even\n",
-                "key_ideas may list at most two ideas"),
-            broken(
-                "repeated key idea",
-                "      - Comes after one",
-                "      - The number two",
-                "key_ideas must be different from each other"),
-            broken("blank key idea", "      - The number two", "      - ' '", "key idea must not be blank"),
+                "key ideas, which cards no longer have",
+                "    explanation: Because two comes second.",
+                "    key_ideas:\n      - The number two\n    explanation: Because two comes second.",
+                "unknown field key_ideas"),
             broken("same question twice", "What is two?", "What is one?", "asks the same question"),
             broken(
                 "misspelled field",

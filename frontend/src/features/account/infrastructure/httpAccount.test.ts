@@ -57,6 +57,24 @@ describe('account connection recovery', () => {
     await expect(submit(httpAccount)).rejects.toThrow('Check your connection');
   });
 
+  it('asks for a new CSRF token after sign-in, because sign-in replaces it', async () => {
+    const tokens = ['guest-token', 'account-token'];
+    const fetcher = vi.fn(async (path: string, _init?: { headers?: Record<string, string> }) => {
+      if (path === '/api/v1/auth/csrf') return Response.json({ token: tokens.shift(), headerName: 'X-XSRF-TOKEN' });
+      if (path === '/api/v1/auth/login') return Response.json({ username: 'student' });
+      return new Response();
+    });
+    vi.stubGlobal('fetch', fetcher);
+    const { httpAccount } = await import('./httpAccount');
+    const { sameOriginWrite } = await import('../../../shared/http/sameOriginRequest');
+
+    await httpAccount.signIn('student', generatedPassword);
+    await sameOriginWrite('/api/v1/decks', { method: 'POST' });
+
+    const sent = fetcher.mock.calls.filter(([path]) => path !== '/api/v1/auth/csrf');
+    expect(sent.map(([, init]) => init?.headers?.['X-XSRF-TOKEN'])).toEqual(['guest-token', 'account-token']);
+  });
+
   it('accepts the empty answer to sign-out', async () => {
     const signedOut = new Response(null, { status: 204 });
     vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(csrfAnswer()).mockResolvedValueOnce(signedOut));

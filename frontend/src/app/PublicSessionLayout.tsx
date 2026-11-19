@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
-import { Navigate, Outlet, useSearchParams } from 'react-router';
+import { Navigate, Outlet, useLocation, useSearchParams } from 'react-router';
 import { safeAccountReturnPath } from '../features/account/application/account';
 import { useAccountGateway } from '../features/account/presentation/AccountProvider';
 import { forgetConfirmedProfile } from '../features/account/presentation/confirmedProfile';
@@ -8,11 +8,13 @@ import { TODAY_PATH } from '../shared/navigation/paths';
 import { PublicSessionContext, publicSessionKey, usePublicSession } from '../shared/navigation/publicSession';
 import { saveSignedInHint } from '../shared/navigation/signedInHint';
 import { SessionCheckScreen } from '../shared/ui/MessageScreen';
+import { RouteErrorBoundary, RouteErrorPage } from '../shared/ui/RouteError';
 
 /** Gives public pages session-aware navigation while private pages confirm access at their own boundary. */
 export function PublicSessionLayout() {
   const gateway = useAccountGateway();
   const queryClient = useQueryClient();
+  const location = useLocation();
   const session = useQuery({
     queryKey: publicSessionKey,
     queryFn: () => gateway.signedIn(),
@@ -35,7 +37,9 @@ export function PublicSessionLayout() {
   }, [confirmedSignedIn]);
   return (
     <PublicSessionContext value={status}>
-      <Outlet />
+      <RouteErrorBoundary resetKey={location.pathname} fallback={<RouteErrorPage signedIn={status === 'signed-in'} />}>
+        <Outlet />
+      </RouteErrorBoundary>
     </PublicSessionContext>
   );
 }

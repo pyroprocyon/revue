@@ -61,23 +61,41 @@ public interface ReviewStore {
     record Logged(Rating input, Result result) {
     }
 
-    /** Current state available to this learner through a saved membership. */
+    /** Current state of a card the learner may study: one in a saved set or in the learner's own deck. */
     record Schedule(String schedulerId, String state, long version, @Nullable LocalDate due) {
     }
 
-    /** Bounded study projection, including the displayed text version. */
+    /**
+     * Bounded study projection, including the displayed text version. {@code setTitle} is the title of the saved set
+     * or personal deck. A personal card has no publisher.
+     *
+     * <p>{@code keyIdeas} is always empty, because cards no longer have key ideas. The previous frontend reads the list
+     * without checking for it, so it stays until no open tab can run that frontend; remove it in the next release.
+     */
     record Card(
         String id,
         String question,
         String answer,
         @Nullable String explanation,
         @Nullable String memoryHook,
-        String source,
+        @Nullable String source,
         List<String> keyIdeas,
         String setTitle,
-        String publisherName,
+        @Nullable String publisherName,
         int contentVersion,
         long version) {
+    }
+
+    /** One owned deck or saved set with at least one scheduled card due. */
+    record Topic(String id, String title, long dueCards) {
+    }
+
+    /** One Manila calendar day with or without a saved review. */
+    record StudyDay(LocalDate date, boolean studied) {
+    }
+
+    /** Remaining work in a paused topic, including fresh cards deferred by the daily limit. */
+    record Continuation(@Nullable String topicTitle, long dueCards, long newCards, long unintroducedCards) {
     }
 
     /** One calculation supplies both Today and the next batch. */
@@ -87,23 +105,41 @@ public interface ReviewStore {
         long dueCards,
         long newCards,
         @Nullable LocalDate nextReviewDate,
-        List<Card> cards) {
+        List<Card> cards,
+        List<Topic> topics,
+        List<StudyDay> studyDays,
+        @Nullable String topicTitle,
+        long unintroducedCards,
+        @Nullable Continuation continuation) {
     }
 
-    /** Adds only missing initial schedules for current memberships. */
-    void initialize(UUID learner, String profile, String initialState);
+    /** The projected queue and whether it includes new cards that still need stored schedules. */
+    record QueueRead(Queue queue, boolean missingSchedules) {
+    }
+
+    /** Replay and scheduling facts from the same snapshot under the learner lock. */
+    record RatingState(@Nullable Logged previous, @Nullable Schedule schedule, int introduced) {
+    }
+
+    /** Adds only missing initial schedules for cards in saved sets and in the learner's own decks. */
+    void initialize(UUID learner, String profile, String initialState, @Nullable String topic);
 
     /** Counts and reads one bounded batch from the same database snapshot. */
-    Queue queue(UUID learner, LocalDate today, int limit);
+    QueueRead queue(
+        UUID learner,
+        LocalDate today,
+        int limit,
+        @Nullable String topic,
+        boolean includeNew,
+        @Nullable String pausedTopic);
 
     /** Reads an original request without requiring current content access. */
     Optional<Logged> logged(UUID learner, UUID requestId);
 
-    /** Reads only a currently accessible active card's schedule. */
-    Optional<Schedule> schedule(UUID learner, long cardId);
+    RatingState ratingState(UUID learner, long cardId, UUID requestId, LocalDate today);
 
-    /** Counts first reviews independently of current membership. */
-    int introduced(UUID learner, LocalDate today);
+    /** Reads the studied card and holds its text until the rating commits, so an edit lands before or after it. */
+    Optional<Card> lockStudyCard(UUID learner, long cardId);
 
     /** Inserts once without aborting a transaction on a duplicate request. */
     boolean insert(UUID learner, Rating input, Result result, LocalDate day, String profile);

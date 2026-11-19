@@ -1,5 +1,5 @@
 import { LibraryFailure, type LibraryGateway, type LibraryPage, type SavedSet } from '../application/library';
-import { CSRF_PATH, sameOriginRequest, type CsrfToken } from '../../../shared/http/sameOriginRequest';
+import { sameOriginRequest, sameOriginWrite } from '../../../shared/http/sameOriginRequest';
 
 function check(response: Response) {
   if (response.status === 401) throw new LibraryFailure('signed-out');
@@ -8,16 +8,10 @@ function check(response: Response) {
   if (!response.ok) throw new LibraryFailure('unknown');
 }
 
-/** Both membership writes use fresh CSRF and preserve uncertainty on transport failure. */
+/** Both membership writes preserve uncertainty on transport failure. */
 async function writeMembership(id: string, method: 'POST' | 'DELETE'): Promise<Response> {
   try {
-    const bootstrap = await sameOriginRequest(CSRF_PATH);
-    check(bootstrap);
-    const csrf = (await bootstrap.json()) as CsrfToken;
-    const response = await sameOriginRequest(`/api/v1/sets/${id}/save`, {
-      method,
-      headers: { [csrf.headerName]: csrf.token },
-    });
+    const response = await sameOriginWrite(`/api/v1/sets/${id}/save`, { method });
     check(response);
     return response;
   } catch (error) {

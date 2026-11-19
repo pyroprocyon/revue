@@ -1,9 +1,12 @@
 node_modules
 dist
 coverage
-.env
-.env.*
-*.log
+**/.env
+**/.env.*
+**/*.log
+**/.git
+playwright-report/
+test-results/
 
 # Private engineering context and agent instructions, including nested copies.
 **/.agents

@@ -15,7 +15,7 @@ import org.yaml.snakeyaml.error.YAMLException;
 
 /**
  * Reads one set file's YAML into a {@link SetDefinition}, checking its shape: known field names only, text where text
- * is expected, and a list of cards. Publishing rules such as key-idea counts and duplicate keys live in {@link
+ * is expected, and a list of cards. Publishing rules such as text limits and duplicate keys live in {@link
  * ContentRules}.
  *
  * <p>The YAML is parsed with SnakeYAML's safe constructor, so a file can't create Java objects. Unquoted values such as
@@ -28,7 +28,7 @@ final class ContentParser {
         .of("set_key", "title", "description", "publisher", "subject", "cards");
 
     private static final Set<String> CARD_FIELDS = Set
-        .of("key", "question", "answer", "key_ideas", "explanation", "memory_hook", "source");
+        .of("key", "question", "answer", "explanation", "memory_hook", "source");
 
     private ContentParser() {
     }
@@ -81,12 +81,11 @@ final class ContentParser {
             String key = text(cardMap, "key", label, problems);
             String question = text(cardMap, "question", label, problems);
             String answer = text(cardMap, "answer", label, problems);
-            List<String> keyIdeas = optionalTextList(cardMap, "key_ideas", label, problems);
             String explanation = optionalText(cardMap, "explanation", label, problems);
             String memoryHook = optionalText(cardMap, "memory_hook", label, problems);
             String source = text(cardMap, "source", label, problems);
             if (problems.size() == problemsBefore) {
-                cards.add(new CardDefinition(key, question, answer, keyIdeas, explanation, memoryHook, source));
+                cards.add(new CardDefinition(key, question, answer, explanation, memoryHook, source));
             }
         }
         return cards;
@@ -107,26 +106,6 @@ final class ContentParser {
 
     private static @Nullable String optionalText(Map<?, ?> map, String field, String label, List<String> problems) {
         return map.get(field) == null ? null : text(map, field, label, problems);
-    }
-
-    private static List<String> optionalTextList(Map<?, ?> map, String field, String label, List<String> problems) {
-        Object value = map.get(field);
-        if (value == null) {
-            return List.of();
-        }
-        if (!(value instanceof List<?> list)) {
-            problems.add(label + ": " + field + " must be a list");
-            return List.of();
-        }
-        List<String> texts = new ArrayList<>();
-        for (Object item : list) {
-            if (!(item instanceof String text)) {
-                problems.add(label + ": every entry in " + field + " must be text; put it in quotes");
-                return List.of();
-            }
-            texts.add(text);
-        }
-        return texts;
     }
 
     private static void reportUnknownFields(Map<?, ?> map, Set<String> known, String label, List<String> problems) {

@@ -19,6 +19,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @Order(Ordered.HIGHEST_PRECEDENCE)
 class AccountOperationLogFilter extends OncePerRequestFilter {
     static final String AUTHENTICATED_LOGOUT = AccountOperationLogFilter.class.getName() + ".authenticatedLogout";
+    static final String DENIAL_REASON = AccountOperationLogFilter.class.getName() + ".denialReason";
 
     private static final String LOGOUT_EVENT = "auth.logout";
     private static final String EVENT_NAME = "event.name";
@@ -86,10 +87,11 @@ class AccountOperationLogFilter extends OncePerRequestFilter {
     }
 
     private static void logAccessDenial(HttpServletRequest request, int status) {
+        var denial = request.getAttribute(DENIAL_REASON) instanceof String known ? known : reason(status);
         LOG.atInfo()
             .addKeyValue(EVENT_NAME, "auth.access_denied")
             .addKeyValue(EVENT_OUTCOME, "rejected")
-            .addKeyValue(EVENT_REASON, reason(status))
+            .addKeyValue(EVENT_REASON, denial)
             .addKeyValue("endpoint.group", AccountRoutes.OPERATIONS.matches(request) ? "operations" : "api")
             .addKeyValue("http.response.status_code", status)
             .log("Access denied");

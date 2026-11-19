@@ -87,8 +87,8 @@ export const test = base.extend<object, { pilot: PilotApp }>({
             insert into sets(set_key,title,description,publisher_name,subject,save_allowed,created_at,updated_at)
             values ('published-test-set','Published test set','A test publication.','Revue','History',true,now(),now())
             on conflict (set_key) do nothing;
-            insert into cards(set_id,content_key,position,question,answer,explanation,source,key_ideas,created_at,updated_at)
-            select id,'published-test-card',0,'Test question','Test answer','','',array['Test answer'],now(),now()
+            insert into cards(set_id,content_key,position,question,answer,explanation,source,created_at,updated_at)
+            select id,'published-test-card',0,'Test question','Test answer','','',now(),now()
             from sets where set_key = 'published-test-set'
             on conflict (content_key) do nothing;
           `,

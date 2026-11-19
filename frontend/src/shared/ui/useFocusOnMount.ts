@@ -6,11 +6,11 @@ import { FocusRequestContext } from './FocusRequestContext';
  * that replaces the control that had focus, so focus doesn't fall back to the page. Spread the
  * returned props onto that element.
  */
-export function useFocusOnMount<T extends HTMLElement>() {
+export function useFocusOnMount<T extends HTMLElement>(enabled = true) {
   const ref = useRef<T>(null);
   const requestFocus = useContext(FocusRequestContext);
   useEffect(() => {
-    requestFocus(ref.current);
-  }, [requestFocus]);
+    if (enabled) requestFocus(ref.current);
+  }, [enabled, requestFocus]);
   return { ref, tabIndex: -1 } as const;
 }

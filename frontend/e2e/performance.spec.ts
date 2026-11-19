@@ -21,3 +21,34 @@ test('the trial revalidates prefetched cards without downloading the same body t
     .poll(() => statuses.filter((response) => trials.has(response.id)).map((response) => response.status))
     .toEqual([200, 304]);
 });
+
+test('typing prepares one form token and signup rotates it before deck creation', async ({ page, pilot }) => {
+  const tokenPath = '/api/v1/auth/csrf';
+  let requests = 0;
+  page.on('request', (request) => {
+    if (new URL(request.url()).pathname === tokenPath) requests++;
+  });
+  await page.goto(pilot.invitation());
+  const username = page.getByLabel('Username', { exact: true });
+  await username.focus();
+  expect(requests).toBe(0);
+  await username.fill('form_' + crypto.randomUUID().slice(0, 12));
+  await expect.poll(() => requests).toBe(1);
+  const password = crypto.randomUUID();
+  await page.getByLabel('Password', { exact: true }).fill(password);
+  await page.getByLabel('Confirm password', { exact: true }).fill(password);
+  await page.getByRole('button', { name: 'Create account' }).click();
+  await page.getByRole('link', { name: 'Create a deck' }).click();
+  const name = page.getByLabel('Name', { exact: true });
+  await name.focus();
+  expect(requests).toBe(1);
+  await page.route('**' + tokenPath, (route) => route.fulfill({ status: 503 }), { times: 1 });
+  const failedPreparation = page.waitForResponse((response) => new URL(response.url()).pathname === tokenPath);
+  await name.fill('First draft');
+  expect((await failedPreparation).status()).toBe(503);
+  await name.fill('Exam prep');
+  expect(requests).toBe(2);
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'New card' })).toBeVisible();
+  expect(requests).toBe(3);
+});

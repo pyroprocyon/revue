@@ -11,6 +11,12 @@ import java.util.List;
 import org.jspecify.annotations.Nullable;
 
 final class PublicationSource {
+    /**
+     * Digests of published revisions include each card's key-idea count. Cards no longer have key ideas, so a count of
+     * zero keeps those digests valid and lets the same revision and content pass the publisher's check.
+     */
+    private static final String KEY_IDEA_COUNT = "0";
+
     private PublicationSource() {
     }
 
@@ -31,8 +37,7 @@ final class PublicationSource {
                     add(digest, card.explanation());
                     add(digest, card.memoryHook());
                     add(digest, card.source());
-                    add(digest, Integer.toString(card.keyIdeas().size()));
-                    card.keyIdeas().forEach(idea -> add(digest, idea));
+                    add(digest, KEY_IDEA_COUNT);
                 });
             });
             return HexFormat.of().formatHex(digest.digest());

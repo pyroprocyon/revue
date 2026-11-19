@@ -43,18 +43,22 @@ class AccountMigrationTests {
             session);
         var setBefore = jdbc.queryForMap("select * from " + schema + ".sets where id = 1");
         var cardBefore = jdbc.queryForMap(
-            "select row_to_json(c)::text as card from " + schema + ".cards c where content_key = 'existing-card'");
+            "select (row_to_json(c)::jsonb - 'deck_id')::text as card from " + schema
+                + ".cards c where content_key = 'existing-card'");
         var sessionBefore = jdbc
             .queryForMap("select * from " + schema + ".spring_session where primary_id = ?", session);
 
-        var migration = Flyway.configure()
-            .dataSource(dataSource)
-            .schemas(schema)
-            .defaultSchema(schema)
-            .load()
-            .migrate();
+        Flyway.configure().dataSource(dataSource).schemas(schema).defaultSchema(schema).load().migrate();
 
-        assertThat(migration.migrationsExecuted).isEqualTo(8);
+        assertThat(jdbc.queryForObject("""
+            select exists (select 1 from pg_indexes where schemaname = ? and indexname = 'review_logs_card')
+            """, Boolean.class, schema)).isTrue();
+        assertThat(jdbc.queryForObject("select count(*) from " + schema + ".decks", Integer.class)).isZero();
+        assertThat(
+            jdbc.queryForObject(
+                "select deck_id from " + schema + ".cards where content_key = 'existing-card'",
+                Long.class))
+            .isNull();
         assertThat(jdbc.queryForObject("select count(*) from " + schema + ".saved_sets", Integer.class)).isZero();
         assertThat(jdbc.queryForObject("select count(*) from " + schema + ".schedules", Integer.class)).isZero();
         assertThat(jdbc.queryForObject("select count(*) from " + schema + ".review_logs", Integer.class)).isZero();
@@ -66,7 +70,8 @@ class AccountMigrationTests {
         assertThat(setAfter).isEqualTo(setBefore);
         assertThat(
             jdbc.queryForMap(
-                "select row_to_json(c)::text as card from " + schema + ".cards c where content_key = 'existing-card'"))
+                "select (row_to_json(c)::jsonb - 'deck_id')::text as card from " + schema
+                    + ".cards c where content_key = 'existing-card'"))
             .isEqualTo(cardBefore);
         assertThat(jdbc.queryForMap("select * from " + schema + ".spring_session where primary_id = ?", session))
             .isEqualTo(sessionBefore);

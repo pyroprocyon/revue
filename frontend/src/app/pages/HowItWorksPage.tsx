@@ -17,7 +17,7 @@ export function HowItWorksPage() {
         </Link>
       }
     >
-      <section className="@container py-4 sm:py-8 lg:py-12">
+      <section className="@container pt-4 pb-2 sm:py-8 lg:py-12">
         <div className="rounded-card bg-highlight-soft p-compact-gutter sm:p-6">
           <h1 {...headingFocus} className="text-title font-extrabold tracking-tight text-balance outline-none">
             {REVIEW_STEPS_TITLE}

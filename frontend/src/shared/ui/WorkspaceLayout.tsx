@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { CircleHelp, House, LibraryBig, UserRound } from 'lucide-react';
-import { NavLink } from 'react-router';
-import { ACCOUNT_PATH, HELP_PATH, LIBRARY_PATH, TODAY_PATH } from '../navigation/paths';
+import { NavLink, useMatch } from 'react-router';
+import { ACCOUNT_PATH, DECK_ROUTE, HELP_PATH, LIBRARY_PATH, NEW_DECK_PATH, TODAY_PATH } from '../navigation/paths';
 import { OPENED_FROM_WORKSPACE } from '../navigation/routeState';
 import { HomeLink } from './HeaderLinks';
 import { SkipToContent } from './LayoutParts';
@@ -23,6 +23,10 @@ function navigationLink({ isActive }: Readonly<{ isActive: boolean }>) {
 
 /** One set of destinations adapts from a phone tab bar to a desktop sidebar. */
 export function WorkspaceLayout({ children, navigationDisabled = false }: Readonly<WorkspaceLayoutProps>) {
+  const today = useMatch(TODAY_PATH);
+  const deck = useMatch(DECK_ROUTE);
+  const newDeck = useMatch(NEW_DECK_PATH);
+  const desktopWidth = today || (deck && !newDeck) ? '@min-[64rem]/workspace:max-w-wide' : '';
   return (
     <div className="workspace-container">
       <SkipToContent />
@@ -49,7 +53,7 @@ export function WorkspaceLayout({ children, navigationDisabled = false }: Readon
           </NavLink>
         </header>
         <main id="main-content" tabIndex={-1} className="workspace-content @container outline-none">
-          <div className="mx-auto w-full max-w-3xl pt-6">{children}</div>
+          <div className={`mx-auto w-full max-w-3xl @min-[64rem]/workspace:pt-6 ${desktopWidth}`}>{children}</div>
         </main>
       </div>
     </div>

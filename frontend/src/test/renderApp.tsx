@@ -1,8 +1,8 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
+import { createMemoryRouter, RouterProvider } from 'react-router';
 import { vi } from 'vitest';
-import { App } from '../app/App';
+import { appRoutes } from '../app/routes';
 
 /**
  * Renders the whole app at a browser route, without retries, so a failed request fails at once.
@@ -11,14 +11,16 @@ import { App } from '../app/App';
 export function renderApp(paths: string | string[]) {
   const history = typeof paths === 'string' ? [paths] : paths;
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const router = createMemoryRouter(appRoutes, {
+    initialEntries: history,
+    initialIndex: history.length - 1,
+  });
   const view = render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={history} initialIndex={history.length - 1}>
-        <App />
-      </MemoryRouter>
+      <RouterProvider router={router} />
     </QueryClientProvider>,
   );
-  return { ...view, queryClient };
+  return { ...view, queryClient, router };
 }
 
 /** Stubs a signed-out session and supplies the given response for other requests. */

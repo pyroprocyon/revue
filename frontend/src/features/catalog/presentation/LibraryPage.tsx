@@ -1,24 +1,52 @@
-import { Link, Navigate, useOutletContext } from 'react-router';
+import { Navigate, useLocation, useNavigate, useNavigationType, useOutletContext } from 'react-router';
 import { useEffect, useRef, useState } from 'react';
-import { LibraryBig } from 'lucide-react';
-import type { AccountProfile } from '../../account/application/account';
 import { LibraryFailure } from '../application/library';
 import { useSavedSets } from './useSavedSets';
+import type { LibraryBrowsing } from './LibraryBrowsingLayout';
+import { CreateDeckLink, MyDecks } from './MyDecks';
+import { useDecks } from './useDecks';
 import { RemoveSetAction } from './RemoveSetAction';
-import { LIBRARY_PATH, setPath, signInPath } from '../../../shared/navigation/paths';
+import { LIBRARY_PATH, reviewTopicPath, setPath, signInPath } from '../../../shared/navigation/paths';
+import { routeState } from '../../../shared/navigation/routeState';
 import { cardCountLabel } from '../../../shared/ui/cardCount';
 import { PageControls } from '../../../shared/ui/PageControls';
 import { usePageCursor } from '../../../shared/navigation/usePageCursor';
-import { primaryButton, secondaryButton, textLink, textLinkTarget } from '../../../shared/ui/buttonStyles';
+import { secondaryButton } from '../../../shared/ui/buttonStyles';
+import { NavigationLink } from '../../../shared/ui/NavigationLink';
 import { WhenSlow } from '../../../shared/ui/WhenSlow';
 import { WorkspacePage } from '../../../shared/ui/WorkspacePage';
 
 export function LibraryPage() {
-  const profile = useOutletContext<AccountProfile>();
+  const profile = useOutletContext<LibraryBrowsing>();
   const { cursor: after, previousPage, nextPage } = usePageCursor();
   const library = useSavedSets(profile.username, after);
+  const firstPage = after === undefined;
+  const location = useLocation();
+  const navigationType = useNavigationType();
+  const navigate = useNavigate();
+  const arrivedFromDeletion = firstPage ? routeState(location).deletedDeckTitle : undefined;
+  const [deletion, setDeletion] = useState(
+    () =>
+      arrivedFromDeletion && {
+        title: arrivedFromDeletion,
+        focus: navigationType === 'REPLACE',
+        search: profile.search,
+        deckGroup: profile.deckGroup,
+      },
+  );
+  if (deletion && (profile.search !== deletion.search || profile.deckGroup !== deletion.deckGroup))
+    setDeletion(undefined);
+  // Browsers keep history state across reloads and Back, so the deletion is confirmed only on arrival.
+  useEffect(() => {
+    if (routeState(location).deletedDeckTitle === undefined) return;
+    void navigate(location, { replace: true, state: { ...routeState(location), deletedDeckTitle: undefined } });
+  }, [location, navigate]);
+  const deletedDeckTitle = deletion ? deletion.title : undefined;
+  const focusDeletedDeckNotice = deletion ? deletion.focus : false;
+  const decks = useDecks(profile.username, firstPage);
   const [removed, setRemoved] = useState<{ title: string; restoreFocus: boolean } | null>(null);
   const notice = useRef<HTMLOutputElement>(null);
+  const savedSetsHeading = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     if (removed?.restoreFocus && document.activeElement === document.body) notice.current?.focus();
   }, [removed]);
@@ -26,8 +54,42 @@ export function LibraryPage() {
     return <Navigate replace to={signInPath(LIBRARY_PATH)} />;
   }
   const nextCursor = library.data?.nextCursor;
+  const hasSavedSets = (library.data?.items.length ?? 0) > 0;
+  const createInHeading = firstPage && decks.isSuccess && decks.data.length > 0;
+  const nothingFollowsDecks = library.isSuccess && !hasSavedSets && !removed;
   return (
-    <WorkspacePage title="Library">
+    <WorkspacePage
+      title="Library"
+      headingAction={createInHeading && <CreateDeckLink />}
+      focusHeading={!focusDeletedDeckNotice}
+    >
+      {firstPage && (
+        <MyDecks
+          decks={decks}
+          showHeading={hasSavedSets}
+          fillsScreen={nothingFollowsDecks}
+          deletedDeckTitle={deletedDeckTitle}
+          focusDeletedDeckNotice={focusDeletedDeckNotice}
+          headingAction={
+            hasSavedSets &&
+            createInHeading && (
+              <a
+                href="#saved-sets"
+                className="pressable inline-flex min-h-12 items-center rounded-control px-2 text-support font-semibold text-accent"
+                onClick={(event) => {
+                  const heading = savedSetsHeading.current;
+                  if (!heading) return;
+                  event.preventDefault();
+                  heading.focus({ preventScroll: true });
+                  heading.scrollIntoView({ block: 'start' });
+                }}
+              >
+                Jump to saved sets
+              </a>
+            )
+          }
+        />
+      )}
       {removed && (
         <output
           ref={notice}
@@ -39,22 +101,22 @@ export function LibraryPage() {
       )}
       {library.isPending && (
         <WhenSlow>
-          <output className="block">Loading your Library…</output>
+          <output className="block">Loading saved sets…</output>
         </WhenSlow>
       )}
       {library.isError && (
         <div>
           <p role="alert" className="mb-4 text-muted">
-            Your Library couldn’t load. Check your connection and try again.
+            Your saved sets couldn’t load. Check your connection and try again.
           </p>
           <div className="flex flex-wrap gap-3">
             <button
               type="button"
-              className={primaryButton}
+              className={secondaryButton}
               onClick={() => void library.refetch()}
               disabled={library.isFetching}
             >
-              {library.isFetching ? 'Retrying…' : 'Try again'}
+              {library.isFetching ? 'Retrying…' : 'Retry saved sets'}
             </button>
             {after !== undefined && (
               <button type="button" className={secondaryButton} onClick={previousPage}>
@@ -64,24 +126,19 @@ export function LibraryPage() {
           </div>
         </div>
       )}
-      {library.isSuccess && (
+      {library.isSuccess && (hasSavedSets || after !== undefined) && (
         <>
-          {library.data.items.length === 0 && (
-            <div className="rounded-card bg-surface p-compact-gutter py-6 shadow-card sm:p-8 lg:p-10">
-              <span className="mb-5 grid size-12 place-items-center rounded-control bg-accent-soft text-accent">
-                <LibraryBig aria-hidden="true" className="size-6" />
-              </span>
-              <h2 className="text-section font-bold">{after ? 'No more saved sets' : 'No saved sets'}</h2>
-              {after && <p className="mt-3 text-body text-muted">Go back to see your saved sets.</p>}
-            </div>
-          )}
-          <ul className="grid gap-4 @min-[38rem]:grid-cols-2">
+          <h2 id="saved-sets" ref={savedSetsHeading} tabIndex={-1} className="mb-4 scroll-mt-4 text-section font-bold">
+            Saved sets
+          </h2>
+          {!hasSavedSets && <p className="text-body text-muted">No more saved sets.</p>}
+          <ul className="grid gap-5 @min-[38rem]:grid-cols-2">
             {library.data.items.map((set) => (
               <li
                 key={set.id}
-                className="flex min-w-0 flex-col rounded-card bg-surface p-compact-gutter shadow-card sm:p-6"
+                className="flex min-w-0 flex-col rounded-card border border-line bg-surface p-compact-gutter shadow-card sm:p-5"
               >
-                <h2 className="text-section font-bold tracking-tight wrap-anywhere">{set.title}</h2>
+                <h3 className="text-section font-bold tracking-tight wrap-anywhere">{set.title}</h3>
                 <p className="mt-2 text-support text-muted wrap-anywhere">
                   By {set.publisherName} · {cardCountLabel(set.cardCount)}
                 </p>
@@ -90,14 +147,18 @@ export function LibraryPage() {
                   <p className="mt-4 text-support font-semibold">No longer offered · Still in your Library</p>
                 )}
                 <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3">
-                  {!set.retired && (
-                    <Link
-                      to={setPath(set.setKey)}
-                      className={`${textLink} ${textLinkTarget}`}
-                      aria-label={`View set: ${set.title}`}
+                  {set.cardCount > 0 && (
+                    <NavigationLink
+                      to={reviewTopicPath(`set-${set.id}`, true)}
+                      aria-label={`Start review: ${set.title}`}
                     >
+                      Start review
+                    </NavigationLink>
+                  )}
+                  {!set.retired && (
+                    <NavigationLink to={setPath(set.setKey)} aria-label={`View set: ${set.title}`}>
                       View set
-                    </Link>
+                    </NavigationLink>
                   )}
                   <RemoveSetAction
                     set={set}

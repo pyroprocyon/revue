@@ -7,15 +7,21 @@ export function usePageCursor() {
   const cursor = search.get('after') ?? undefined;
   const previousCursors = routeState(location).previousCursors ?? [];
 
-  function previousPage() {
-    const previous = previousCursors.at(-1);
-    setSearch(previous === undefined ? {} : { after: previous }, {
-      state: previousCursorsState(previousCursors.slice(0, -1)),
+  function goToPage(after: string | undefined, earlier: (string | undefined)[]) {
+    const params = new URLSearchParams(search);
+    if (after === undefined) params.delete('after');
+    else params.set('after', after);
+    setSearch(params, {
+      state: previousCursorsState(earlier),
     });
   }
 
+  function previousPage() {
+    goToPage(previousCursors.at(-1), previousCursors.slice(0, -1));
+  }
+
   function nextPage(after: string) {
-    setSearch({ after }, { state: previousCursorsState([...previousCursors, cursor]) });
+    goToPage(after, [...previousCursors, cursor]);
   }
 
   return { cursor, previousPage, nextPage };
