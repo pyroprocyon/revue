@@ -128,7 +128,7 @@ quality-local: check-docker ## Run the required local pre-PR checks under the ch
 	python3 scripts/quality-local-analysis.py
 
 e2e: check-docker frontend-install ## Test pilot account journeys against a disposable production app and database
-	cd "$(FRONTEND_DIR)" && bash "$(NODE_RUN)" npx --no-install playwright install --only-shell chromium
+	cd "$(FRONTEND_DIR)" && bash "$(NODE_RUN)" npx --no-install playwright install $(PLAYWRIGHT_INSTALL_FLAGS) --only-shell chromium
 	cd "$(FRONTEND_DIR)" && bash "$(NODE_RUN)" npm run test:e2e
 
 sonar: check-docker check-java ## Analyze already compiled Java and installed frontend sources
