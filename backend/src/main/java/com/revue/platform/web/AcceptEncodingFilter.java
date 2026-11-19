@@ -7,12 +7,13 @@ import jakarta.servlet.http.HttpServletRequestWrapper;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Enumeration;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
+import java.util.Map;
+import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -67,46 +68,38 @@ class AcceptEncodingFilter extends OncePerRequestFilter {
      * is the safe fallback.
      */
     static @Nullable String acceptedCodings(String header) {
-        Set<String> named = new HashSet<>();
-        Set<String> accepted = new LinkedHashSet<>();
-        boolean wildcardAccepted = false;
+        Map<String, Double> weights = new HashMap<>();
         for (String item : header.split(",")) {
-            String[] parts = item.split(";");
-            if (parts.length == 0) {
-                // An entry of only semicolons, such as ";", splits into nothing.
-                continue;
-            }
+            String[] parts = item.split(";", -1);
             String coding = parts[0].trim().toLowerCase(Locale.ROOT);
             if (coding.equals("x-gzip")) {
                 coding = "gzip";
             }
-            if (coding.equals("*")) {
-                wildcardAccepted |= hasPositiveWeight(parts);
-            } else if (SERVED_CODINGS.contains(coding)) {
-                named.add(coding);
-                if (hasPositiveWeight(parts)) {
-                    accepted.add(coding);
-                }
+            if (coding.equals("*") || SERVED_CODINGS.contains(coding)) {
+                weights.merge(coding, weight(parts), Math::max);
             }
         }
-        if (wildcardAccepted) {
-            SERVED_CODINGS.stream().filter(coding -> !named.contains(coding)).forEach(accepted::add);
-        }
-        return accepted.isEmpty() ? null : String.join(", ", accepted);
+        double wildcard = weights.getOrDefault("*", 0.0);
+        var preferred = SERVED_CODINGS.stream()
+            .filter(coding -> weights.getOrDefault(coding, wildcard) > 0)
+            .sorted(Comparator.comparingDouble((String coding) -> weights.getOrDefault(coding, wildcard)).reversed())
+            .collect(Collectors.joining(", "));
+        return preferred.isEmpty() ? null : preferred;
     }
 
-    private static boolean hasPositiveWeight(String[] parts) {
+    private static double weight(String[] parts) {
         for (int i = 1; i < parts.length; i++) {
             String parameter = parts[i].trim();
             if (parameter.regionMatches(true, 0, "q=", 0, 2)) {
                 try {
-                    return Double.parseDouble(parameter.substring(2).trim()) > 0;
+                    double value = Double.parseDouble(parameter.substring(2).trim());
+                    return value > 0 && value <= 1 ? value : 0;
                 } catch (NumberFormatException _) {
-                    return false;
+                    return 0;
                 }
             }
         }
-        return true;
+        return 1;
     }
 
     /** The original request, with Accept-Encoding replaced by the cleaned value or removed. */

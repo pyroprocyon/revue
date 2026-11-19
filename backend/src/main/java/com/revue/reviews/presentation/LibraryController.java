@@ -25,8 +25,8 @@ public class LibraryController {
     }
 
     @PostMapping("/api/v1/sets/{id}/save")
-    ResponseEntity<LibraryStore.SavedSet> save(@PathVariable long id) {
-        return ok(library.save(id));
+    LibraryStore.SavedSet save(@PathVariable long id) {
+        return library.save(id);
     }
 
     @DeleteMapping("/api/v1/sets/{id}/save")
@@ -36,15 +36,15 @@ public class LibraryController {
     }
 
     @GetMapping("/api/v1/sets/{id}/save")
-    ResponseEntity<Membership> saved(@PathVariable long id) {
-        return ok(new Membership(library.saved(id)));
+    Membership saved(@PathVariable long id) {
+        return new Membership(library.saved(id));
     }
 
     @GetMapping("/api/v1/me/saved-sets")
-    ResponseEntity<LibraryService.Page> list(
+    LibraryService.Page list(
         @RequestParam(defaultValue = "0") long after,
         @RequestParam(defaultValue = "20") int limit) {
-        return ok(library.list(after, limit));
+        return library.list(after, limit);
     }
 
     record Membership(boolean saved) {
@@ -58,9 +58,5 @@ public class LibraryController {
             case INVALID_PAGE -> HttpStatus.BAD_REQUEST;
         };
         return ResponseEntity.status(status).cacheControl(CacheControl.noStore()).body(ProblemDetail.forStatus(status));
-    }
-
-    private static <T> ResponseEntity<T> ok(T body) {
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore().cachePrivate()).body(body);
     }
 }

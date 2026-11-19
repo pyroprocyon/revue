@@ -3,6 +3,13 @@ import { describe, expect, it, vi } from 'vitest';
 import { historySet, natureSet } from '../../../test/fixtures';
 import { jsonResponse, renderApp, stubFetch } from '../../../test/renderApp';
 
+function stubCatalog(answer: () => Response) {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (path: string) => (path === '/api/v1/public-sets' ? answer() : jsonResponse(200, { signedIn: false }))),
+  );
+}
+
 describe('Set list', () => {
   it('loads only the requested page and lets readers return to the previous page', async () => {
     const fetchMock = vi.fn(async (path: string) => {
@@ -53,6 +60,26 @@ describe('Set list', () => {
       '/sets/philippine-nature',
     ]);
     expect(links[0].textContent).toContain('Five moments from Mactan to Malolos.');
+  });
+
+  it('loads the list after a busy catalog answer without a click', async () => {
+    const answers = [jsonResponse(503), jsonResponse(200, [historySet])];
+    stubCatalog(() => answers.shift() ?? jsonResponse(500));
+
+    renderApp('/sets');
+
+    expect(await screen.findByText(historySet.title, {}, { timeout: 3_000 })).toBeDefined();
+    expect(answers).toHaveLength(0);
+  });
+
+  it('offers Try again at once after any other failure', async () => {
+    const catalogAnswer = vi.fn(() => jsonResponse(500));
+    stubCatalog(catalogAnswer);
+
+    renderApp('/sets');
+
+    expect(await screen.findByRole('button', { name: 'Try again' })).toBeDefined();
+    expect(catalogAnswer).toHaveBeenCalledTimes(1);
   });
 
   it('says so when no set is available', async () => {

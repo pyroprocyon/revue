@@ -9,7 +9,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 /** Explicit membership changes and bounded reads of the current learner's shared sets. */
 @Service
-@Transactional
 public class LibraryService {
     private final LearnerAccess learners;
     private final LibraryStore store;
@@ -26,18 +25,20 @@ public class LibraryService {
     }
 
     /** Saves once under the learner's lock; retries return the existing membership. */
+    @Transactional
     public LibraryStore.SavedSet save(long setId) {
         return store.save(learners.lockCurrent(), setId, DailyReviewScheduler.PROFILE, memory.initialState());
     }
 
     /** Shares the save lock so removal and saving cannot interleave for this learner. */
+    @Transactional
     public void remove(long setId) {
         store.remove(learners.lockCurrent(), setId);
     }
 
     /** Reads membership for the session's learner. */
     public boolean saved(long setId) {
-        return store.contains(learners.lockCurrent(), setId);
+        return store.contains(learners.current(), setId);
     }
 
     /** Lists saved sets in stable ID order, without loading the entire library. */
@@ -45,7 +46,7 @@ public class LibraryService {
         if (after < 0 || limit < 1 || limit > 100) {
             throw new LibraryProblem(LibraryProblem.Kind.INVALID_PAGE);
         }
-        var rows = store.list(learners.lockCurrent(), after, limit + 1);
+        var rows = store.list(learners.current(), after, limit + 1);
         boolean more = rows.size() > limit;
         var items = List.copyOf(rows.subList(0, Math.min(rows.size(), limit)));
         return new Page(items, more ? items.getLast().id() : null);

@@ -56,7 +56,6 @@ public class SecurityConfig {
         var publicRoutes = new OrRequestMatcher(
             paths.matcher("/actuator/health"),
             paths.matcher("/actuator/health/liveness"),
-            paths.matcher("/actuator/health/readiness"),
             paths.matcher(HttpMethod.GET, "/api/v1/public-sets"),
             paths.matcher(HttpMethod.GET, "/api/v1/public-sets/*"),
             paths.matcher(HttpMethod.GET, "/api/v1/public-sets/*/demo-cards"),

@@ -5,6 +5,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -23,6 +24,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -185,7 +187,7 @@ class PublicSetEndpointsTests {
 
         mvc.perform(get(PUBLIC_SETS + "/history/demo-cards"))
             .andExpect(status().isOk())
-            .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"))
+            .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-cache, must-revalidate, private"))
             .andExpect(jsonPath("$.setTitle").value("History"))
             .andExpect(jsonPath("$.publisherName").value("Revue"))
             .andExpect(jsonPath("$.cards[*].key").value(contains("g", "a", "c", "d", "e")))
@@ -196,6 +198,52 @@ class PublicSetEndpointsTests {
             // The flashcard shows no key ideas or memory hook, so the trial doesn't receive them.
             .andExpect(jsonPath("$.cards[0].keyIdeas").doesNotExist())
             .andExpect(jsonPath("$.cards[0].memoryHook").doesNotExist());
+    }
+
+    @Test
+    void trialRevalidationSkipsUnchangedBodiesButStillChecksEditsAndRetirement() throws Exception {
+        loader
+            .load(List.of(set("conditional", "Conditional", cards("etag-a", "etag-b", "etag-c", "etag-d", "etag-e"))));
+        String path = PUBLIC_SETS + "/conditional/demo-cards";
+        var first = mvc.perform(get(path)).andExpect(status().isOk()).andReturn().getResponse();
+        String tag = first.getHeader(HttpHeaders.ETAG);
+        assertThat(tag).isNotBlank();
+        var unchanged = mvc.perform(get(path).header(HttpHeaders.IF_NONE_MATCH, tag))
+            .andExpect(status().isNotModified())
+            .andReturn()
+            .getResponse();
+        assertThat(unchanged.getContentAsByteArray()).isEmpty();
+        jdbc.update("update cards set answer = 'Changed answer' where content_key = 'etag-a'");
+        var changed = mvc.perform(get(path).header(HttpHeaders.IF_NONE_MATCH, tag))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.cards[0].answer").value("Changed answer"))
+            .andReturn()
+            .getResponse();
+        assertThat(changed.getHeader(HttpHeaders.ETAG)).isNotEqualTo(tag);
+        jdbc.update("update sets set retired_at = now() where set_key = 'conditional'");
+        mvc.perform(get(path).header(HttpHeaders.IF_NONE_MATCH, changed.getHeader(HttpHeaders.ETAG)))
+            .andExpect(status().isNotFound())
+            .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"));
+    }
+
+    @Test
+    void trialRevalidationAppliesOnlyToTheMediaTypeThatWasCached() throws Exception {
+        loader.load(List.of(set("negotiated", "Negotiated", cards("type-a", "type-b", "type-c", "type-d", "type-e"))));
+        String path = PUBLIC_SETS + "/negotiated/demo-cards";
+        var json = mvc.perform(get(path).accept(MediaType.APPLICATION_JSON))
+            .andExpect(status().isOk())
+            .andExpect(header().string(HttpHeaders.VARY, "Accept"))
+            .andReturn()
+            .getResponse();
+        String tag = json.getHeader(HttpHeaders.ETAG);
+
+        mvc.perform(get(path).accept(MediaType.APPLICATION_JSON).header(HttpHeaders.IF_NONE_MATCH, tag))
+            .andExpect(status().isNotModified());
+        mvc.perform(get(path).accept(MediaType.TEXT_PLAIN).header(HttpHeaders.IF_NONE_MATCH, tag))
+            .andExpect(status().isNotAcceptable());
+        mvc.perform(get(path).accept("application/vnd.revue+json").header(HttpHeaders.IF_NONE_MATCH, tag))
+            .andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith("application/vnd.revue+json"));
     }
 
     @Test

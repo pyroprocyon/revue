@@ -4,7 +4,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
-/** Library persistence operations share the service transaction and learner lock. */
+/** Membership changes share the learner lock. Reads return only the session learner's sets. */
 public interface LibraryStore {
     /** Metadata only; shared answers and other learners' progress never enter Library. */
     record SavedSet(

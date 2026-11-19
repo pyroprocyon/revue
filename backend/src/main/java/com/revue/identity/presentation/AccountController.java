@@ -2,11 +2,10 @@ package com.revue.identity.presentation;
 
 import com.revue.identity.application.AccountService;
 import com.revue.identity.application.AccountSession;
-import jakarta.servlet.http.HttpServletRequest;
-import java.util.Objects;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -52,9 +51,8 @@ public class AccountController {
 
     /** Returns the current eligible account's public profile. */
     @GetMapping("/api/v1/me")
-    public AccountService.Profile current(HttpServletRequest request) {
-        // The security filter validated this profile for this request before controller dispatch.
-        return (AccountService.Profile) Objects
-            .requireNonNull(request.getAttribute(AccountService.Profile.class.getName()));
+    public AccountService.Profile current(
+        @RequestAttribute(AccountService.EligibleAccount.REQUEST_ATTRIBUTE) AccountService.EligibleAccount account) {
+        return account.profile();
     }
 }

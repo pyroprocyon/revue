@@ -30,7 +30,7 @@ final class CurrentAccountFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
         throws ServletException, IOException {
         try {
-            request.setAttribute(AccountService.Profile.class.getName(), accounts.current());
+            request.setAttribute(AccountService.EligibleAccount.REQUEST_ATTRIBUTE, accounts.eligibleAccount());
         } catch (AccountProblem _) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             return;

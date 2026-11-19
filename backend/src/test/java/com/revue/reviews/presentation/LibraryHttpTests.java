@@ -225,6 +225,7 @@ class LibraryHttpTests {
         var page = body(browser.send(get("/api/v1/me/saved-sets?limit=1")));
         assertThat(page.get("items").size()).isEqualTo(1);
         assertThat(page.get("items").get(0).get("retired").asBoolean()).isTrue();
+        assertThat(page.get("items").get(0).get("cardCount").asLong()).isEqualTo(2);
         var next = body(browser.send(get("/api/v1/me/saved-sets?limit=1&after=" + page.get("nextCursor").asString())));
         assertThat(next.get("items").get(0).get("id").asString()).isEqualTo(Long.toString(second));
         assertThat(next.get("nextCursor").isNull()).isTrue();

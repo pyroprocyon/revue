@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.revue.identity.AccountFixtures;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
@@ -13,6 +14,8 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.UUID;
+import java.util.zip.GZIPInputStream;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -50,6 +53,73 @@ class StaticServingTests {
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @Test
+    void largeJsonResponsesAreCompressedWithoutChangingTheirContent() throws IOException {
+        String key = "compression-" + UUID.randomUUID();
+        long set = insertSet(key, "Question ".repeat(45), "Answer ".repeat(50));
+        try {
+            String path = "/api/v1/public-sets/" + key + "/demo-cards";
+            var plain = sendBytes(path, null);
+            var compressed = sendBytes(path, "gzip");
+            assertThat(plain.statusCode()).isEqualTo(200);
+            assertThat(plain.body()).hasSizeGreaterThan(2048);
+            assertThat(header(compressed, "Content-Encoding")).isEqualTo("gzip");
+            assertThat(compressed.body()).hasSizeLessThan(plain.body().length);
+            try (var gzip = new GZIPInputStream(new ByteArrayInputStream(compressed.body()))) {
+                assertThat(gzip.readAllBytes()).isEqualTo(plain.body());
+            }
+            assertThat(sendBytes(path, "gzip;q=0").headers().firstValue("Content-Encoding")).isEmpty();
+            assertThat(sendBytes("/api/v1/auth/session", "gzip").headers().firstValue("Content-Encoding")).isEmpty();
+        } finally {
+            retireSet(set);
+        }
+    }
+
+    @Test
+    void catalogPagesBelowTheThresholdStayUncompressed() {
+        var page = sendBytes("/api/v1/public-sets?limit=1", "gzip");
+
+        assertThat(page.statusCode()).isEqualTo(200);
+        assertThat(page.body()).hasSizeLessThan(2048);
+        assertThat(page.headers().firstValue("Content-Encoding")).isEmpty();
+        assertThat(header(page, "Content-Length")).isEqualTo(String.valueOf(page.body().length));
+    }
+
+    @Test
+    void catalogResponsesKeepTheirJsonContentNegotiation() {
+        String key = "negotiation-" + UUID.randomUUID();
+        long set = insertSet(key, "Question", "Answer");
+        try {
+            String setPath = "/api/v1/public-sets/" + key;
+            for (String path : List.of("/api/v1/public-sets?limit=1", setPath, setPath + "/demo-cards")) {
+                assertThat(sendBytes(path, null, "Accept", "text/plain").statusCode()).isEqualTo(406);
+                var vendorJson = sendBytes(path, null, "Accept", "application/vnd.revue+json");
+                assertThat(vendorJson.statusCode()).isEqualTo(200);
+                assertThat(header(vendorJson, "Content-Type")).startsWith("application/vnd.revue+json");
+            }
+        } finally {
+            retireSet(set);
+        }
+    }
+
+    private long insertSet(String key, String question, String answer) {
+        long set = jdbc.queryForObject("""
+            insert into sets(set_key,title,description,publisher_name,subject,created_at,updated_at)
+            values (?, 'Compression', '', 'Revue', 'Science', now(), now()) returning id
+            """, Long.class, key);
+        jdbc.update("""
+            insert into cards(set_id,content_key,position,question,answer,key_ideas,created_at,updated_at)
+            select ?, ? || n, n, ?, ?, '{}', now(), now()
+            from generate_series(1,5) n
+            """, set, key, question, answer);
+        return set;
+    }
+
+    private void retireSet(long set) {
+        jdbc.update("update cards set retired_at = now() where set_id = ?", set);
+        jdbc.update("update sets set retired_at = now() where id = ?", set);
+    }
 
     @Test
     void reloadingOneBrowserRouteServesTheAppKeptOutOfSearch() {
@@ -124,6 +194,15 @@ class StaticServingTests {
 
             assertThat(notModified.statusCode()).as(acceptEncoding).isEqualTo(304);
             assertThat(vary(notModified)).as(acceptEncoding).containsExactly("Accept-Encoding");
+        }
+    }
+
+    @Test
+    void compressionPreferencesSurviveAlternatingRequestsForTheSameFile() {
+        for (String path : new String[] {"/review/42", ASSET}) {
+            assertThat(header(sendBytes(path, "gzip, deflate, br, zstd"), "Content-Encoding")).isEqualTo("br");
+            assertThat(header(sendBytes(path, "br;q=0.5, gzip"), "Content-Encoding")).isEqualTo("gzip");
+            assertThat(header(sendBytes(path, "gzip;q=0.5, br;q=0.5"), "Content-Encoding")).isEqualTo("br");
         }
     }
 
