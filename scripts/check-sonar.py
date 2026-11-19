@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
-"""Run an isolated SonarQube analysis of Java and TypeScript; retain reports, not credentials."""
+"""Run isolated SonarQube analysis; retain reports, not credentials.
+
+Make targets named on the command line run first, under the same checkout lock.
+Set REVUE_SONAR_PORT to choose a local port if Docker's dynamic port is unreachable.
+"""
 
 import base64
+import contextlib
+import fcntl
 import json
 import hashlib
 import os
@@ -10,6 +16,7 @@ import secrets
 import signal
 import string
 import subprocess
+import sys
 import time
 import urllib.error
 import urllib.parse
@@ -54,6 +61,12 @@ def loopback_url(address):
     if host != "127.0.0.1" or not port.isdecimal() or not 1 <= int(port) <= 65535:
         raise RuntimeError("Analysis server must bind only to an IPv4 loopback port")
     return f"http://127.0.0.1:{port}"
+
+
+def port_binding(port):
+    if port:
+        loopback_url(f"127.0.0.1:{port}")
+    return f"127.0.0.1:{port}:9000"
 
 
 def temporary_admin_password():
@@ -141,36 +154,114 @@ class Sonar:
         return gate["projectStatus"]["status"]
 
 
-def main():
+LOCK = REPORTS / "sonar-analysis.lock"
+
+
+@contextlib.contextmanager
+def analysis_lock():
+    """Lets one analysis at a time use this checkout's reports and disposable server."""
     REPORTS.mkdir(parents=True, exist_ok=True)
+    with LOCK.open("w") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise SystemExit("Another SonarQube analysis is running in this checkout. "
+                             "Run this again after it finishes.") from None
+        yield
+
+
+@contextlib.contextmanager
+def process_group(command, **options):
+    """Runs a command in its own process group. Leaving the block, even on cancellation, stops whatever still runs in
+    that group and waits for all of it to exit, so the checkout lock is never released while it runs."""
+    process = subprocess.Popen(command, start_new_session=True, **options)
+    try:
+        yield process
+    finally:
+        stop_group(process)
+
+
+def stop_group(process, grace_seconds=30):
+    signal_group(process.pid, signal.SIGTERM)
+    deadline = time.monotonic() + grace_seconds
+    while process.poll() is None or group_running(process.pid):
+        if time.monotonic() > deadline:
+            signal_group(process.pid, signal.SIGKILL)
+        time.sleep(0.05)
+
+
+def group_running(group):
+    try:
+        os.killpg(group, 0)
+    except ProcessLookupError:
+        return False
+    return True
+
+
+def signal_group(group, signum):
+    with contextlib.suppress(ProcessLookupError):
+        os.killpg(group, signum)
+
+
+def run_stoppable(command, **options):
+    with process_group(command, **options) as process:
+        if process.wait():
+            raise subprocess.CalledProcessError(process.returncode, command)
+
+
+def start_server(container):
     # A failed run must not leave an earlier passing result looking current.
     for filename in ("sonar-issues.json", "sonar-gate.json", "sonar-hotspots.json", "sonar-scope.json",
                      "sonar-scanner.log", "sonar-server.log"):
         (REPORTS / filename).unlink(missing_ok=True)
+    binding = port_binding(os.environ.get("REVUE_SONAR_PORT", ""))
+    print("Starting disposable SonarQube for Java, TypeScript and Python analysis", flush=True)
+    run("docker", "run", "--detach", "--rm", "--name", container,
+        "--publish", binding, "--env", "SONAR_ES_BOOTSTRAP_CHECKS_DISABLE=true",
+        "--env", "SONAR_TELEMETRY_ENABLE=false", IMAGE, stdout=subprocess.DEVNULL)
+
+
+def stop_server(container):
+    with (REPORTS / "sonar-server.log").open("w") as log:
+        subprocess.run(["docker", "logs", container], stdout=log, stderr=subprocess.STDOUT, check=False)
+    subprocess.run(["docker", "rm", "--force", "--volumes", container],
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+
+
+@contextlib.contextmanager
+def disposable_server():
+    """Starts the server, so it can boot while other checks run, and always removes it afterwards."""
     container = "revue-sonar-" + uuid.uuid4().hex[:12]
     try:
-        print("Starting disposable SonarQube for Java, TypeScript and Python analysis", flush=True)
-        run("docker", "run", "--detach", "--rm", "--name", container,
-            "--publish", "127.0.0.1::9000", "--env", "SONAR_ES_BOOTSTRAP_CHECKS_DISABLE=true",
-            "--env", "SONAR_TELEMETRY_ENABLE=false", IMAGE, stdout=subprocess.DEVNULL)
-        address = run("docker", "port", container, "9000/tcp", capture_output=True).stdout.strip()
-        sonar = Sonar(loopback_url(address))
-        sonar.wait_until_ready()
-        token = sonar.configure()
-        environment = dict(os.environ, SONAR_TOKEN=token, SONAR_HOST_URL=sonar.url)
-        command = scanner_command()
-        with (REPORTS / "sonar-scanner.log").open("w") as log:
-            analysis = subprocess.run(command, cwd=ROOT, env=environment, stdout=log, stderr=subprocess.STDOUT, text=True)
-        # Always collect findings even when the scanner reports a failed quality gate.
-        status = sonar.save_findings()
-        print(f"SonarQube quality gate: {status}. Reports: {REPORTS}", flush=True)
-        if analysis.returncode or status != "OK":
-            raise RuntimeError("SonarQube analysis or quality gate failed; see backend/target/quality")
+        # Docker can create the container before `docker run` returns, so an interrupted start still needs removal.
+        start_server(container)
+        yield container
     finally:
-        with (REPORTS / "sonar-server.log").open("w") as log:
-            subprocess.run(["docker", "logs", container], stdout=log, stderr=subprocess.STDOUT, check=False)
-        subprocess.run(["docker", "rm", "--force", "--volumes", container],
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+        stop_server(container)
+
+
+def analyze(container):
+    address = run("docker", "port", container, "9000/tcp", capture_output=True).stdout.strip()
+    sonar = Sonar(loopback_url(address))
+    sonar.wait_until_ready()
+    token = sonar.configure()
+    environment = dict(os.environ, SONAR_TOKEN=token, SONAR_HOST_URL=sonar.url)
+    command = scanner_command()
+    with (REPORTS / "sonar-scanner.log").open("w") as log:
+        analysis = subprocess.run(command, cwd=ROOT, env=environment, stdout=log, stderr=subprocess.STDOUT, text=True)
+    # Always collect findings even when the scanner reports a failed quality gate.
+    status = sonar.save_findings()
+    print(f"SonarQube quality gate: {status}. Reports: {REPORTS}", flush=True)
+    if analysis.returncode or status != "OK":
+        raise RuntimeError("SonarQube analysis or quality gate failed; see backend/target/quality")
+
+
+def main(make_targets=()):
+    with analysis_lock():
+        if make_targets:
+            run_stoppable(("make", *make_targets), cwd=ROOT)
+        with disposable_server() as container:
+            analyze(container)
 
 
 if __name__ == "__main__":
@@ -178,4 +269,4 @@ if __name__ == "__main__":
         raise SystemExit(128 + signum)
 
     signal.signal(signal.SIGTERM, stop_on_termination)
-    main()
+    main(sys.argv[1:])
