@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run isolated SonarQube analysis; retain reports, not credentials.
 
-Make targets named on the command line run first, under the same checkout lock.
+The scanner needs the classes and dependencies produced by the requested Make targets.
 Set REVUE_SONAR_PORT to choose a local port if Docker's dynamic port is unreachable.
 """
 
@@ -257,11 +257,10 @@ def analyze(container):
 
 
 def main(make_targets=()):
-    with analysis_lock():
+    with analysis_lock(), disposable_server() as container:
         if make_targets:
             run_stoppable(("make", *make_targets), cwd=ROOT)
-        with disposable_server() as container:
-            analyze(container)
+        analyze(container)
 
 
 if __name__ == "__main__":

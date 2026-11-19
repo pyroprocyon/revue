@@ -128,7 +128,7 @@ quality-local: check-build-context ## Run the required local pre-PR checks under
 	python3 scripts/quality-local-analysis.py
 
 e2e: check-build-context frontend-install ## Test pilot account journeys against a disposable production app and database
-	cd "$(FRONTEND_DIR)" && bash "$(NODE_RUN)" npx --no-install playwright install --only-shell chromium
+	cd "$(FRONTEND_DIR)" && bash "$(NODE_RUN)" npx --no-install playwright install $(PLAYWRIGHT_INSTALL_FLAGS) --only-shell chromium
 	cd "$(FRONTEND_DIR)" && bash "$(NODE_RUN)" npm run test:e2e
 
 sonar: check-docker check-java ## Analyze already compiled Java and installed frontend sources
