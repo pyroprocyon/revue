@@ -46,7 +46,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
-@SpringBootTest(properties = {"revue.content.publish=false", "REVUE_PILOT_INVITE_CODE=decktest"})
+@SpringBootTest(properties = "revue.content.publish=false")
 @AutoConfigureMockMvc
 @Import(TestcontainersConfiguration.class)
 @ExtendWith(OutputCaptureExtension.class)
@@ -641,8 +641,7 @@ class DeckHttpTests {
             var result = send(
                 post("/api/v1/auth/register").contentType("application/x-www-form-urlencoded")
                     .param("username", username)
-                    .param("password", "kanjii")
-                    .param("invitation", "decktest"));
+                    .param("password", "kanjii"));
             assertThat(result.getResponse().getStatus()).isEqualTo(200);
             id = jdbc.queryForObject("select id from users where username = ?", UUID.class, username);
             send(get("/api/v1/auth/csrf"));

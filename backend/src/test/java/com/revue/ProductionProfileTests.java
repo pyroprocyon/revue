@@ -14,7 +14,6 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.session.web.http.CookieSerializer;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -36,9 +35,6 @@ class ProductionProfileTests {
     private MockMvc mvc;
 
     @Autowired
-    private JdbcTemplate jdbc;
-
-    @Autowired
     private CookieSerializer cookieSerializer;
 
     @Test
@@ -48,7 +44,7 @@ class ProductionProfileTests {
 
     @Test
     void requestsForwardedFromHttpsCountAsHttps() throws Exception {
-        var cookies = AccountFixtures.signedIn(mvc, jdbc);
+        var cookies = AccountFixtures.signedIn(mvc);
         mvc.perform(get(RequestSchemeEndpoint.PATH).cookie(cookies).header("X-Forwarded-Proto", "https"))
             .andExpect(content().string("https"));
         mvc.perform(get(RequestSchemeEndpoint.PATH).cookie(cookies)).andExpect(content().string("http"));

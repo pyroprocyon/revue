@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { test, expect } from './fixtures';
 
-async function signup(page: import('@playwright/test').Page, invitation: string) {
-  await page.goto(invitation);
+async function signup(page: import('@playwright/test').Page, signupUrl: string) {
+  await page.goto(signupUrl);
   await page.getByLabel('Username', { exact: true }).fill(`review_${randomUUID().slice(0, 16)}`);
   await page.getByLabel('Password', { exact: true }).fill('kanjii');
   await page.getByLabel('Confirm password', { exact: true }).fill('kanjii');
@@ -34,7 +34,7 @@ async function settledCardHeight(card: import('@playwright/test').Locator) {
 
 test('saved review survives a lost response, exact retry, reload and removal', async ({ page, pilot }, info) => {
   pilot.addSaveableSet();
-  await signup(page, pilot.invitation());
+  await signup(page, pilot.signupUrl);
   await expect(page.getByRole('link', { name: 'Browse sets' })).toHaveCount(0);
   await page.screenshot({ path: info.outputPath('today-empty.png'), fullPage: true });
   await page.goto('/sets/published-test-set');
@@ -108,7 +108,7 @@ test('Study rhythm uses the weekly strip on wide screens and fits enlarged text 
   pilot,
 }, info) => {
   const title = 'Cell transport and membrane transport mechanisms';
-  await signup(page, pilot.invitation());
+  await signup(page, pilot.signupUrl);
   await page.route('**/api/v1/cards/due*', (route) =>
     route.fulfill({
       json: {
@@ -205,7 +205,7 @@ test('Today and saved recall remain usable across widths and enlarged text', asy
     if (request.url().includes('/api/v1/reviews/')) ratings += 1;
   });
   pilot.addSaveableSet();
-  await signup(page, pilot.invitation());
+  await signup(page, pilot.signupUrl);
   await page.goto('/sets/published-test-set');
   await page.getByRole('button', { name: 'Save to Library' }).click();
   await expect(page.getByText('Saved to your Library')).toBeVisible();
@@ -306,7 +306,7 @@ test('Today and saved recall remain usable across widths and enlarged text', asy
 
 test('review session checks stay quiet and preserve the layout on iPhone SE', async ({ page, pilot }, info) => {
   pilot.addSaveableSet();
-  await signup(page, pilot.invitation());
+  await signup(page, pilot.signupUrl);
   await page.goto('/sets/published-test-set');
   await page.getByRole('button', { name: 'Save to Library' }).click();
   await expect(page.getByText('Saved to your Library')).toBeVisible();
@@ -364,7 +364,7 @@ test('a stale tab refreshes after another tab saves without claiming a second re
   pilot,
 }) => {
   pilot.addSaveableSet();
-  await signup(page, pilot.invitation());
+  await signup(page, pilot.signupUrl);
   await page.goto('/sets/published-test-set');
   await page.getByRole('button', { name: 'Save to Library' }).click();
   await expect(page.getByText('Saved to your Library')).toBeVisible();
@@ -386,7 +386,7 @@ test('a stale tab refreshes after another tab saves without claiming a second re
 
 test('Today resumes a fresh review after Finish for now and a reload', async ({ page, pilot }, info) => {
   pilot.addSaveableSet();
-  await signup(page, pilot.invitation());
+  await signup(page, pilot.signupUrl);
   await page.goto('/sets/published-test-set');
   await page.getByRole('button', { name: 'Save to Library' }).click();
   await expect(page.getByText('Saved to your Library')).toBeVisible();
@@ -423,7 +423,7 @@ test('Today resumes a fresh review after Finish for now and a reload', async ({ 
 });
 
 test('Today refreshes the open page when the Manila study day changes', async ({ page, pilot }) => {
-  await signup(page, pilot.invitation());
+  await signup(page, pilot.signupUrl);
   await page.clock.install({ time: new Date('2026-12-31T15:55:00Z') });
   let newDay = false;
   await page.route('**/api/v1/cards/due*', (route) =>

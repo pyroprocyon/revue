@@ -25,7 +25,7 @@ NODE_RUN := $(abspath scripts/with-node.sh)
 # Every Compose target needs a local .env file and a running Docker engine.
 PREREQS := .env check-docker
 
-.PHONY: format-java format-frontend e2e invite lint install-hooks tooling-test quality quality-local sonar sonar-ide sonar-ide-check check-build-context help start stop up down restart rebuild rebuild-clean logs ps db db-shell reset test check build frontend-install check-docker check-java smoke
+.PHONY: format-java format-frontend e2e lint install-hooks tooling-test quality quality-local sonar sonar-ide sonar-ide-check check-build-context help start stop up down restart rebuild rebuild-clean logs ps db db-shell reset test check build frontend-install check-docker check-java smoke
 
 help: ## Show this list
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z_-]+:.*## / {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -35,7 +35,6 @@ start: up ## Start the full development stack (same as make or make up)
 stop: down ## Stop and remove containers, keeping database data (same as make down)
 
 up: $(PREREQS) check-build-context ## Build changed images and start the full development stack
-	python3 scripts/issue-pilot-invite.py --ensure
 	$(COMPOSE) up --detach --build --wait $(SERVICE)
 	@$(COMPOSE) ps
 	@if [ -z "$(SERVICE)" ] || [ "$(SERVICE)" = "frontend" ]; then \
@@ -101,9 +100,6 @@ format-java: check-java ## Apply the four-space, 120-column Java style to produc
 
 format-frontend: frontend-install ## Apply the Prettier style to frontend TypeScript
 	cd "$(FRONTEND_DIR)" && bash "$(NODE_RUN)" npm run format
-
-invite: .env ## Print the stable local and public pilot invitation links
-	python3 scripts/issue-pilot-invite.py
 
 install-hooks: ## Enable the local pre-push quality gate without replacing existing hooks
 	@existing=$$(git config --get core.hooksPath || true); \

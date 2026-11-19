@@ -1,7 +1,6 @@
 package com.revue.identity.infrastructure.persistence;
 
 import com.revue.identity.application.AccountQueries;
-import com.revue.identity.domain.TokenHash;
 import com.revue.identity.domain.Username;
 import jakarta.persistence.EntityManager;
 import java.util.Optional;
@@ -44,14 +43,5 @@ public class JpaAccountQueries implements AccountQueries {
             .setParameter("id", id)
             .getResultList();
         return rows.stream().findFirst().map(row -> ((AccountRow) row).toCredentials());
-    }
-
-    @Override
-    public boolean inviteAvailable(TokenHash hash) {
-        return !entityManager.createNativeQuery("""
-            select id from signup_invites where token_hash = :hash and revoked_at is null
-            \tand (reusable or redeemed_at is null)
-            \tand created_at <= statement_timestamp() and expires_at > statement_timestamp()
-            """, UUID.class).setParameter("hash", hash.value()).getResultList().isEmpty();
     }
 }

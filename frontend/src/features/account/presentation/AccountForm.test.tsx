@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { AccountGateway } from '../application/account';
 import { AccountProvider } from './AccountProvider';
 import { AccountForm } from './AccountForm';
@@ -34,35 +34,8 @@ function setup(register = true, entry = '/register') {
   return gateway;
 }
 
-beforeEach(() => {
-  window.history.replaceState({}, '', '/register');
-});
-
 describe('pilot account forms', () => {
-  it.each([8, 22, 43])(
-    'accepts a %i-character invitation and removes its fragment before registration',
-    async (length) => {
-      const invitation = 'a'.repeat(length);
-      window.history.replaceState({}, '', `/i#${invitation}`);
-      const gateway = setup();
-      fireEvent.change(screen.getByRole('textbox', { name: /^Username/ }), { target: { value: 'student' } });
-      fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: testPassword } });
-      fireEvent.change(screen.getByLabelText('Confirm password'), { target: { value: testPassword } });
-      fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
-      await waitFor(() =>
-        expect(gateway.register).toHaveBeenCalledWith({
-          username: 'student',
-          password: testPassword,
-          invitation,
-        }),
-      );
-      expect(window.location.hash).toBe('');
-    },
-  );
-
-  it('registers with a six-character password, clears the invitation fragment and navigates on confirmation', async () => {
-    const invite = 'a'.repeat(43);
-    window.history.replaceState({}, '', `/register#invite=${invite}`);
+  it('registers with a six-character password and navigates on confirmation', async () => {
     const gateway = setup();
     const username = screen.getByRole('textbox', { name: /Username/ });
     const password = screen.getByLabelText(/^Password/);
@@ -73,36 +46,10 @@ describe('pilot account forms', () => {
     fireEvent.change(screen.getByLabelText('Confirm password'), { target: { value: testPassword } });
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
     await screen.findByText('Today ready');
-    expect(gateway.register).toHaveBeenCalledWith({ username: 'student', password: testPassword, invitation: invite });
-    expect(window.location.hash).toBe('');
+    expect(gateway.register).toHaveBeenCalledWith({ username: 'student', password: testPassword });
   });
 
-  it.each([false, true])(
-    'consumes a newly arriving invitation without resetting the form (initial invitation: %s)',
-    async (alreadyInvited) => {
-      if (alreadyInvited) window.history.replaceState({}, '', `/register#invite=${'a'.repeat(43)}`);
-      const gateway = setup(true, '/register?returnTo=%2Fsets%2Fexample');
-      fireEvent.change(screen.getByRole('textbox', { name: /Username/ }), { target: { value: 'student' } });
-      fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: testPassword } });
-      fireEvent.change(screen.getByLabelText('Confirm password'), { target: { value: testPassword } });
-      const invitation = 'b'.repeat(43);
-      const history = { keep: 'existing history state' };
-      window.history.replaceState(history, '', `/register?returnTo=%2Fsets%2Fexample#invite=${invitation}`);
-      fireEvent(window, new HashChangeEvent('hashchange'));
-      await waitFor(() => expect(window.location.hash).toBe(''));
-      expect(window.location.search).toBe('?returnTo=%2Fsets%2Fexample');
-      expect(window.history.state).toEqual(history);
-      expect((screen.getByRole('textbox', { name: /Username/ }) as HTMLInputElement).value).toBe('student');
-      expect((screen.getByLabelText(/^Password/) as HTMLInputElement).value).toBe(testPassword);
-      expect((screen.getByRole('button', { name: 'Create account' }) as HTMLButtonElement).disabled).toBe(false);
-      fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
-      await screen.findByText('Original set');
-      expect(gateway.register).toHaveBeenCalledWith({ username: 'student', password: testPassword, invitation });
-    },
-  );
-
-  it('opens policy notices separately so reading them keeps the invitation form mounted', () => {
-    window.history.replaceState({}, '', `/register#invite=${'a'.repeat(43)}`);
+  it('opens policy notices separately so reading them keeps the signup form mounted', () => {
     setup();
     const policies = screen.getByRole('navigation', { name: 'Help and policies' });
     for (const link of policies.querySelectorAll('a[href^="/"]')) {
@@ -113,15 +60,13 @@ describe('pilot account forms', () => {
     expect((screen.getByRole('button', { name: 'Create account' }) as HTMLButtonElement).disabled).toBe(false);
   });
 
-  it('needs an invitation but never asks for email', () => {
+  it('enables direct signup without asking for email', () => {
     setup();
-    expect((screen.getByRole('button', { name: 'Create account' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: 'Create account' }) as HTMLButtonElement).disabled).toBe(false);
     expect(screen.queryByRole('textbox', { name: /email/i })).toBeNull();
-    expect(screen.getByRole('status').textContent).toContain('invitation link');
   });
 
-  it.each([false, true])('preserves the set when switching to sign-in (invited: %s)', async (invited) => {
-    if (invited) window.history.replaceState({}, '', `/register#invite=${'a'.repeat(43)}`);
+  it('preserves the set when switching to sign-in', async () => {
     const gateway = setup(true, '/register?returnTo=%2Fsets%2Fexample');
     const links = screen.getAllByRole('link', { name: 'Sign in' });
     for (const link of links) expect(link.getAttribute('href')).toBe('/sign-in?returnTo=%2Fsets%2Fexample');
@@ -134,8 +79,6 @@ describe('pilot account forms', () => {
   });
 
   it('keeps mismatched signup passwords local and allows correction without re-entering the first password', async () => {
-    const invitation = 'a'.repeat(8);
-    window.history.replaceState({}, '', `/i#${invitation}`);
     const gateway = setup();
     const password = screen.getByLabelText('Password') as HTMLInputElement;
     const confirmation = screen.getByLabelText('Confirm password') as HTMLInputElement;
@@ -155,12 +98,10 @@ describe('pilot account forms', () => {
     expect(gateway.register).toHaveBeenCalledExactlyOnceWith({
       username: 'student',
       password: testPassword,
-      invitation,
     });
   });
 
   it('clears both signup passwords after a server rejection while preserving the username', async () => {
-    window.history.replaceState({}, '', `/i#${'a'.repeat(8)}`);
     const gateway = setup();
     vi.mocked(gateway.register).mockRejectedValue(new Error('Please try again.'));
     fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'student' } });

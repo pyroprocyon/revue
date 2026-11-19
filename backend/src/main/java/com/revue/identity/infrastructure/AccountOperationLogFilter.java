@@ -109,7 +109,7 @@ class AccountOperationLogFilter extends OncePerRequestFilter {
 
     private static String reason(int status) {
         return switch (status) {
-            case 400 -> "invalid_request_or_invitation";
+            case 400 -> "invalid_request";
             case 401 -> "authentication_required_or_rejected";
             case 403 -> "access_denied";
             case 409 -> "conflict";

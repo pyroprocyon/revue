@@ -265,8 +265,7 @@ class StaticServingTests {
         assertThat(send("GET", "/api/v1/unknown").statusCode()).isEqualTo(401);
         assertThat(send("GET", "/api/unknown").statusCode()).isEqualTo(401);
         // Signed in, an unknown API route is a plain 404, not the React page.
-        mvc.perform(get("/api/v1/unknown").cookie(AccountFixtures.signedIn(mvc, jdbc)))
-            .andExpect(status().isNotFound());
+        mvc.perform(get("/api/v1/unknown").cookie(AccountFixtures.signedIn(mvc))).andExpect(status().isNotFound());
     }
 
     @Test

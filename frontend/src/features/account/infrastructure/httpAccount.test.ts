@@ -48,8 +48,7 @@ describe('account connection recovery', () => {
     ['sign-in', (account: AccountGateway) => account.signIn('student', generatedPassword)],
     [
       'registration',
-      (account: AccountGateway) =>
-        account.register({ username: 'student', password: generatedPassword, invitation: 'synthetic' }),
+      (account: AccountGateway) => account.register({ username: 'student', password: generatedPassword }),
     ],
   ])('gives the same guidance when the %s answer stalls after its headers arrive', async (_, submit) => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(csrfAnswer()).mockResolvedValueOnce(answerWhoseBodyStalls()));
