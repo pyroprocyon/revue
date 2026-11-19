@@ -1,6 +1,7 @@
 -- Run ONLY on a restored, isolated database BEFORE any app instance can reach it.
 -- Recovery keeps all accounts closed until current deletion requests and credential resets are reconciled.
--- Revoke legacy invitations in case an older release is used after restore.
+-- Before reopening signup on an older release, rotate REVUE_PILOT_INVITE_CODE if configured.
+-- That release accepts the configured code independently of the restored invitation rows.
 BEGIN;
 DELETE FROM spring_session;
 DELETE FROM auth_challenges;

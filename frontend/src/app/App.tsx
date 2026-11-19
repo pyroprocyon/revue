@@ -23,7 +23,7 @@ import { httpPublicContent } from '../features/catalog/infrastructure/httpPublic
 import { PublicContentProvider } from '../features/catalog/presentation/PublicContentProvider';
 import { useEffect } from 'react';
 import { GuestRoute, PublicSessionLayout } from './PublicSessionLayout';
-import { Navigate, Route, Routes, useLocation } from 'react-router';
+import { Route, Routes, useLocation, useNavigate } from 'react-router';
 import { LandingPage } from './pages/LandingPage';
 import { HowItWorksPage } from './pages/HowItWorksPage';
 import { HelpPage } from './pages/HelpPage';
@@ -110,7 +110,10 @@ export function App() {
 
 function SignupPage() {
   const { pathname, search, hash } = useLocation();
-  if (pathname !== REGISTER_PATH || hash) return <Navigate replace to={{ pathname: REGISTER_PATH, search }} />;
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (pathname !== REGISTER_PATH || hash) void navigate({ pathname: REGISTER_PATH, search }, { replace: true });
+  }, [pathname, search, hash, navigate]);
   return <AccountForm register />;
 }
 

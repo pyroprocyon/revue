@@ -318,6 +318,27 @@ test('a shared registration URL works after reload without an invitation', async
   await expect(page.getByText(name, { exact: true })).toBeVisible();
 });
 
+test('opening a legacy fragment in the same tab preserves signup fields and the return destination', async ({
+  page,
+}) => {
+  const path = '/register?returnTo=%2Flibrary';
+  const name = username();
+  await page.goto(path);
+  const usernameField = page.getByLabel('Username', { exact: true });
+  const password = page.getByLabel('Password', { exact: true });
+  const confirmation = page.getByLabel('Confirm password', { exact: true });
+  await usernameField.fill(name);
+  await password.fill(PASSWORD);
+  await confirmation.fill(PASSWORD);
+  await page.goto(path + '#invite=legacy');
+  await expect(page).toHaveURL(path);
+  await expect(usernameField).toHaveValue(name);
+  await expect(password).toHaveValue(PASSWORD);
+  await expect(confirmation).toHaveValue(PASSWORD);
+  await page.getByRole('button', { name: 'Create account' }).click();
+  await expect(page).toHaveURL('/library');
+});
+
 test('first sign-in while offline gives guidance and recovers after reconnecting', async ({ page, context, pilot }) => {
   const name = username();
   await page.goto(pilot.signupUrl);
