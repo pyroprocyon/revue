@@ -195,8 +195,7 @@ class PublicSetEndpointsTests {
             .andExpect(jsonPath("$.cards[0].answer").value("Answer g."))
             .andExpect(jsonPath("$.cards[0].explanation").value("Explanation g."))
             .andExpect(jsonPath("$.cards[0].source").value("Source g."))
-            // The flashcard shows no key ideas or memory hook, so the trial doesn't receive them.
-            .andExpect(jsonPath("$.cards[0].keyIdeas").doesNotExist())
+            // The flashcard shows no memory hook, so the trial doesn't receive it.
             .andExpect(jsonPath("$.cards[0].memoryHook").doesNotExist());
     }
 
@@ -250,14 +249,7 @@ class PublicSetEndpointsTests {
     void theCardWithoutAnExplanationStillIncludesItsSource() throws Exception {
         List<CardDefinition> cards = new ArrayList<>(cards("p-a", "p-b", "p-c", "p-d"));
         cards.addFirst(
-            new CardDefinition(
-                "p-plain",
-                "A plain question?",
-                "A plain answer.",
-                List.of(),
-                null,
-                null,
-                "Class notes, page 1."));
+            new CardDefinition("p-plain", "A plain question?", "A plain answer.", null, null, "Class notes, page 1."));
         loader.load(List.of(set("plain", "Plain", cards)));
 
         mvc.perform(get(PUBLIC_SETS + "/plain/demo-cards"))
@@ -322,7 +314,6 @@ class PublicSetEndpointsTests {
                     key,
                     "Question " + key + "?",
                     "Answer " + key + ".",
-                    List.of("First idea", "Second idea"),
                     "Explanation " + key + ".",
                     "Hook " + key + ".",
                     "Source " + key + "."));

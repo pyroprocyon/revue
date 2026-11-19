@@ -19,7 +19,7 @@ export function StudyLayout({
       <main
         id="main-content"
         tabIndex={-1}
-        className={`${readingColumn} flex flex-1 flex-col pb-[max(1rem,env(safe-area-inset-bottom))] outline-none sm:flex-none`}
+        className={`${readingColumn} flex flex-1 flex-col pb-[max(1rem,env(safe-area-inset-bottom))] outline-none sm:flex-none ${wide ? '@min-[48rem]/workspace:@max-[64rem]/workspace:pr-[max(2rem,env(safe-area-inset-right))] @min-[48rem]/workspace:@max-[64rem]/workspace:pl-[max(2rem,env(safe-area-inset-left))]' : ''}`}
       >
         {children}
       </main>

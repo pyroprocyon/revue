@@ -39,7 +39,7 @@ for (const width of [375, 1366]) {
       for (let visit = 1; visit <= 2; visit++) {
         const release = await delaySession(page, signedIn);
         await page.route('**/api/v1/me', (route) => route.fulfill({ json: { username: 'storage_learner' } }));
-        await page.route('**/api/v1/cards/due', (route) =>
+        await page.route('**/api/v1/cards/due*', (route) =>
           route.fulfill({
             json: {
               totalCards: 0,

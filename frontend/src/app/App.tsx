@@ -1,10 +1,16 @@
+import { UnsavedDeckChanges } from '../features/catalog/presentation/UnsavedDeckChanges';
 import { ReviewProvider } from '../features/study/presentation/ReviewProvider';
 import { TodayPage } from '../features/study/presentation/TodayPage';
 import { ReviewPage } from '../features/study/presentation/ReviewPage';
 import { httpReviews } from '../features/study/infrastructure/httpReviews';
 import { LibraryProvider } from '../features/catalog/presentation/LibraryProvider';
 import { LibraryPage } from '../features/catalog/presentation/LibraryPage';
+import { LibraryBrowsingLayout } from '../features/catalog/presentation/LibraryBrowsingLayout';
 import { httpLibrary } from '../features/catalog/infrastructure/httpLibrary';
+import { DeckProvider } from '../features/catalog/presentation/DeckProvider';
+import { DeckPage } from '../features/catalog/presentation/DeckPage';
+import { NewDeckPage } from '../features/catalog/presentation/NewDeckPage';
+import { httpDecks } from '../features/catalog/infrastructure/httpDecks';
 import { httpAccount } from '../features/account/infrastructure/httpAccount';
 import { AccountProvider } from '../features/account/presentation/AccountProvider';
 import { AccountForm } from '../features/account/presentation/AccountForm';
@@ -28,8 +34,12 @@ import { TrialPage } from '../features/study/presentation/TrialPage';
 import {
   TODAY_PATH,
   REVIEW_PATH,
+  REVIEW_TOPIC_ROUTE,
+  START_TOPIC_ROUTE,
   HELP_PATH,
   LIBRARY_PATH,
+  NEW_DECK_PATH,
+  DECK_ROUTE,
   HOME_PATH,
   HOW_IT_WORKS_PATH,
   SETS_PATH,
@@ -51,37 +61,47 @@ export function App() {
     <AccountProvider gateway={httpAccount}>
       <ReviewProvider gateway={httpReviews}>
         <LibraryProvider gateway={httpLibrary}>
-          <PublicContentProvider reader={httpPublicContent}>
-            <ScrollOnNavigation />
-            <Routes>
-              <Route element={<PublicSessionLayout />}>
-                <Route path={HOME_PATH} element={<LandingPage />} />
-                <Route path={HOW_IT_WORKS_PATH} element={<HowItWorksPage />} />
-                <Route path={HELP_PATH} element={<HelpPage />} />
-                <Route path={SETS_PATH} element={<SetsPage />} />
-                <Route path={SET_ROUTE} element={<SetPage />} />
-                <Route path={SET_SHARE_ROUTE} element={<SetPage />} />
-                <Route path={TRIAL_ROUTE} element={<TrialPage reader={httpPublicContent} />} />
-                <Route element={<GuestRoute />}>
-                  <Route path={SIGN_IN_PATH} element={<AccountForm key="sign-in" />} />
-                  <Route path={JOIN_PATH} element={<JoinPage />} />
-                  <Route path={INVITE_PATH} element={<AccountForm key="signup" register />} />
-                  <Route path={REGISTER_PATH} element={<AccountForm key="signup" register />} />
+          <DeckProvider gateway={httpDecks}>
+            <PublicContentProvider reader={httpPublicContent}>
+              <ScrollOnNavigation />
+              <Routes>
+                <Route element={<PublicSessionLayout />}>
+                  <Route path={HOME_PATH} element={<LandingPage />} />
+                  <Route path={HOW_IT_WORKS_PATH} element={<HowItWorksPage />} />
+                  <Route path={HELP_PATH} element={<HelpPage />} />
+                  <Route path={SETS_PATH} element={<SetsPage />} />
+                  <Route path={SET_ROUTE} element={<SetPage />} />
+                  <Route path={SET_SHARE_ROUTE} element={<SetPage />} />
+                  <Route path={TRIAL_ROUTE} element={<TrialPage reader={httpPublicContent} />} />
+                  <Route element={<GuestRoute />}>
+                    <Route path={SIGN_IN_PATH} element={<AccountForm key="sign-in" />} />
+                    <Route path={JOIN_PATH} element={<JoinPage />} />
+                    <Route path={INVITE_PATH} element={<AccountForm key="signup" register />} />
+                    <Route path={REGISTER_PATH} element={<AccountForm key="signup" register />} />
+                  </Route>
+                  <Route path={PRIVACY_PATH} element={<PrivacyPage />} />
+                  <Route path={TERMS_PATH} element={<TermsPage />} />
+                  <Route path="*" element={<NotFoundPage />} />
                 </Route>
-                <Route path={PRIVACY_PATH} element={<PrivacyPage />} />
-                <Route path={TERMS_PATH} element={<TermsPage />} />
-                <Route path="*" element={<NotFoundPage />} />
-              </Route>
-              <Route element={<AccountLayout />}>
-                <Route path={TODAY_PATH} element={<TodayPage />} />
-                <Route path={LIBRARY_PATH} element={<LibraryPage />} />
-                <Route path={ACCOUNT_PATH} element={<AccountPage />} />
-              </Route>
-              <Route element={<AccountLayout focused />}>
-                <Route path={REVIEW_PATH} element={<ReviewPage />} />
-              </Route>
-            </Routes>
-          </PublicContentProvider>
+                <Route element={<AccountLayout />}>
+                  <Route path={TODAY_PATH} element={<TodayPage />} />
+                  <Route element={<LibraryBrowsingLayout />}>
+                    <Route path={LIBRARY_PATH} element={<LibraryPage />} />
+                    <Route element={<UnsavedDeckChanges />}>
+                      <Route path={NEW_DECK_PATH} element={<NewDeckPage />} />
+                      <Route path={DECK_ROUTE} element={<DeckPage />} />
+                    </Route>
+                  </Route>
+                  <Route path={ACCOUNT_PATH} element={<AccountPage />} />
+                </Route>
+                <Route element={<AccountLayout focused />}>
+                  <Route path={REVIEW_PATH} element={<ReviewPage />} />
+                  <Route path={REVIEW_TOPIC_ROUTE} element={<ReviewPage />} />
+                  <Route path={START_TOPIC_ROUTE} element={<ReviewPage includeNew />} />
+                </Route>
+              </Routes>
+            </PublicContentProvider>
+          </DeckProvider>
         </LibraryProvider>
       </ReviewProvider>
     </AccountProvider>

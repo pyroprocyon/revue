@@ -1,3 +1,4 @@
+import { useFirstInput } from '../../../shared/ui/useFirstInput';
 import { useQueryClient } from '@tanstack/react-query';
 import { libraryKeys, reviewKeys } from '../../../shared/cache/queryKeys';
 import { publicSessionKey } from '../../../shared/navigation/publicSession';
@@ -22,6 +23,7 @@ const inputStyle =
 
 export function AccountForm({ register = false }: Readonly<{ register?: boolean }>) {
   const gateway = useAccountGateway();
+  const firstInput = useFirstInput(gateway.prepareWrite);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [search] = useSearchParams();
@@ -97,6 +99,7 @@ export function AccountForm({ register = false }: Readonly<{ register?: boolean 
         </output>
       )}
       <form
+        onInput={firstInput}
         id="account-form"
         onSubmit={(event) => void submit(event)}
         className="mt-6 grid gap-4 sm:gap-5"

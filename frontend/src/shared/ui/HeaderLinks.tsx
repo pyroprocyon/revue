@@ -12,7 +12,7 @@ export function HomeLink({ to, compact = false }: Readonly<{ to?: string; compac
   return (
     <Link
       to={to ?? destination}
-      className={`pressable -ml-2 inline-flex min-h-12 items-center gap-2 rounded-control px-2 text-[1.5rem] font-extrabold tracking-tight ${compact ? '' : 'lg:text-[2.1875rem]'}`}
+      className={`pressable -ml-2 inline-flex min-h-12 items-center gap-2 rounded-control px-2 text-[1.5rem] font-extrabold tracking-tight ${compact ? 'workspace-home-link' : 'lg:text-[2.1875rem]'}`}
     >
       <BrandMark className={`size-8 ${compact ? '' : 'lg:size-12'}`} />
       <span>Revue</span>
@@ -35,13 +35,14 @@ export function AllSetsLink() {
 type BackButtonProps = {
   label: string;
   fallbackPath: string;
+  className?: string;
 };
 
 /**
  * Goes back one page, like the phone's back gesture. On the first page of a visit, such as a page
  * opened from a shared link, there is nothing to go back to, so it opens `fallbackPath` instead.
  */
-export function BackButton({ label, fallbackPath }: Readonly<BackButtonProps>) {
+export function BackButton({ label, fallbackPath, className = '' }: Readonly<BackButtonProps>) {
   const navigate = useNavigate();
   const location = useLocation();
   // React Router gives the first page of a visit the key "default".
@@ -59,7 +60,7 @@ export function BackButton({ label, fallbackPath }: Readonly<BackButtonProps>) {
     <button
       type="button"
       onClick={goBack}
-      className="pressable -ml-2 inline-flex min-h-12 min-w-0 items-center gap-1 rounded-control px-2 text-left text-label font-semibold text-muted"
+      className={`pressable -ml-2 inline-flex min-h-12 min-w-0 items-center gap-1 rounded-control px-2 text-left text-label font-semibold text-muted ${className}`}
     >
       <ChevronLeft aria-hidden="true" size={20} strokeWidth={2} className="shrink-0" />
       {label}

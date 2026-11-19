@@ -163,6 +163,36 @@ test('keyboard reveal and tabbing keep enlarged answers and ratings reachable wi
   }
 });
 
+test('rapid flip reversals start at the current angle on a narrow phone', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.goto('/sets/philippine-nature/try');
+  const card = page.locator('.transform-3d');
+  const angleAt = (progress: number) =>
+    card.evaluate((element, fraction) => {
+      const animations = element.getAnimations();
+      for (const animation of animations) {
+        animation.pause();
+        animation.currentTime = Number(animation.effect!.getTiming().duration) * fraction;
+      }
+      const matrix = new DOMMatrixReadOnly(getComputedStyle(element).transform);
+      return (Math.atan2(matrix.m31, matrix.m11) * 180) / Math.PI;
+    }, progress);
+
+  await page.getByRole('button', { name: 'Check answer' }).press('Enter');
+  const turningToAnswer = await angleAt(0.7);
+  expect(turningToAnswer).toBeGreaterThan(90);
+  expect(turningToAnswer).toBeLessThan(178);
+  await page.getByRole('button', { name: 'Back to question' }).press('Enter');
+  expect(Math.abs((await angleAt(0)) - turningToAnswer)).toBeLessThan(2);
+
+  const turningToQuestion = await angleAt(0.7);
+  expect(turningToQuestion).toBeGreaterThan(2);
+  expect(turningToQuestion).toBeLessThan(90);
+  await page.getByRole('button', { name: 'Back to answer' }).press('Enter');
+  expect(Math.abs((await angleAt(0)) - turningToQuestion)).toBeLessThan(2);
+});
+
 test('compact account controls remain reachable at supported widths', async ({ page, pilot }) => {
   await page.goto(pilot.invitation());
   const username = `layout_${randomUUID().replaceAll('-', '').slice(0, 24)}`;

@@ -28,11 +28,7 @@ public final class ContentRules {
 
     private static final int MAX_QUESTION = 500;
 
-    private static final int MAX_ANSWER = 1000;
-
-    private static final int MAX_KEY_IDEAS = 2;
-
-    private static final int MAX_KEY_IDEA = 200;
+    private static final int MAX_ANSWER = 500;
 
     private static final int MAX_EXPLANATION = 2000;
 
@@ -72,24 +68,9 @@ public final class ContentRules {
                     problems.add(label + ": another card in this set asks the same question");
                 }
                 checkText(card.answer(), MAX_ANSWER, label + ": answer", problems);
-                checkKeyIdeas(card.keyIdeas(), label, problems);
                 checkOptionalText(card.explanation(), MAX_EXPLANATION, label + ": explanation", problems);
                 checkOptionalText(card.memoryHook(), MAX_MEMORY_HOOK, label + ": memory_hook", problems);
                 checkText(card.source(), MAX_SOURCE, label + ": source", problems);
-            }
-        }
-    }
-
-    private static void checkKeyIdeas(List<String> keyIdeas, String label, List<String> problems) {
-        if (keyIdeas.size() > MAX_KEY_IDEAS) {
-            problems.add(label + ": key_ideas may list at most two ideas");
-            return;
-        }
-        Set<String> distinct = new HashSet<>();
-        for (String idea : keyIdeas) {
-            checkText(idea, MAX_KEY_IDEA, label + ": key idea", problems);
-            if (!distinct.add(idea.strip())) {
-                problems.add(label + ": key_ideas must be different from each other");
             }
         }
     }

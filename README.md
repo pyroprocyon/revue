@@ -1,18 +1,14 @@
 # Revue
 
-Revue is a study app for Filipino students preparing for classes and exams. Test yourself by answering from memory before checking the card.
+Revue helps you study for classes and exams with flashcards. Try a five-card set, answer each question from memory, then check the answer and its source.
 
 **[Try Revue at revuetayo.com](https://revuetayo.com).** Choose **Browse sets**, pick a subject, then select **Try 5 cards**. You don't need an account.
 
-## What you can do today
+## What you can try
 
-- Browse shared sets on Philippine History, Philippine Nature, and Weather & Disasters.
-- Try five questions, check the answers and their sources, then rate each attempt.
-- Share a set with classmates.
+Choose Philippine History, Philippine Nature, or Weather & Disasters. Rate each attempt and share the set with a classmate. Trial ratings aren’t saved. The example schedule illustrates when a card could return.
 
-Trial attempts aren't saved. The example schedule shows when cards could come back.
-
-Revue is in early development. Invited pilot learners can sign in and manage previously saved sets in Library. Onboarding samples are for practice. Saving will be available for eligible published sets. Removing a set keeps its stored progress. Personal decks and scheduled reviews are still planned.
+Invited pilot learners can manage previously saved sets in Library. Removing a set keeps its progress. The three public samples are for practice.
 
 ## Help and feedback
 

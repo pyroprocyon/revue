@@ -8,6 +8,8 @@ import java.time.ZoneOffset;
 /** Daily scheduling policy. This existing profile deliberately has no short-term steps. */
 public final class DailyReviewScheduler {
     public static final String PROFILE = "fsrs6-java1.0.0-daily-v1";
+    /** The pilot schedules every learner on Philippine calendar days. */
+    public static final ZoneId STUDENT_ZONE = ZoneId.of("Asia/Manila");
     private final MemoryModel model;
 
     public DailyReviewScheduler(MemoryModel model) {
@@ -26,6 +28,10 @@ public final class DailyReviewScheduler {
     /** Schedules a later rating from serialized memory state using the local calendar date. */
     public Recommendation nextReview(String stateJson, ReviewRating rating, Instant reviewedAt, ZoneId studentZone) {
         return recommendation(model.nextReview(stateJson, rating, modelTime(reviewedAt, studentZone)));
+    }
+
+    public static LocalDate studyDate(Instant instant) {
+        return instant.atZone(STUDENT_ZONE).toLocalDate();
     }
 
     private static Instant modelTime(Instant reviewedAt, ZoneId zone) {

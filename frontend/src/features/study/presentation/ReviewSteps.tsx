@@ -8,12 +8,12 @@ const REVIEW_STEPS = [
   {
     icon: ClipboardCheck,
     title: 'Check and rate.',
-    text: 'Base your rating on whether you got it right and how much effort it took.',
+    text: 'Rate how well and how easily you remembered.',
   },
   {
     icon: CalendarClock,
     title: 'Practice again later.',
-    text: 'A tough card might come back tomorrow. One you know well can wait longer.',
+    text: 'Hard cards come back sooner. Easy ones can wait.',
   },
 ];
 
@@ -23,7 +23,7 @@ const REVIEW_STEPS = [
  */
 export function ReviewSteps() {
   return (
-    <ol className="grid gap-6 @2xl:grid-cols-3 @2xl:gap-8">
+    <ol className="grid gap-4 @2xl:grid-cols-3 @2xl:gap-8">
       {REVIEW_STEPS.map(({ icon: Icon, title, text }) => (
         <li key={title} className="flex min-w-0 flex-col gap-4 @min-[20rem]:flex-row">
           <span

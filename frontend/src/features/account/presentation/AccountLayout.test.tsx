@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { MemoryRouter, Route, Routes, useOutletContext } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import type { AccountGateway, AccountProfile } from '../application/account';
+import { sameOriginWrite } from '../../../shared/http/sameOriginRequest';
 import { AccountProvider } from './AccountProvider';
 import { AccountLayout } from './AccountLayout';
 import { AccountPage } from './AccountPage';
@@ -14,6 +15,7 @@ function setup(
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } }),
 ) {
   const gateway: AccountGateway = {
+    prepareWrite: vi.fn(),
     signedIn: vi.fn().mockResolvedValue(false),
     current,
     register: vi.fn(),
@@ -145,6 +147,38 @@ describe('signed-in layout', () => {
     await screen.findByRole('heading', { name: 'second_student' });
     expect((screen.getByRole('textbox', { name: 'Draft' }) as HTMLInputElement).value).toBe('');
     expect(client.getQueryData(['private-library'])).toBeUndefined();
+  });
+
+  it.each([
+    { rejection: 'the server rejects the earlier session’s token', tokenFor: 'first_student', writesSent: 1 },
+    { rejection: 'a fresh token names the learner who signed in elsewhere', tokenFor: 'second_student', writesSent: 0 },
+  ])('rechecks when $rejection, so another learner never inherits the draft', async ({ tokenFor, writesSent }) => {
+    const { gateway } = setup(true);
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Draft' }), {
+      target: { value: 'First learner’s deck' },
+    });
+    const beforeOtherSignIn = deferredProfile();
+    vi.mocked(gateway.current)
+      .mockReturnValueOnce(beforeOtherSignIn.promise)
+      .mockResolvedValueOnce({ username: 'second_student' });
+    fireEvent.focus(window);
+    const fetcher = vi.fn(async (path: string) => {
+      if (path === '/api/v1/auth/csrf')
+        return Response.json({ token: `${tokenFor}-token`, headerName: 'X-XSRF-TOKEN', username: tokenFor });
+      if (path === '/api/v1/auth/session') return Response.json({ signedIn: true });
+      return new Response(null, { status: tokenFor === 'first_student' ? 403 : 201 });
+    });
+    vi.stubGlobal('fetch', fetcher);
+
+    await act(() => sameOriginWrite('/api/v1/decks', { method: 'POST' }));
+    await screen.findByRole('heading', { name: 'second_student' });
+    await act(async () => {
+      beforeOtherSignIn.resolve({ username: 'first_student' });
+    });
+
+    expect(screen.getByRole('heading', { name: 'second_student' })).toBeDefined();
+    expect((screen.getByRole('textbox', { name: 'Draft' }) as HTMLInputElement).value).toBe('');
+    expect(fetcher.mock.calls.filter(([path]) => path === '/api/v1/decks')).toHaveLength(writesSent);
   });
 
   it('rechecks after the tab was hidden and ignores a response from before the return', async () => {

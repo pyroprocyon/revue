@@ -8,7 +8,7 @@ describe('library transport', () => {
     expect(sharedSetId(9223372036854775807n.toString(36))).toBe('9223372036854775807');
     expect(() => sharedSetId('../1')).toThrow();
   });
-  it('treats an aborted save as unknown and uses a fresh CSRF token', async () => {
+  it('treats an aborted save as unknown', async () => {
     const fetcher = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse(200, { token: 'fresh', headerName: 'X-XSRF-TOKEN' }))
@@ -21,7 +21,7 @@ describe('library transport', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(503)));
     await expect(httpLibrary.membership('1')).rejects.toMatchObject({ reason: 'unknown' });
   });
-  it('uses a fresh CSRF token for removal and accepts an empty 204 response', async () => {
+  it('sends the CSRF token with a removal and accepts an empty 204 response', async () => {
     const fetcher = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse(200, { token: 'fresh', headerName: 'X-XSRF-TOKEN' }))
@@ -43,7 +43,8 @@ describe('library transport', () => {
       vi
         .fn()
         .mockResolvedValueOnce(jsonResponse(200, { token: 'fresh', headerName: 'X-XSRF-TOKEN' }))
-        .mockResolvedValueOnce(jsonResponse(status as number)),
+        .mockResolvedValueOnce(jsonResponse(status as number))
+        .mockResolvedValueOnce(jsonResponse(200, { signedIn: true })),
     );
     await expect(httpLibrary.remove('1')).rejects.toMatchObject({ reason });
   });

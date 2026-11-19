@@ -11,12 +11,25 @@ async function signup(page: import('@playwright/test').Page, invitation: string)
   await expect(page.getByRole('heading', { name: 'No cards to review yet' })).toBeVisible();
 }
 
+async function savedSetReviewPath(page: import('@playwright/test').Page) {
+  await page.goto('/library');
+  const start = page.getByRole('link', { name: 'Start review: Published test set', exact: true });
+  await expect(start).toBeVisible();
+  return (await start.getAttribute('href'))!;
+}
+
 async function brandBounds(page: import('@playwright/test').Page) {
   return page.getByRole('link', { name: 'Revue', exact: true }).evaluate((element) => {
     const { x, y, width, height } = element.getBoundingClientRect();
     // Route-entry focus can scroll long pages. Compare positions within the document.
     return { x: x + window.scrollX, y: y + window.scrollY, width, height };
   });
+}
+
+async function settledCardHeight(card: import('@playwright/test').Locator) {
+  await card.evaluate((element) => Promise.allSettled(element.getAnimations().map((animation) => animation.finished)));
+  await expect(card).not.toHaveAttribute('style', /height:/);
+  return card.evaluate((element) => element.clientHeight);
 }
 
 test('saved review survives a lost response, exact retry, reload and removal', async ({ page, pilot }, info) => {
@@ -28,7 +41,9 @@ test('saved review survives a lost response, exact retry, reload and removal', a
   await page.getByRole('button', { name: 'Save to Library' }).click();
   await expect(page.getByText('Saved to your Library')).toBeVisible();
   await page.getByRole('link', { name: 'Revue', exact: true }).click();
-  await page.getByRole('link', { name: 'Review 1 card', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'No cards due today' })).toBeVisible();
+  await page.getByRole('link', { name: 'Open Library' }).click();
+  await page.getByRole('link', { name: 'Start review: Published test set' }).click();
   await expect(page.getByRole('heading', { name: 'Test question', exact: true })).toBeFocused();
   await expect(page.getByRole('heading', { name: 'Test answer', exact: true })).toHaveCount(0);
   await page.getByLabel('Your answer (optional)').fill('private-browser-only-answer');
@@ -45,10 +60,10 @@ test('saved review survives a lost response, exact retry, reload and removal', a
     } else await route.fulfill({ response });
   });
   await page.getByRole('button', { name: /^Good:/ }).click();
-  await expect(page.getByRole('button', { name: 'Retry rating' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Retry rating' })).toBeFocused();
   const queueRequests: string[] = [];
   page.on('request', (request) => {
-    if (request.url().endsWith('/api/v1/cards/due')) queueRequests.push(request.url());
+    if (new URL(request.url()).pathname === '/api/v1/cards/due') queueRequests.push(request.url());
   });
   const sessionRecheck = page.waitForResponse((response) => response.url().endsWith('/api/v1/me'));
   await page.evaluate(() => {
@@ -64,11 +79,13 @@ test('saved review survives a lost response, exact retry, reload and removal', a
   await page.screenshot({ path: info.outputPath('review-unknown.png'), fullPage: true });
   await expect(page.getByText('1 card reviewed', { exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Back to question' }).click();
-  await expect(page.getByLabel('Your answer (optional)')).toHaveValue('private-browser-only-answer');
+  await expect(page.getByRole('textbox', { name: 'Your answer', exact: true })).toHaveValue(
+    'private-browser-only-answer',
+  );
   await page.getByRole('button', { name: 'Back to answer' }).click();
   await page.getByRole('button', { name: 'Retry rating' }).click();
   await expect(page.getByRole('heading', { name: '1 card reviewed', exact: true })).toBeVisible();
-  await expect(page.getByText('All caught up.', { exact: true })).toBeVisible();
+  await expect(page.getByText('This topic is caught up.', { exact: true })).toBeVisible();
   await page.screenshot({ path: info.outputPath('review-complete.png'), fullPage: true });
   expect(payloads).toHaveLength(2);
   expect(payloads[1]).toBe(payloads[0]);
@@ -78,7 +95,7 @@ test('saved review survives a lost response, exact retry, reload and removal', a
   await expect(page.getByRole('heading', { name: 'All caught up', exact: true })).toBeVisible();
   await page.getByRole('link', { name: 'Library', exact: true }).click();
   await page.getByRole('button', { name: 'Remove from Library: Published test set', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'No saved sets' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Saved sets', exact: true })).toHaveCount(0);
   await page.goto('/sets/published-test-set');
   await page.getByRole('button', { name: 'Save to Library' }).click();
   await expect(page.getByText('Saved to your Library')).toBeVisible();
@@ -86,8 +103,104 @@ test('saved review survives a lost response, exact retry, reload and removal', a
   await expect(page.getByRole('heading', { name: 'All caught up', exact: true })).toBeVisible();
 });
 
+test('Study rhythm uses the weekly strip on wide screens and fits enlarged text on a phone', async ({
+  page,
+  pilot,
+}, info) => {
+  const title = 'Cell transport and membrane transport mechanisms';
+  await signup(page, pilot.invitation());
+  await page.route('**/api/v1/cards/due*', (route) =>
+    route.fulfill({
+      json: {
+        topics: [
+          { id: 'set-1', title: 'Science quick review', dueCards: 2 },
+          { id: 'deck-1', title, dueCards: 7 },
+          { id: 'deck-2', title: 'History', dueCards: 1 },
+        ],
+        studyDays: Array.from({ length: 7 }, (_, index) => ({
+          date: `2026-11-${11 + index}`,
+          studied: [2, 4, 6].includes(index),
+        })),
+        cards: [],
+        totalCards: 10,
+        availableCards: 10,
+        dueCards: 10,
+        newCards: 0,
+        nextReviewDate: null,
+      },
+    }),
+  );
+  await page.reload();
+  const firstAction = page.getByRole('link', { name: 'Review 2 cards' });
+  const studied = page.getByRole('heading', { name: '3 days studied' });
+  const days = page.getByRole('list', { name: 'Recent study days' });
+  const firstTopic = page.getByRole('heading', { name: 'Science quick review' });
+  const otherTopics = page.getByText('Other topics', { exact: true });
+  await expect(firstAction).toHaveAttribute('href', '/review/set-1');
+  await expect(studied).toBeVisible();
+  const next = page.getByRole('region', { name: 'Up next' });
+  for (const [width, height, wide, contentWidth] of [
+    [375, 667, false, 343],
+    [768, 1024, true, 704],
+    [1440, 900, true, 1024],
+  ] as const) {
+    await page.setViewportSize({ width, height });
+    await page.evaluate(() => document.fonts.ready);
+    expect((await next.boundingBox())!.width).toBe(contentWidth);
+    for (const [first, second] of [
+      [studied, days],
+      [firstTopic, firstAction],
+    ]) {
+      const left = (await first.boundingBox())!;
+      const right = (await second.boundingBox())!;
+      if (wide) {
+        expect(right.x).toBeGreaterThanOrEqual(left.x + left.width);
+        expect(right.y).toBeLessThan(left.y + left.height);
+        expect(left.y).toBeLessThan(right.y + right.height);
+      } else {
+        expect(right.y).toBeGreaterThanOrEqual(left.y + left.height);
+      }
+    }
+    if (wide) {
+      await otherTopics.press('Enter');
+      const cards = page.getByRole('group', { name: 'Review topics' }).getByRole('button');
+      const positions = await cards.evaluateAll((buttons) =>
+        buttons.map((button) => {
+          const [title, due] = button.children;
+          const heading = title.getBoundingClientRect();
+          return { titleTop: heading.top, titleBottom: heading.bottom, dueTop: due.getBoundingClientRect().top };
+        }),
+      );
+      expect(positions).toHaveLength(3);
+      expect(new Set(positions.map(({ titleTop }) => titleTop)).size).toBe(1);
+      expect(new Set(positions.map(({ dueTop }) => dueTop)).size).toBe(1);
+      expect(positions.every(({ titleBottom, dueTop }) => dueTop >= titleBottom)).toBe(true);
+      await otherTopics.press('Enter');
+    }
+    await page.screenshot({ path: info.outputPath(`study-rhythm-${width}.png`), fullPage: true });
+  }
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = '200%';
+  });
+  const topic = page.getByRole('button', { name: title });
+  const heading = page.getByRole('heading', { name: title });
+  const start = page.getByRole('link', { name: 'Start with 5' });
+  await expect(topic).toBeHidden();
+  await otherTopics.press('Enter');
+  await topic.press('Enter');
+  await expect(topic).toHaveAttribute('aria-pressed', 'true');
+  await expect(heading).toBeVisible();
+  await expect(start).toBeFocused();
+  await expect(start).toHaveAttribute('href', '/review/deck-1');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
+  await page.screenshot({ path: info.outputPath('study-rhythm-320-enlarged.png'), fullPage: true });
+});
+
 test('Today and saved recall remain usable across widths and enlarged text', async ({ page, pilot }, info) => {
   let ratings = 0;
+  let started = false;
   page.on('request', (request) => {
     if (request.url().includes('/api/v1/reviews/')) ratings += 1;
   });
@@ -115,12 +228,18 @@ test('Today and saved recall remain usable across widths and enlarged text', asy
     await page.evaluate((size) => {
       document.documentElement.style.fontSize = size;
     }, textSize);
-    await expect(page.getByRole('link', { name: 'Review 1 card' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: started ? 'Continue review' : 'No cards due today' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Your review', exact: true })).toBeVisible();
     await page.evaluate(() => window.scrollTo({ top: 0, left: 0, behavior: 'instant' }));
     const homeBrand = await brandBounds(page);
     await page.screenshot({ path: info.outputPath(`today-${width}.png`), fullPage: true });
-    await page.getByRole('link', { name: 'Review 1 card' }).click();
+    if (started) {
+      await page.getByRole('link', { name: 'Continue', exact: true }).click();
+    } else {
+      await page.getByRole('link', { name: 'Open Library' }).click();
+      await page.getByRole('link', { name: 'Start review: Published test set' }).click();
+      started = true;
+    }
     await expect(page.getByRole('link', { name: 'Help', exact: true })).toHaveCount(0);
     await expect(page.getByRole('progressbar', { name: 'Batch progress' })).toHaveAttribute('value', '0');
     await expect(page.getByRole('heading', { name: 'Test question', exact: true })).toBeFocused();
@@ -145,11 +264,9 @@ test('Today and saved recall remain usable across widths and enlarged text', asy
     });
     await page.getByRole('button', { name: 'Show answer' }).focus();
     await page.keyboard.press('Enter');
-    const rotatingCard = page.locator('.transform-3d');
-    await expect(rotatingCard).toHaveCSS('animation-name', width === 320 ? 'none' : 'flip-to-back');
-    await rotatingCard.evaluate((element) =>
-      Promise.all(element.getAnimations().map((animation) => animation.finished)),
-    );
+    const rotatingCard = page.locator('[data-card-frame]');
+    await expect(rotatingCard).toHaveCSS('transition-duration', width === 320 ? '0s' : '0.5s');
+    const revealedHeight = await settledCardHeight(rotatingCard);
     await expect(page.getByRole('heading', { name: 'Test answer', exact: true })).toBeFocused();
     await expect(page.getByRole('heading', { name: 'Test question', exact: true })).toHaveCount(0);
     await expect(
@@ -172,15 +289,19 @@ test('Today and saved recall remain usable across widths and enlarged text', asy
     await page.getByRole('button', { name: 'Back to question' }).click();
     await expect(page.getByRole('heading', { name: 'Test question', exact: true })).toBeFocused();
     await expect(page.getByRole('button', { name: /^Good:/ })).toHaveCount(0);
-    await expect(page.getByLabel('Your answer (optional)')).toHaveValue('A draft kept when the viewport changes');
+    await expect(page.getByRole('textbox', { name: 'Your answer', exact: true })).toHaveValue(
+      'A draft kept when the viewport changes',
+    );
+    expect(await settledCardHeight(rotatingCard)).toBe(revealedHeight);
     await page.getByRole('button', { name: 'Back to answer' }).focus();
     await page.keyboard.press('Space');
     await expect(page.getByRole('heading', { name: 'Test answer', exact: true })).toBeFocused();
+    expect(await settledCardHeight(rotatingCard)).toBe(revealedHeight);
     await expect(page.getByRole('progressbar', { name: 'Batch progress' })).toHaveAttribute('value', '0');
   }
   expect(ratings).toBe(0);
   await page.getByRole('link', { name: 'Finish for now' }).click();
-  await expect(page.getByRole('link', { name: 'Review 1 card' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Continue', exact: true })).toBeVisible();
 });
 
 test('review session checks stay quiet and preserve the layout on iPhone SE', async ({ page, pilot }, info) => {
@@ -189,7 +310,7 @@ test('review session checks stay quiet and preserve the layout on iPhone SE', as
   await page.goto('/sets/published-test-set');
   await page.getByRole('button', { name: 'Save to Library' }).click();
   await expect(page.getByText('Saved to your Library')).toBeVisible();
-  await page.goto('/review');
+  await page.goto(await savedSetReviewPath(page));
   await page.getByLabel('Your answer (optional)').fill('Keep my answer while checking the session');
 
   for (const [width, height, textSize] of [
@@ -247,17 +368,83 @@ test('a stale tab refreshes after another tab saves without claiming a second re
   await page.goto('/sets/published-test-set');
   await page.getByRole('button', { name: 'Save to Library' }).click();
   await expect(page.getByText('Saved to your Library')).toBeVisible();
-  await page.goto('/review');
+  const reviewPath = await savedSetReviewPath(page);
+  await page.goto(reviewPath);
   await page.getByRole('button', { name: 'Show answer' }).click();
   const second = await context.newPage();
-  await second.goto(`${pilot.origin}/review`);
+  await second.goto(`${pilot.origin}${reviewPath}`);
   await second.getByRole('button', { name: 'Show answer' }).click();
   await page.getByRole('button', { name: /^Good:/ }).click();
   await expect(page.getByRole('heading', { name: '1 card reviewed', exact: true })).toBeFocused();
   await second.getByRole('button', { name: /^Hard:/ }).click();
   await expect(second.getByRole('status')).toContainText('another tab');
   await expect(second.getByRole('heading', { name: '0 cards reviewed', exact: true })).toBeFocused();
-  await expect(second.getByText('All caught up.', { exact: true })).toBeVisible();
+  await expect(second.getByText('This topic is caught up.', { exact: true })).toBeVisible();
   await second.getByRole('link', { name: 'Back to Today' }).click();
   await expect(second.getByRole('heading', { name: 'All caught up', exact: true })).toBeVisible();
+});
+
+test('Today resumes a fresh review after Finish for now and a reload', async ({ page, pilot }, info) => {
+  pilot.addSaveableSet();
+  await signup(page, pilot.invitation());
+  await page.goto('/sets/published-test-set');
+  await page.getByRole('button', { name: 'Save to Library' }).click();
+  await expect(page.getByText('Saved to your Library')).toBeVisible();
+  await page.goto(await savedSetReviewPath(page));
+  await expect(page.getByRole('button', { name: 'Show answer' })).toBeVisible();
+  await page.getByRole('link', { name: 'Finish for now' }).click();
+  const continuation = page.getByRole('link', { name: 'Continue', exact: true });
+  await expect(continuation).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'No cards due today' })).toHaveCount(0);
+  await page.reload();
+  await expect(continuation).toBeVisible();
+  for (const width of [375, 1280]) {
+    await page.setViewportSize({ width, height: width === 375 ? 667 : 800 });
+    await page.screenshot({ path: info.outputPath(`continue-review-${width}.png`), fullPage: true });
+  }
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  const enlarged = await page.addStyleTag({ content: 'html { font-size: 200%; }' });
+  await expect(continuation).toBeVisible();
+  await continuation.scrollIntoViewIfNeeded();
+  await expect(page.getByRole('heading', { name: 'Published test set' })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: info.outputPath('continue-review-enlarged.png'), fullPage: true });
+  await enlarged.evaluate((element) => element.parentNode?.removeChild(element));
+  await continuation.focus();
+  await expect(continuation).toBeFocused();
+  await page.keyboard.press('Enter');
+  await page.getByRole('button', { name: 'Show answer' }).click();
+  await page.getByRole('button', { name: /^Good:/ }).click();
+  await expect(page.getByRole('heading', { name: '1 card reviewed', exact: true })).toBeVisible();
+  await page.getByRole('link', { name: 'Back to Today' }).click();
+  await expect(page.getByRole('heading', { name: 'All caught up' })).toBeVisible();
+  await expect(continuation).toHaveCount(0);
+});
+
+test('Today refreshes the open page when the Manila study day changes', async ({ page, pilot }) => {
+  await signup(page, pilot.invitation());
+  await page.clock.install({ time: new Date('2026-12-31T15:55:00Z') });
+  let newDay = false;
+  await page.route('**/api/v1/cards/due*', (route) =>
+    route.fulfill({
+      json: {
+        totalCards: 2,
+        availableCards: 2,
+        dueCards: newDay ? 2 : 0,
+        newCards: 0,
+        cards: [],
+        topics: newDay ? [{ id: 'deck-1', title: 'Geography', dueCards: 2 }] : [],
+        studyDays: [],
+        nextReviewDate: '2027-01-01',
+      },
+    }),
+  );
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'All caught up' })).toBeVisible();
+  await page.clock.fastForward('04:00');
+  await expect(page.getByRole('heading', { name: 'All caught up' })).toBeVisible();
+  newDay = true;
+  await page.clock.fastForward('01:05');
+  await expect(page.getByRole('link', { name: 'Review 2 cards' })).toBeVisible();
 });

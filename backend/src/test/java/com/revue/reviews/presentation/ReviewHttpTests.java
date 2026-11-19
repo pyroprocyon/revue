@@ -92,6 +92,147 @@ class ReviewHttpTests {
     }
 
     @Test
+    void studyRhythmShowsSevenManilaDatesFromTheLearnersConfirmedRatings() throws Exception {
+        var learner = new Browser();
+        var other = new Browser();
+        long set = publication(4);
+        learner.save(set);
+        other.save(set);
+        var cards = jdbc.queryForList("select id from cards where set_id = ? order by position", Long.class, set);
+
+        now.set(Instant.parse("2026-11-06T16:00:00Z"));
+        assertThat(learner.rate(cards.get(0), rating("GOOD", 0)).getResponse().getStatus()).isEqualTo(200);
+        now.set(Instant.parse("2026-11-07T16:00:00Z"));
+        assertThat(learner.rate(cards.get(1), rating("AGAIN", 0)).getResponse().getStatus()).isEqualTo(200);
+        now.set(Instant.parse("2026-11-13T15:59:59Z"));
+        assertThat(learner.rate(cards.get(2), rating("GOOD", 0)).getResponse().getStatus()).isEqualTo(200);
+        assertThat(learner.rate(cards.get(3), rating("HARD", 0)).getResponse().getStatus()).isEqualTo(200);
+        now.set(Instant.parse("2026-11-13T16:00:00Z"));
+        assertThat(other.rate(cards.get(0), rating("GOOD", 0)).getResponse().getStatus()).isEqualTo(200);
+
+        var days = body(learner.send(get("/api/v1/cards/due"))).path("studyDays");
+        assertThat(days.valueStream().map(day -> day.get("date").asString()).toList()).containsExactly(
+            "2026-11-08",
+            "2026-11-09",
+            "2026-11-10",
+            "2026-11-11",
+            "2026-11-12",
+            "2026-11-13",
+            "2026-11-14");
+        assertThat(
+            days.valueStream()
+                .filter(day -> day.get("studied").asBoolean())
+                .map(day -> day.get("date").asString())
+                .toList())
+            .containsExactly("2026-11-08", "2026-11-13");
+        assertThat(body(learner.send(get("/api/v1/cards/due?topic=set-" + set))).get("studyDays").isEmpty()).isTrue();
+    }
+
+    @Test
+    void readyQueuesAndLibraryReadsDoNotWaitForAnotherStudyTransaction() throws Exception {
+        var learner = new Browser();
+        learner.save(publication(2));
+        try (var workers = Executors.newVirtualThreadPerTaskExecutor()) {
+            new TransactionTemplate(transactions).executeWithoutResult(_ -> {
+                jdbc.queryForObject("select id from users where id = ? for no key update", UUID.class, learner.id);
+                var reads = workers.submit(() -> {
+                    var queue = learner.send(get("/api/v1/cards/due?summaryOnly=true"));
+                    var library = learner.send(get("/api/v1/me/saved-sets"));
+                    assertThat(List.of(queue.getResponse().getStatus(), library.getResponse().getStatus()))
+                        .containsExactly(200, 200);
+                    return true;
+                });
+                org.assertj.core.api.Assertions
+                    .assertThatCode(() -> reads.get(5, java.util.concurrent.TimeUnit.SECONDS))
+                    .doesNotThrowAnyException();
+            });
+        }
+        jdbc.update("update users set credential_version = credential_version + 1 where id = ?", learner.id);
+        assertThat(learner.send(get("/api/v1/me/saved-sets")).getResponse().getStatus()).isEqualTo(401);
+    }
+
+    @Test
+    void scopedQueueRepairsOnlyItsOwnMissingSchedules() throws Exception {
+        var learner = new Browser();
+        long first = publication(2);
+        long second = publication(3);
+        learner.save(first);
+        learner.save(second);
+        jdbc.update("delete from schedules where user_id = ?", learner.id);
+        var queue = body(learner.send(get("/api/v1/cards/due?includeNew=true&topic=set-" + first)));
+        assertThat(queue.get("cards").size()).isEqualTo(2);
+        assertThat(jdbc.queryForList("""
+            select distinct c.set_id from schedules s join cards c on c.id = s.card_id where s.user_id = ?
+            """, Long.class, learner.id)).containsExactly(first);
+        long card = queue.get("cards").get(0).get("id").asLong();
+        assertThat(learner.rate(card, rating("GOOD", 0)).getResponse().getStatus()).isEqualTo(200);
+        assertThat(body(learner.send(get("/api/v1/cards/due?summaryOnly=true"))).get("newCards").asInt()).isEqualTo(4);
+    }
+
+    @Test
+    void summariesPreserveCountsWithoutReturningCardsAndInitializeMissingSchedules() throws Exception {
+        var learner = new Browser();
+        long set = publication(3);
+        learner.save(set);
+        var original = body(learner.send(get("/api/v1/cards/due")));
+        long first = original.get("cards").get(0).get("id").asLong();
+        long missing = original.get("cards").get(1).get("id").asLong();
+        assertThat(learner.rate(first, rating("GOOD", 0)).getResponse().getStatus()).isEqualTo(200);
+        jdbc.update("delete from schedules where user_id = ? and card_id = ?", learner.id, missing);
+        var summary = body(learner.send(get("/api/v1/cards/due?summaryOnly=true")));
+        assertThat(summary.get("cards").isEmpty()).isTrue();
+        assertThat(summary.get("newCards").asInt()).isEqualTo(2);
+        assertThat(summary.get("totalCards").asInt()).isEqualTo(3);
+        assertThat(jdbc.queryForObject("select count(*) from schedules where user_id = ?", Integer.class, learner.id))
+            .isEqualTo(3);
+        assertThat(
+            jdbc.queryForObject(
+                "select version from schedules where user_id = ? and card_id = ?",
+                Long.class,
+                learner.id,
+                first))
+            .isEqualTo(1);
+        var scoped = body(learner.send(get("/api/v1/cards/due?summaryOnly=true&includeNew=true&topic=set-" + set)));
+        assertThat(scoped.get("cards").isEmpty()).isTrue();
+        assertThat(scoped.get("newCards").asInt()).isEqualTo(2);
+        assertThat(scoped.get("topicTitle").asString()).isNotBlank();
+        String combinedPath = "/api/v1/cards/due?summaryOnly=true&pausedTopic=set-" + set;
+        var combined = body(learner.send(get(combinedPath)));
+        assertThat(combined.get("studyDays")).isEqualTo(summary.get("studyDays"));
+        assertThat(combined.get("cards").isEmpty()).isTrue();
+        for (String field : List.of("topicTitle", "dueCards", "newCards", "unintroducedCards")) {
+            assertThat(combined.get("continuation").get(field)).isEqualTo(scoped.get(field));
+        }
+        var inaccessible = body(new Browser().send(get(combinedPath))).get("continuation");
+        assertThat(inaccessible.get("newCards").asInt()).isZero();
+        assertThat(inaccessible.path("topicTitle").isNull()).isTrue();
+        var batch = body(learner.send(get("/api/v1/cards/due?includeNew=true&topic=set-" + set)));
+        assertThat(batch.get("cards").size()).isEqualTo(2);
+        assertThat(batch.get("cards").get(0).get("question").asString()).isNotBlank();
+    }
+
+    @Test
+    void ratingsOnlyRewriteStudyDatesWhenAnotherDateCanBeRecorded() throws Exception {
+        var learner = new Browser();
+        long set = publication(4);
+        learner.save(set);
+        var ids = jdbc.queryForList("select id from cards where set_id = ? order by id", Long.class, set);
+        assertThat(learner.rate(ids.get(0), rating("GOOD", 0)).getResponse().getStatus()).isEqualTo(200);
+        String firstTuple = jdbc.queryForObject("select ctid::text from users where id = ?", String.class, learner.id);
+        assertThat(learner.rate(ids.get(1), rating("GOOD", 0)).getResponse().getStatus()).isEqualTo(200);
+        assertThat(jdbc.queryForObject("select ctid::text from users where id = ?", String.class, learner.id))
+            .isEqualTo(firstTuple);
+        now.set(Instant.parse("2026-11-14T12:00:00Z"));
+        assertThat(learner.rate(ids.get(2), rating("GOOD", 0)).getResponse().getStatus()).isEqualTo(200);
+        assertThat(jdbc.queryForObject("select second_study_date from users where id = ?", LocalDate.class, learner.id))
+            .isEqualTo(LocalDate.of(2026, 11, 14));
+        String secondTuple = jdbc.queryForObject("select ctid::text from users where id = ?", String.class, learner.id);
+        assertThat(learner.rate(ids.get(3), rating("GOOD", 0)).getResponse().getStatus()).isEqualTo(200);
+        assertThat(jdbc.queryForObject("select ctid::text from users where id = ?", String.class, learner.id))
+            .isEqualTo(secondTuple);
+    }
+
+    @Test
     void duplicateAndCompetingRatingsHaveOneWinner() throws Exception {
         var learner = new Browser();
         long set = publication(2);
@@ -136,7 +277,17 @@ class ReviewHttpTests {
         }
         var queue = body(learner.send(get("/api/v1/cards/due")));
         assertThat(queue.get("cards").isEmpty()).isTrue();
-        assertThat(queue.get("nextReviewDate").asString()).isEqualTo("2026-11-14");
+        var earliestSchedule = jdbc.queryForObject(
+            "select min(next_review_date) from schedules where user_id = ? and version > 0",
+            LocalDate.class,
+            learner.id);
+        assertThat(earliestSchedule).isAfter(LocalDate.parse("2026-11-14"));
+        assertThat(queue.get("nextReviewDate").asString()).isEqualTo(earliestSchedule.toString());
+        assertThat(queue.get("unintroducedCards").asInt()).isEqualTo(1);
+        var paused = body(learner.send(get("/api/v1/cards/due?summaryOnly=true&pausedTopic=set-" + set)))
+            .get("continuation");
+        assertThat(paused.get("newCards").asInt()).isZero();
+        assertThat(paused.get("unintroducedCards").asInt()).isOne();
         learner.send(delete("/api/v1/sets/" + set + "/save"));
         long replacement = publication(1);
         learner.save(replacement);
@@ -228,7 +379,71 @@ class ReviewHttpTests {
     }
 
     @Test
-    void validationAndAccessNeverWriteAndChangedTextKeepsDisplayedVersion() throws Exception {
+    void topicPickerListsDueCollectionsAndScopedBatchesKeepTheirOwnCards() throws Exception {
+        var learner = new Browser();
+        long first = publication(3);
+        long second = publication(2);
+        long newOnly = publication(1);
+        for (long set : List.of(first, second, newOnly)) {
+            learner.save(set);
+        }
+        var firstCards = jdbc
+            .queryForList("select id from cards where set_id = ? order by position", Long.class, first);
+        var secondCards = jdbc
+            .queryForList("select id from cards where set_id = ? order by position", Long.class, second);
+        for (long card : List.of(firstCards.get(0), firstCards.get(1), secondCards.get(0))) {
+            assertThat(learner.rate(card, rating("GOOD", 0)).getResponse().getStatus()).isEqualTo(200);
+        }
+        jdbc.update(
+            "update schedules set next_review_date = date '2026-11-12' where user_id = ? and card_id in (?, ?)",
+            learner.id,
+            firstCards.get(0),
+            secondCards.get(0));
+        var due = body(learner.send(get("/api/v1/cards/due")));
+        assertThat(due.get("topics").valueStream().map(topic -> topic.get("id").asString()).toList())
+            .containsExactlyInAnyOrder("set-" + first, "set-" + second);
+        assertThat(due.get("topics").valueStream().map(topic -> topic.get("dueCards").asInt()).toList())
+            .containsExactly(1, 1);
+
+        String path = "/api/v1/cards/due?topic=set-" + first;
+        var topic = body(learner.send(get(path)));
+        assertThat(topic.get("cards").valueStream().map(card -> card.get("id").asLong()).toList())
+            .containsExactly(firstCards.getFirst());
+        assertThat(topic.get("newCards").asInt()).isZero();
+        var started = body(learner.send(get(path + "&includeNew=true")));
+        assertThat(started.get("cards").valueStream().map(card -> card.get("id").asLong()).toList())
+            .containsExactly(firstCards.getFirst(), firstCards.getLast());
+        var other = new Browser();
+        assertThat(body(other.send(get(path + "&includeNew=true"))).get("cards").isEmpty()).isTrue();
+        assertThat(learner.send(get("/api/v1/cards/due?topic=wrong-1")).getResponse().getStatus()).isEqualTo(422);
+    }
+
+    @Test
+    void topicsWithTiedOldestCardsFollowTheQueueOrder() throws Exception {
+        var learner = new Browser();
+        long older = publication(1);
+        long newer = publication(1);
+        jdbc.update("update sets set title = 'Zoology', created_at = timestamptz '2026-01-01Z' where id = ?", older);
+        jdbc.update("update sets set title = 'Algebra', created_at = timestamptz '2026-02-01Z' where id = ?", newer);
+        long olderCard = jdbc.queryForObject("select id from cards where set_id = ?", Long.class, older);
+        long newerCard = jdbc.queryForObject("select id from cards where set_id = ?", Long.class, newer);
+        for (long set : List.of(older, newer)) {
+            learner.save(set);
+        }
+        for (long card : List.of(olderCard, newerCard)) {
+            assertThat(learner.rate(card, rating("GOOD", 0)).getResponse().getStatus()).isEqualTo(200);
+        }
+        jdbc.update("update schedules set next_review_date = date '2026-11-12' where user_id = ?", learner.id);
+
+        var due = body(learner.send(get("/api/v1/cards/due")));
+
+        assertThat(due.get("cards").get(0).get("id").asLong()).isEqualTo(olderCard);
+        assertThat(due.get("topics").valueStream().map(topic -> topic.get("id").asString()).toList())
+            .containsExactly("set-" + older, "set-" + newer);
+    }
+
+    @Test
+    void validationAndAccessNeverWriteAndReusedRequestsAreRefused() throws Exception {
         var learner = new Browser();
         long set = publication(1);
         long card = jdbc.queryForObject("select id from cards where set_id = ?", Long.class, set);
@@ -245,17 +460,83 @@ class ReviewHttpTests {
                 .getStatus())
             .isEqualTo(403);
         assertThat(mvc.perform(get("/api/v1/cards/due")).andReturn().getResponse().getStatus()).isEqualTo(401);
-        jdbc.update("update cards set content_version = 2 where id = ?", card);
         var input = rating("GOOD", 0);
         assertThat(learner.rate(card, input).getResponse().getStatus()).isEqualTo(200);
+        var changed = ReviewStore.Rating.parse("EASY", "ANSWERED", input.requestId(), 0, 1);
+        assertThat(body(learner.rate(card, changed)).get("reason").asString()).isEqualTo("REQUEST_REUSED");
+    }
+
+    @Test
+    void ratingEditedTextIsRefusedWithTheCurrentCardAndTheRevisedAttemptCountsOnce() throws Exception {
+        var learner = new Browser();
+        long set = publication(1);
+        learner.save(set);
+        long card = jdbc.queryForObject("select id from cards where set_id = ?", Long.class, set);
+        jdbc.update("update cards set question = 'Revised question', content_version = 2 where id = ?", card);
+
+        var refused = learner.rate(card, rating("GOOD", 0));
+
+        assertThat(refused.getResponse().getStatus()).isEqualTo(409);
+        JsonNode problem = body(refused);
+        assertThat(problem.get("reason").asString()).isEqualTo("CONTENT_CHANGED");
+        assertThat(problem.get("card").get("question").asString()).isEqualTo("Revised question");
+        assertThat(problem.get("card").get("contentVersion").asInt()).isEqualTo(2);
+        assertThat(problem.get("card").get("version").asLong()).isZero();
+        assertUnchanged(learner.id);
+        var revised = ReviewStore.Rating.parse("GOOD", "ANSWERED", UUID.randomUUID(), 0, 2);
+        assertThat(learner.rate(card, revised).getResponse().getStatus()).isEqualTo(200);
         assertThat(
             jdbc.queryForObject(
                 "select reviewed_content_version from review_logs where user_id = ?",
                 Integer.class,
                 learner.id))
-            .isEqualTo(1);
-        var changed = ReviewStore.Rating.parse("EASY", "ANSWERED", input.requestId(), 0, 1);
-        assertThat(body(learner.rate(card, changed)).get("reason").asString()).isEqualTo("REQUEST_REUSED");
+            .isEqualTo(2);
+    }
+
+    @Test
+    void anExactRetryAfterAnEditReturnsTheSavedRatingWithoutCountingItAgain() throws Exception {
+        var learner = new Browser();
+        long set = publication(1);
+        learner.save(set);
+        long card = jdbc.queryForObject("select id from cards where set_id = ?", Long.class, set);
+        var input = rating("GOOD", 0);
+        var saved = learner.rate(card, input);
+        jdbc.update("update cards set question = 'Revised question', content_version = 2 where id = ?", card);
+
+        var retried = learner.rate(card, input);
+
+        assertThat(retried.getResponse().getStatus()).isEqualTo(200);
+        assertThat(body(retried)).isEqualTo(body(saved));
+        assertThat(jdbc.queryForObject("select count(*) from review_logs where user_id = ?", Integer.class, learner.id))
+            .isOne();
+        assertThat(jdbc.queryForObject("select version from schedules where user_id = ?", Long.class, learner.id))
+            .isOne();
+    }
+
+    @Test
+    void anEditCommittingDuringTheRatingIsSeenBeforeTheRatingIsAccepted() throws Exception {
+        var learner = new Browser();
+        long set = publication(1);
+        learner.save(set);
+        long card = jdbc.queryForObject("select id from cards where set_id = ?", Long.class, set);
+        try (var workers = Executors.newVirtualThreadPerTaskExecutor()) {
+            var pending = new AtomicReference<java.util.concurrent.Future<MvcResult>>();
+            new TransactionTemplate(transactions).executeWithoutResult(_ -> {
+                jdbc.update("update cards set content_version = 2 where id = ?", card);
+                pending.set(workers.submit(() -> learner.rate(card, rating("GOOD", 0))));
+                org.awaitility.Awaitility.await()
+                    .atMost(java.time.Duration.ofSeconds(5))
+                    .until(() -> jdbc.queryForObject("""
+                        select count(*) from pg_stat_activity
+                        where datname = current_database() and wait_event_type = 'Lock'
+                        and query like '%for share of c%' and pid <> pg_backend_pid()
+                        """, Integer.class) > 0);
+            });
+            var result = pending.get().get(5, java.util.concurrent.TimeUnit.SECONDS);
+            assertThat(result.getResponse().getStatus()).isEqualTo(409);
+            assertThat(body(result).get("reason").asString()).isEqualTo("CONTENT_CHANGED");
+            assertUnchanged(learner.id);
+        }
     }
 
     @Test
@@ -419,6 +700,21 @@ class ReviewHttpTests {
             .isZero();
         assertThat(jdbc.queryForObject("select first_study_date from users where id = ?", LocalDate.class, learner))
             .isNull();
+    }
+
+    @Test
+    void storedKeyIdeasStayHiddenBehindTheEmptyListThePreviousFrontendReads() throws Exception {
+        var learner = new Browser();
+        learner.save(publication(1));
+        JsonNode card = body(learner.send(get("/api/v1/cards/due"))).get("cards").get(0);
+        assertThat(
+            jdbc.queryForObject(
+                "select cardinality(key_ideas) from cards where id = ?",
+                Integer.class,
+                card.get("id").asLong()))
+            .isOne();
+        assertThat(card.get("keyIdeas").isArray()).isTrue();
+        assertThat(card.get("keyIdeas").isEmpty()).isTrue();
     }
 
     private ReviewStore.Rating rating(String value, long version) {

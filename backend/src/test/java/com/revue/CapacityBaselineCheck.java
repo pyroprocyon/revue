@@ -43,7 +43,6 @@ class CapacityBaselineCheck {
                         key + "-" + card,
                         "Synthetic question " + card + "?",
                         "Answer",
-                        List.of("Answer"),
                         null,
                         null,
                         "Synthetic source"))

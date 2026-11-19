@@ -6,6 +6,7 @@ import com.revue.identity.domain.TokenHash;
 import com.revue.identity.domain.Username;
 import java.time.Clock;
 import java.util.Optional;
+import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
 
 /** Coordinates invited registration, password verification and learner sessions. */
@@ -100,20 +101,40 @@ public class AccountService {
         if (current.isEmpty()) {
             return Optional.empty();
         }
-        var identity = current.get();
+        var eligible = eligible(current.get());
+        if (eligible.isEmpty()) {
+            session.clear();
+        }
+        return eligible;
+    }
+
+    private Optional<EligibleAccount> eligible(AccountSession.Identity identity) {
         Account account = accounts.byId(identity.accountId()).map(AccountQueries.Credentials::account).orElse(null);
         if (account == null
             || account.credentialVersion() != identity.credentialVersion()
             || account.accessAt(clock.instant()) != Account.Access.ACTIVE
             || account.username() == null) {
-            session.clear();
             return Optional.empty();
         }
         return Optional.of(new EligibleAccount(identity, new Profile(account.username().value())));
     }
 
-    public AccountSession.Csrf csrf() {
-        return session.csrf();
+    /**
+     * Returns the form token with the learner it was issued for. An ineligible session is not cleared here, because
+     * clearing also deletes the token cookie that this response hands out.
+     */
+    public FormToken csrf() {
+        var learner = session.current().flatMap(this::eligible).map(account -> account.profile().username());
+        var token = session.csrf();
+        return new FormToken(token.token(), token.headerName(), learner.orElse(null));
+    }
+
+    /** Form token, its request header and the eligible learner it was issued for, with redacted diagnostic output. */
+    public record FormToken(String token, String headerName, @Nullable String username) {
+        @Override
+        public String toString() {
+            return "FormToken[redacted]";
+        }
     }
 
     /** Account facts confirmed for this request, including the credential version checked for private access. */

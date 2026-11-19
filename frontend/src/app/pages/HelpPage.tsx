@@ -38,8 +38,9 @@ function HelpContent({ signedIn }: Readonly<{ signedIn: boolean }>) {
 
   return (
     <section className={signedIn ? '' : 'py-6 sm:py-8'}>
-      <BackButton label="Back" fallbackPath={signedIn ? TODAY_PATH : HOME_PATH} />
-      <h1 {...headingFocus} className="mt-3 text-title font-extrabold tracking-tight outline-none lg:text-title-lg">
+      {/* A back control above a title keeps its 48 px target but starts in the page's top padding. */}
+      <BackButton label="Back" fallbackPath={signedIn ? TODAY_PATH : HOME_PATH} className="-mt-3" />
+      <h1 {...headingFocus} className="text-title font-extrabold tracking-tight outline-none lg:text-title-lg">
         Help
       </h1>
       <nav

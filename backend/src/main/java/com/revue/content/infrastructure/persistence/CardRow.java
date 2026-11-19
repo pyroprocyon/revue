@@ -12,12 +12,8 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
 import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
-import org.hibernate.type.SqlTypes;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -55,10 +51,6 @@ class CardRow {
 
     private @Nullable String source;
 
-    @JdbcTypeCode(SqlTypes.ARRAY)
-    @Column(name = "key_ideas", nullable = false)
-    private List<String> keyIdeas;
-
     @Column(name = "content_version", nullable = false)
     private int contentVersion;
 
@@ -77,7 +69,6 @@ class CardRow {
         this.contentKey = "";
         this.question = "";
         this.answer = "";
-        this.keyIdeas = new ArrayList<>();
         this.contentVersion = 1;
     }
 
@@ -95,14 +86,13 @@ class CardRow {
         explanation = text.explanation();
         memoryHook = text.memoryHook();
         source = text.source();
-        keyIdeas = new ArrayList<>(text.keyIdeas());
         contentVersion = card.contentVersion();
         retiredAt = card.retiredAt();
     }
 
     PublishedCard toDomain() {
         return PublishedCard.restore(
-            new CardDefinition(contentKey, question, answer, keyIdeas, explanation, memoryHook, source),
+            new CardDefinition(contentKey, question, answer, explanation, memoryHook, source),
             position,
             contentVersion,
             retiredAt);

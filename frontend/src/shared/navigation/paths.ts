@@ -34,6 +34,22 @@ export const PRIVACY_PATH = '/privacy';
 export const TERMS_PATH = '/terms';
 
 export const LIBRARY_PATH = '/library';
+export const NEW_DECK_PATH = '/library/decks/new';
+export const DECK_ROUTE = '/library/decks/:deckId';
+
+export function deckPath(deckId: string): string {
+  return `/library/decks/${deckId}`;
+}
 
 export const TODAY_PATH = '/today';
 export const REVIEW_PATH = '/review';
+export const REVIEW_TOPIC_ROUTE = `${REVIEW_PATH}/:topic`;
+export const START_TOPIC_ROUTE = `${REVIEW_TOPIC_ROUTE}/start`;
+
+export function isReviewTopic(topic: string | undefined): topic is string {
+  return topic !== undefined && /^(deck|set)-[1-9]\d{0,18}$/.test(topic);
+}
+
+export function reviewTopicPath(topic: string, includeNew = false): string {
+  return `${REVIEW_PATH}/${topic}${includeNew ? '/start' : ''}`;
+}

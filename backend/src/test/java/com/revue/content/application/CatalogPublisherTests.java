@@ -96,15 +96,7 @@ class CatalogPublisherTests {
             "Description",
             "Publisher",
             "Subject",
-            List.of(
-                new CardDefinition(
-                    "new-publisher-card",
-                    "Question?",
-                    "Answer",
-                    List.of("Answer"),
-                    null,
-                    null,
-                    "Source")));
+            List.of(new CardDefinition("new-publisher-card", "Question?", "Answer", null, null, "Source")));
         var moved = new SetDefinition(
             "moved.yaml",
             "moved-publisher-set",
@@ -162,14 +154,6 @@ class CatalogPublisherTests {
                 "Description",
                 "Publisher",
                 "Subject",
-                List.of(
-                    new CardDefinition(
-                        "publisher-card",
-                        "Question?",
-                        "Answer",
-                        List.of("Answer"),
-                        null,
-                        null,
-                        "Source"))));
+                List.of(new CardDefinition("publisher-card", "Question?", "Answer", null, null, "Source"))));
     }
 }

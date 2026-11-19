@@ -36,10 +36,11 @@ test('removal refreshes Library, supports resaving, and recovers a lost response
   await page.keyboard.press('Enter');
   const notice = page.getByRole('status').filter({ hasText: 'Removed “Published test set”' });
   await expect(notice).toBeFocused();
-  await expect(page.getByRole('heading', { name: 'No saved sets' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Published test set', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Saved sets', exact: true })).toHaveCount(0);
   await page.screenshot({ path: info.outputPath('library-removed-phone.png'), fullPage: true });
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'No saved sets' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Saved sets', exact: true })).toHaveCount(0);
   await page.getByRole('link', { name: 'Account', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Your account' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'How it works', exact: true })).toHaveCount(0);
@@ -60,7 +61,7 @@ test('removal refreshes Library, supports resaving, and recovers a lost response
   await expect(page.getByRole('heading', { name: 'Published test set', exact: true })).toBeVisible();
   expect((await (await page.request.get('/api/v1/me/saved-sets')).json()).items).toHaveLength(0);
   await page.getByRole('button', { name: 'Try removing again', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'No saved sets' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Saved sets', exact: true })).toHaveCount(0);
   await page.unroute('**/api/v1/sets/*/save');
   await page.goto('/sets/published-test-set');
   await page.getByRole('button', { name: 'Save to Library' }).click();
@@ -86,7 +87,7 @@ test('onboarding samples offer practice and reject direct saves', async ({ page,
     expect(response.status()).toBe(404);
   }
   await page.goto('/library');
-  await expect(page.getByRole('heading', { name: 'No saved sets' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Saved sets', exact: true })).toHaveCount(0);
 });
 
 test('signing in from a private Library link returns to Library', async ({ page, pilot }) => {
@@ -97,7 +98,7 @@ test('signing in from a private Library link returns to Library', async ({ page,
   await expect(page).toHaveURL(/\/sign-in\?returnTo=%2Flibrary$/);
   await signIn(page, name);
   await expect(page).toHaveURL(/\/library$/);
-  await expect(page.getByRole('heading', { name: 'No saved sets' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Saved sets', exact: true })).toHaveCount(0);
 });
 
 test('Account presents the profile without reading or promoting Library content', async ({ page, pilot }) => {
@@ -112,7 +113,7 @@ test('Account presents the profile without reading or promoting Library content'
   await expect(page.getByRole('link', { name: /^(Browse sets|Open Library)$/ })).toHaveCount(0);
   expect(reads).toBe(0);
   await page.getByRole('link', { name: 'Library', exact: true }).click();
-  await expect(page.getByRole('alert')).toContainText('Library couldn’t load');
+  await expect(page.getByRole('alert')).toContainText('saved sets couldn’t load');
   expect(reads).toBe(1);
 });
 
@@ -172,7 +173,7 @@ test('retired-set removal warns, supports keyboard cancellation and fits narrow 
   );
   await page.keyboard.press('Enter');
   expect((await (await refreshedLibrary).json()).items).toEqual([]);
-  await expect(page.getByRole('heading', { name: 'No saved sets' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Saved sets', exact: true })).toHaveCount(0);
   expect(writes).toBe(1);
 });
 
@@ -184,7 +185,8 @@ test('explicit save survives sign-in return, duplicate save, reload and another 
   pilot.addSaveableSet();
   const name = await register(page, pilot.invitation());
   await page.getByRole('link', { name: 'Library', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'No saved sets' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Saved sets', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Create a deck', exact: true })).toBeVisible();
   await page.screenshot({ path: info.outputPath('library-empty-phone.png'), fullPage: true });
   await page.getByRole('link', { name: 'Account', exact: true }).click();
   await page.getByRole('button', { name: 'Sign out' }).click();
@@ -252,7 +254,7 @@ test('explicit save survives sign-in return, duplicate save, reload and another 
     const otherPage = await other.newPage();
     await register(otherPage, pilot.invitation());
     await otherPage.goto(`${pilot.origin}/library`);
-    await expect(otherPage.getByRole('heading', { name: 'No saved sets' })).toBeVisible();
+    await expect(otherPage.getByRole('heading', { name: 'Saved sets', exact: true })).toHaveCount(0);
     expect((await (await otherPage.request.get(`${pilot.origin}/api/v1/me/saved-sets`)).json()).items).toHaveLength(0);
   } finally {
     await other.close();
@@ -303,11 +305,45 @@ test('Library read failures retain an explicit retry instead of showing an empty
   await register(page, pilot.invitation());
   await page.route('**/api/v1/me/saved-sets', (route) => route.abort('connectionreset'));
   await page.getByRole('link', { name: 'Library', exact: true }).click();
-  await expect(page.getByRole('alert')).toContainText('Library couldn’t load');
-  await expect(page.getByRole('heading', { name: 'No saved sets' })).toHaveCount(0);
+  await expect(page.getByRole('alert')).toContainText('saved sets couldn’t load');
+  await expect(page.getByRole('heading', { name: 'Saved sets', exact: true })).toHaveCount(0);
   await page.unroute('**/api/v1/me/saved-sets');
-  await page.getByRole('button', { name: 'Try again' }).click();
-  await expect(page.getByRole('heading', { name: 'No saved sets' })).toBeVisible();
+  await page.getByRole('button', { name: 'Retry saved sets' }).click();
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Create a deck', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Saved sets', exact: true })).toHaveCount(0);
+});
+
+test('the shortcut brings Saved sets above the phone navigation and moves keyboard focus', async ({ page, pilot }) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  pilot.addSaveableSet();
+  await register(page, pilot.invitation());
+  const csrf = await (await page.request.get('/api/v1/auth/csrf')).json();
+  for (const title of ['Biology', 'Chemistry', 'Physics']) {
+    expect(
+      (
+        await page.request.post('/api/v1/decks', {
+          data: { title },
+          headers: { [csrf.headerName]: csrf.token },
+        })
+      ).status(),
+    ).toBe(201);
+  }
+  await page.goto('/sets/published-test-set');
+  await page.getByRole('button', { name: 'Save to Library' }).click();
+  await page.getByRole('link', { name: 'Open Library' }).click();
+  const shortcut = page.getByRole('link', { name: 'Jump to saved sets' });
+  await shortcut.focus();
+  await page.keyboard.press('Enter');
+  const heading = page.getByRole('heading', { name: 'Saved sets', exact: true });
+  await expect(heading).toBeFocused();
+  const nav = page.getByRole('navigation', { name: 'Your workspace' });
+  await expect
+    .poll(async () => {
+      const [headingBox, navBox] = await Promise.all([heading.boundingBox(), nav.boundingBox()]);
+      return Boolean(headingBox && navBox && headingBox.y >= 0 && headingBox.y + headingBox.height <= navBox.y);
+    })
+    .toBe(true);
 });
 
 test('Library preserves its page through a preview and offers Previous after a failed read', async ({
@@ -342,7 +378,7 @@ test('Library preserves its page through a preview and offers Previous after a f
   });
   await page.getByRole('link', { name: 'Library', exact: true }).click();
   await page.getByRole('button', { name: 'Next' }).click();
-  await expect(page.getByRole('alert')).toContainText('Library couldn’t load');
+  await expect(page.getByRole('alert')).toContainText('saved sets couldn’t load');
   await page.getByRole('button', { name: 'Previous' }).click();
   await expect(page.getByRole('heading', { name: 'Philippine History' })).toBeVisible();
 

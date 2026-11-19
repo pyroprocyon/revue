@@ -6,6 +6,8 @@ export const primaryButton = `${buttonBase} bg-accent text-on-accent disabled:bg
 
 export const secondaryButton = `${buttonBase} bg-surface text-ink shadow-control`;
 
+export const destructiveButton = `${buttonBase} bg-highlight-soft text-ink disabled:bg-subtle disabled:text-muted`;
+
 const accountControl =
   'pressable inline-flex min-h-12 min-w-12 items-center justify-center rounded-control py-2 text-center font-semibold';
 
@@ -21,7 +23,7 @@ export const chip = 'inline-flex rounded-full bg-accent-soft px-3 py-1 text-labe
 
 // Underlined text links, with the same focus ring as the buttons.
 export const textLink =
-  'rounded-sm text-accent underline decoration-2 underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent';
+  'rounded-sm text-accent underline decoration-1 decoration-accent/60 underline-offset-3 hover:decoration-accent focus-visible:decoration-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent active:text-accent-strong';
 
 export const textLinkTarget =
   'inline-grid min-h-12 min-w-12 max-w-full place-items-center px-2 align-middle wrap-anywhere';

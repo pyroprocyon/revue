@@ -1,7 +1,6 @@
 package com.revue.identity.presentation;
 
 import com.revue.identity.application.AccountService;
-import com.revue.identity.application.AccountSession;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -18,9 +17,9 @@ public class AccountController {
         this.accounts = accounts;
     }
 
-    /** Returns a CSRF token for the browser's next account request. */
+    /** Returns a CSRF token for the browser's next request and the learner it was issued for. */
     @GetMapping("/api/v1/auth/csrf")
-    public AccountSession.Csrf csrf() {
+    public AccountService.FormToken csrf() {
         return accounts.csrf();
     }
 
