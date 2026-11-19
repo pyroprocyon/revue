@@ -187,21 +187,34 @@ class ServerLifecycleTests(unittest.TestCase):
         with quality.analysis_lock():
             pass
 
-    def test_make_targets_run_inside_the_lock_before_the_server_starts(self):
+    def test_server_boots_during_checks_and_analysis_uses_their_outputs_under_the_lock(self):
         steps = []
 
-        def check_while_locked(command, **options):
-            steps.append((command, lock_is_free()))
+        def record_step(step, **options):
+            steps.append((step, lock_is_free()))
 
         @contextlib.contextmanager
         def server():
             steps.append(("server", lock_is_free()))
             yield "revue-sonar-test"
 
-        with (patch.object(quality, "run_stoppable", side_effect=check_while_locked),
-              patch.object(quality, "disposable_server", server), patch.object(quality, "analyze")):
+        with (patch.object(quality, "run_stoppable", side_effect=record_step),
+              patch.object(quality, "disposable_server", server), patch.object(quality, "analyze", side_effect=record_step)):
             quality.main(("check", "e2e"))
-        self.assertEqual(steps, [(("make", "check", "e2e"), False), ("server", False)])
+        self.assertEqual(steps, [("server", False), (("make", "check", "e2e"), False), ("revue-sonar-test", False)])
+
+    def test_failed_checks_stop_the_server_and_leave_no_passing_analysis(self):
+        old_gate = quality.REPORTS / "sonar-gate.json"
+        old_gate.write_text("{}")
+        failure = subprocess.CalledProcessError(1, ("make", "check", "e2e"))
+        with (patch.object(quality, "run") as start, patch.object(quality, "run_stoppable", side_effect=failure),
+              patch.object(quality, "stop_server") as stop, patch.object(quality, "analyze") as scan,
+              self.assertRaises(subprocess.CalledProcessError)):
+            quality.main(("check", "e2e"))
+        start_args = start.call_args.args
+        stop.assert_called_once_with(start_args[start_args.index("--name") + 1])
+        scan.assert_not_called()
+        self.assertFalse(old_gate.exists())
 
 
 class ProcessGroupTests(unittest.TestCase):

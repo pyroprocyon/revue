@@ -16,14 +16,7 @@ COPY frontend/ ./
 RUN npm run build
 
 # ---- Build stage: package the Spring Boot jar with the Maven Wrapper.
-FROM eclipse-temurin:25.0.5_8-jdk-noble AS build
-
-# The wrapper unzips Maven's .zip and checks it against the pinned SHA-256.
-# This image has no unzip, and without it the wrapper downloads the .tar.gz instead,
-# which fails that check. So install unzip in this stage only.
-RUN apt-get update \
- && apt-get install -y --no-install-recommends unzip \
- && rm -rf /var/lib/apt/lists/*
+FROM eclipse-temurin:25.0.5_8-jdk-alpine AS build
 
 WORKDIR /build
 COPY backend/ ./

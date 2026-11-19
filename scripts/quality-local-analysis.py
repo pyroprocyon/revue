@@ -3,7 +3,7 @@
 
 SonarQube boots and the SonarQube for IDE scan runs while the browser tests run, instead of one after another.
 Measured November 17, 2026 on a 12-core WSL machine: the full gate took 368 s instead of 414 s, and the browser
-tests took about a minute longer. CI keeps the sequential make quality, because its smaller runners were not measured.
+tests took about a minute longer.
 """
 
 import importlib.util
