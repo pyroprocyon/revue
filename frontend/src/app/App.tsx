@@ -23,7 +23,7 @@ import { httpPublicContent } from '../features/catalog/infrastructure/httpPublic
 import { PublicContentProvider } from '../features/catalog/presentation/PublicContentProvider';
 import { useEffect } from 'react';
 import { GuestRoute, PublicSessionLayout } from './PublicSessionLayout';
-import { Route, Routes, useLocation } from 'react-router';
+import { Navigate, Route, Routes, useLocation } from 'react-router';
 import { LandingPage } from './pages/LandingPage';
 import { HowItWorksPage } from './pages/HowItWorksPage';
 import { HelpPage } from './pages/HelpPage';
@@ -76,8 +76,8 @@ export function App() {
                   <Route element={<GuestRoute />}>
                     <Route path={SIGN_IN_PATH} element={<AccountForm key="sign-in" />} />
                     <Route path={JOIN_PATH} element={<JoinPage />} />
-                    <Route path={INVITE_PATH} element={<AccountForm key="signup" register />} />
-                    <Route path={REGISTER_PATH} element={<AccountForm key="signup" register />} />
+                    <Route path={INVITE_PATH} element={<SignupPage />} />
+                    <Route path={REGISTER_PATH} element={<SignupPage />} />
                   </Route>
                   <Route path={PRIVACY_PATH} element={<PrivacyPage />} />
                   <Route path={TERMS_PATH} element={<TermsPage />} />
@@ -106,6 +106,12 @@ export function App() {
       </ReviewProvider>
     </AccountProvider>
   );
+}
+
+function SignupPage() {
+  const { pathname, search, hash } = useLocation();
+  if (pathname !== REGISTER_PATH || hash) return <Navigate replace to={{ pathname: REGISTER_PATH, search }} />;
+  return <AccountForm register />;
 }
 
 /**

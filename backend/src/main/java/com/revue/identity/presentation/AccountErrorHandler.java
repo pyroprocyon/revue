@@ -1,7 +1,6 @@
 package com.revue.identity.presentation;
 
 import com.revue.identity.application.AccountProblem;
-import com.revue.identity.application.RegistrationUnavailableException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
@@ -28,12 +27,5 @@ public class AccountErrorHandler {
     @ExceptionHandler(IllegalArgumentException.class)
     ProblemDetail invalidInput(IllegalArgumentException problem) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, problem.getMessage());
-    }
-
-    @ExceptionHandler(RegistrationUnavailableException.class)
-    ProblemDetail invalidInvitation() {
-        return ProblemDetail.forStatusAndDetail(
-            HttpStatus.BAD_REQUEST,
-            "Use a valid invitation link or sign in to an existing account");
     }
 }

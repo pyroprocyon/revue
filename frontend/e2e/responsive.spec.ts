@@ -194,7 +194,7 @@ test('rapid flip reversals start at the current angle on a narrow phone', async 
 });
 
 test('compact account controls remain reachable at supported widths', async ({ page, pilot }) => {
-  await page.goto(pilot.invitation());
+  await page.goto(pilot.signupUrl);
   const username = `layout_${randomUUID().replaceAll('-', '').slice(0, 24)}`;
   const password = randomUUID();
   await page.getByLabel('Username').fill(username);
@@ -233,7 +233,7 @@ test('workspace navigation stays unique and reachable across layouts and enlarge
   page,
   pilot,
 }, info) => {
-  await page.goto(pilot.invitation());
+  await page.goto(pilot.signupUrl);
   await page.getByLabel('Username').fill(`workspace_${randomUUID().slice(0, 16)}`);
   const password = randomUUID();
   await page.getByLabel('Password', { exact: true }).fill(password);
@@ -288,7 +288,7 @@ test('workspace navigation stays unique and reachable across layouts and enlarge
 test('the phone tab bar stays at the bottom of the screen while a long page scrolls', async ({ page, pilot }) => {
   const screen = { width: 390, height: 420 };
   await page.setViewportSize(screen);
-  await page.goto(pilot.invitation());
+  await page.goto(pilot.signupUrl);
   await page.getByLabel('Username').fill(`tabbar_${randomUUID().slice(0, 16)}`);
   const password = randomUUID();
   await page.getByLabel('Password', { exact: true }).fill(password);
@@ -323,7 +323,7 @@ test('the phone tab bar stays at the bottom of the screen while a long page scro
 
 test('long forms use document scrolling when the available keyboard viewport is short', async ({ page, pilot }) => {
   await page.setViewportSize({ width: 320, height: 568 });
-  await page.goto(pilot.invitation());
+  await page.goto(pilot.signupUrl);
   await page.evaluate(() => {
     document.documentElement.style.fontSize = '200%';
   });
@@ -345,7 +345,7 @@ test('long forms use document scrolling when the available keyboard viewport is 
 });
 
 test('a failed session request offers retry before showing the signed-in workspace', async ({ page, pilot }) => {
-  await page.goto(pilot.invitation());
+  await page.goto(pilot.signupUrl);
   await page.getByLabel('Username').fill('retry_' + randomUUID().slice(0, 12));
   const password = randomUUID();
   await page.getByLabel('Password', { exact: true }).fill(password);

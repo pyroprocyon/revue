@@ -2,9 +2,9 @@ import type { Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { test, expect } from './fixtures';
 
-async function register(page: Page, invitation: string) {
+async function register(page: Page, signupUrl: string) {
   const username = `library_${randomUUID().replaceAll('-', '').slice(0, 20)}`;
-  await page.goto(invitation);
+  await page.goto(signupUrl);
   await page.getByRole('textbox', { name: 'Username' }).fill(username);
   await page.getByLabel('Password', { exact: true }).fill('kanjii');
   await page.getByLabel('Confirm password', { exact: true }).fill('kanjii');
@@ -27,7 +27,7 @@ test('removal refreshes Library, supports resaving, and recovers a lost response
   pilot,
 }, info) => {
   pilot.addSaveableSet();
-  await register(page, pilot.invitation());
+  await register(page, pilot.signupUrl);
   await page.goto('/sets/published-test-set');
   await page.getByRole('button', { name: 'Save to Library' }).click();
   await page.getByRole('link', { name: 'Open Library', exact: true }).click();
@@ -73,7 +73,7 @@ test('removal refreshes Library, supports resaving, and recovers a lost response
 });
 
 test('onboarding samples offer practice and reject direct saves', async ({ page, pilot }) => {
-  await register(page, pilot.invitation());
+  await register(page, pilot.signupUrl);
   const csrf = await (await page.request.get('/api/v1/auth/csrf')).json();
   for (const key of ['philippine-history', 'philippine-nature', 'weather-and-disasters']) {
     const summary = await (await page.request.get(`/api/v1/public-sets/${key}`)).json();
@@ -91,7 +91,7 @@ test('onboarding samples offer practice and reject direct saves', async ({ page,
 });
 
 test('signing in from a private Library link returns to Library', async ({ page, pilot }) => {
-  const name = await register(page, pilot.invitation());
+  const name = await register(page, pilot.signupUrl);
   await page.getByRole('button', { name: 'Sign out' }).click();
   await expect(page).toHaveURL(/\/sign-in$/);
   await page.goto('/library');
@@ -107,7 +107,7 @@ test('Account presents the profile without reading or promoting Library content'
     reads += 1;
     return route.fulfill({ status: 503, json: {} });
   });
-  await register(page, pilot.invitation());
+  await register(page, pilot.signupUrl);
   await expect(page.getByRole('heading', { name: 'Your account' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
   await expect(page.getByRole('link', { name: /^(Browse sets|Open Library)$/ })).toHaveCount(0);
@@ -122,7 +122,7 @@ test('retired-set removal warns, supports keyboard cancellation and fits narrow 
   pilot,
 }, info) => {
   pilot.addSaveableSet();
-  await register(page, pilot.invitation());
+  await register(page, pilot.signupUrl);
   await page.goto('/sets/published-test-set');
   await page.getByRole('button', { name: 'Save to Library' }).click();
   // Exercise the retired presentation without retiring shared fixtures used by other journeys.
@@ -183,7 +183,7 @@ test('explicit save survives sign-in return, duplicate save, reload and another 
   pilot,
 }, info) => {
   pilot.addSaveableSet();
-  const name = await register(page, pilot.invitation());
+  const name = await register(page, pilot.signupUrl);
   await page.getByRole('link', { name: 'Library', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Saved sets', exact: true })).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'Create a deck', exact: true })).toBeVisible();
@@ -252,7 +252,7 @@ test('explicit save survives sign-in return, duplicate save, reload and another 
   const other = await browser.newContext();
   try {
     const otherPage = await other.newPage();
-    await register(otherPage, pilot.invitation());
+    await register(otherPage, pilot.signupUrl);
     await otherPage.goto(`${pilot.origin}/library`);
     await expect(otherPage.getByRole('heading', { name: 'Saved sets', exact: true })).toHaveCount(0);
     expect((await (await otherPage.request.get(`${pilot.origin}/api/v1/me/saved-sets`)).json()).items).toHaveLength(0);
@@ -271,7 +271,7 @@ test('lost save response is unconfirmed until a duplicate-safe retry, with expir
   pilot,
 }, info) => {
   pilot.addSaveableSet();
-  await register(page, pilot.invitation());
+  await register(page, pilot.signupUrl);
   await page.goto('/sets/published-test-set');
   await expect(page.getByRole('button', { name: 'Save to Library' })).toBeVisible();
   let interrupted = false;
@@ -302,7 +302,7 @@ test('lost save response is unconfirmed until a duplicate-safe retry, with expir
 });
 
 test('Library read failures retain an explicit retry instead of showing an empty library', async ({ page, pilot }) => {
-  await register(page, pilot.invitation());
+  await register(page, pilot.signupUrl);
   await page.route('**/api/v1/me/saved-sets', (route) => route.abort('connectionreset'));
   await page.getByRole('link', { name: 'Library', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('saved sets couldn’t load');
@@ -317,7 +317,7 @@ test('Library read failures retain an explicit retry instead of showing an empty
 test('the shortcut brings Saved sets above the phone navigation and moves keyboard focus', async ({ page, pilot }) => {
   await page.setViewportSize({ width: 375, height: 667 });
   pilot.addSaveableSet();
-  await register(page, pilot.invitation());
+  await register(page, pilot.signupUrl);
   const csrf = await (await page.request.get('/api/v1/auth/csrf')).json();
   for (const title of ['Biology', 'Chemistry', 'Physics']) {
     expect(
@@ -350,7 +350,7 @@ test('Library preserves its page through a preview and offers Previous after a f
   page,
   pilot,
 }) => {
-  await register(page, pilot.invitation());
+  await register(page, pilot.signupUrl);
   let failSecondPage = true;
   await page.route('**/api/v1/me/saved-sets**', async (route) => {
     const secondPage = new URL(route.request().url()).searchParams.has('after');

@@ -12,8 +12,6 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.util.HexFormat;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -42,10 +40,7 @@ class AccountFormLimitTests {
             String csrf = csrf(client, cookies);
             for (boolean chunked : new boolean[] {false, true}) {
                 String username = UUID.randomUUID().toString().replace("-", "");
-                String token = "a".repeat(43);
-                insertInvitation(token);
-                String form = "username=" + username + "&password=kanjii&invitation=" + token + "&padding="
-                    + "x".repeat(10_000);
+                String form = "username=" + username + "&password=kanjii&padding=" + "x".repeat(10_000);
                 var body = chunked
                     ? HttpRequest.BodyPublishers
                         .ofInputStream(() -> new ByteArrayInputStream(form.getBytes(StandardCharsets.UTF_8)))
@@ -75,12 +70,9 @@ class AccountFormLimitTests {
         var cookies = new CookieManager(null, CookiePolicy.ACCEPT_ALL);
         try (var client = HttpClient.newBuilder().cookieHandler(cookies).build()) {
             String username = UUID.randomUUID().toString().replace("-", "");
-            String token = UUID.randomUUID().toString().replace("-", "").substring(0, 22);
-            insertInvitation(token);
             String credentials = "username=" + username + "&password=kanjii";
             String csrf = csrf(client, cookies);
-            assertThat(post(client, "/api/v1/auth/register", csrf, credentials + "&invitation=" + token))
-                .isEqualTo(200);
+            assertThat(post(client, "/api/v1/auth/register", csrf, credentials)).isEqualTo(200);
             csrf = csrf(client, cookies);
             assertThat(post(client, "/api/v1/auth/log%69n", csrf, "username=" + username + "&password=incorrect"))
                 .isEqualTo(401);
@@ -127,16 +119,5 @@ class AccountFormLimitTests {
 
     private URI address(String path) {
         return URI.create("http://127.0.0.1:" + port + path);
-    }
-
-    private void insertInvitation(String token) throws Exception {
-        String hash = HexFormat.of()
-            .formatHex(MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8)));
-        jdbc.update(
-            "insert into signup_invites (id, token_hash, created_at, "
-                + "expires_at) values (?, ?, now() - interval '1 minute', now() + "
-                + "interval '1 hour') on conflict (token_hash) do nothing",
-            UUID.randomUUID(),
-            hash);
     }
 }

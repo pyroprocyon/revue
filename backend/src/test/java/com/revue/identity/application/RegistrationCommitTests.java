@@ -9,7 +9,6 @@ import static org.mockito.Mockito.reset;
 import com.revue.StructuredEvents;
 import com.revue.TestcontainersConfiguration;
 import com.revue.identity.domain.PasswordHash;
-import com.revue.identity.domain.TokenHash;
 import com.revue.identity.domain.Username;
 import java.util.List;
 import java.util.UUID;
@@ -39,9 +38,8 @@ class RegistrationCommitTests {
     RegistrationStore store;
 
     @Test
-    void registrationCommitsUsernameAccountAndRedemptionWithoutEmailOrChallenge() {
-        TokenHash invite = invitation();
-        var prepared = usernamePrepared(username(), invite);
+    void registrationCommitsUsernameAccountWithoutEmailOrChallenge() {
+        var prepared = usernamePrepared(username());
         var result = registration.registerUsername(prepared);
         var row = jdbc.queryForMap("select * from users where id = ?", result.accountId());
         assertThat(row).containsEntry("username", prepared.username().value())
@@ -55,12 +53,6 @@ class RegistrationCommitTests {
         assertThat(row.get("adult_confirmed_at")).isNull();
         assertThat(
             jdbc.queryForObject(
-                "select redeemed_by_user_id from signup_invites where token_hash = ?",
-                UUID.class,
-                invite.value()))
-            .isEqualTo(result.accountId());
-        assertThat(
-            jdbc.queryForObject(
                 "select count(*) from auth_challenges where user_id = ?",
                 Integer.class,
                 result.accountId()))
@@ -68,65 +60,38 @@ class RegistrationCommitTests {
     }
 
     @Test
-    void concurrentUsernameRegistrationsCannotRedeemOneInviteTwice() throws Exception {
-        TokenHash invite = invitation();
-        var first = usernamePrepared(UUID.randomUUID().toString().replace("-", ""), invite);
-        var second = usernamePrepared(UUID.randomUUID().toString().replace("-", ""), invite);
-        assertOneWinner(() -> registration.registerUsername(first), () -> registration.registerUsername(second));
-        assertThat(
-            jdbc.queryForObject(
-                "select count(*) from users where username in (?, ?)",
-                Integer.class,
-                first.username().value(),
-                second.username().value()))
-            .isEqualTo(1);
-    }
-
-    @Test
-    void canonicalUsernameUniquenessHoldsAcrossConcurrentInvites() throws Exception {
+    void canonicalUsernameUniquenessHoldsAcrossConcurrentRegistrations() throws Exception {
         String username = UUID.randomUUID().toString().replace("-", "");
-        var first = usernamePrepared(" " + username.toUpperCase(java.util.Locale.ROOT) + " ", invitation());
-        var second = usernamePrepared(username, invitation());
+        var first = usernamePrepared(" " + username.toUpperCase(java.util.Locale.ROOT) + " ");
+        var second = usernamePrepared(username);
         assertOneWinner(() -> registration.registerUsername(first), () -> registration.registerUsername(second));
         assertThat(jdbc.queryForObject("select count(*) from users where username = ?", Integer.class, username))
             .isEqualTo(1);
-        assertThat(
-            jdbc.queryForObject(
-                "select count(*) from signup_invites where token_hash in (?, ?) " + "and redeemed_at is not null",
-                Integer.class,
-                first.invitationHash().value(),
-                second.invitationHash().value()))
-            .isEqualTo(1);
     }
 
     @Test
-    void duplicateSignupCannotReplaceCredentialsOrConsumeAnotherInvitation() {
+    void duplicateSignupCannotReplaceCredentials() {
         String name = username();
-        var original = registration.registerUsername(usernamePrepared(name, invitation()));
-        TokenHash unused = invitation();
+        var original = registration.registerUsername(usernamePrepared(name));
         var retry = new RegistrationCommit.UsernameRegistration(
             new Username(name),
-            new PasswordHash("{test}replacement"),
-            unused);
+            new PasswordHash("{test}replacement"));
         assertThatThrownBy(() -> registration.registerUsername(retry)).isInstanceOfSatisfying(
             AccountProblem.class,
             problem -> assertThat(problem.kind()).isEqualTo(AccountProblem.Kind.UNAVAILABLE_USERNAME));
         assertThat(
             jdbc.queryForObject("select password_hash from users where id = ?", String.class, original.accountId()))
             .isEqualTo("{test}encoded-placeholder");
-        assertThat(jdbc.queryForMap("select redeemed_at from signup_invites where token_hash = ?", unused.value()))
-            .containsEntry("redeemed_at", null);
     }
 
     @Test
-    void failureAfterAccountAndRedemptionWritesRollsBackBoth(CapturedOutput output) {
-        TokenHash unused = invitation();
+    void failureAfterAccountInsertRollsBackRegistration(CapturedOutput output) {
         String name = username();
-        var prepared = usernamePrepared(name, unused);
+        var prepared = usernamePrepared(name);
         doAnswer(invocation -> {
             invocation.callRealMethod();
             throw new IllegalStateException("Failure after the registration writes");
-        }).when(store).saveRedemption(any());
+        }).when(store).insertUsernameAccount(any(), any());
         try {
             assertThatThrownBy(() -> registration.registerUsername(prepared))
                 .hasRootCauseInstanceOf(IllegalStateException.class);
@@ -134,30 +99,21 @@ class RegistrationCommitTests {
             reset(store);
         }
         assertThat(jdbc.queryForObject("select count(*) from users where username = ?", Integer.class, name)).isZero();
-        assertThat(
-            jdbc.queryForMap(
-                "select redeemed_at, redeemed_by_user_id from signup_invites where token_hash = ?",
-                unused.value()))
-            .containsEntry("redeemed_at", null)
-            .containsEntry("redeemed_by_user_id", null);
         assertThat(StructuredEvents.named(output, "account.created")).isEmpty();
-        assertThat(StructuredEvents.named(output, "invitation.redeemed")).isEmpty();
         assertThat(registration.registerUsername(prepared).accountId()).isNotNull();
         assertThat(StructuredEvents.named(output, "account.created")).hasSize(1);
-        assertThat(StructuredEvents.named(output, "invitation.redeemed")).hasSize(1);
     }
 
     @Test
-    void removingAccountClearsInviteLinkButCannotRestoreItsUse() {
-        TokenHash invite = invitation();
-        var result = registration.registerUsername(usernamePrepared(username(), invite));
+    void removingAccountClearsLegacyChallenges() {
+        var result = registration.registerUsername(usernamePrepared(username()));
         // Retain deletion compatibility with the shipped challenge table, without creating email accounts.
         jdbc.update(
             "insert into auth_challenges (id, user_id, purpose, token_hash, credential_version, created_at, "
                 + "expires_at) values (?, ?, 'VERIFY_EMAIL', ?, 0, now(), now() + interval '1 hour')",
             UUID.randomUUID(),
             result.accountId(),
-            hash().value());
+            "a".repeat(64));
         jdbc.update("delete from users where id = ?", result.accountId());
         assertThat(
             jdbc.queryForObject(
@@ -165,34 +121,6 @@ class RegistrationCommitTests {
                 Integer.class,
                 result.accountId()))
             .isZero();
-        assertThat(
-            jdbc.queryForMap(
-                "select redeemed_at, redeemed_by_user_id from signup_invites where token_hash = ?",
-                invite.value()))
-            .containsEntry("redeemed_by_user_id", null)
-            .doesNotContainEntry("redeemed_at", null);
-        var retry = usernamePrepared(username(), invite);
-        assertThatThrownBy(() -> registration.registerUsername(retry))
-            .isInstanceOf(RegistrationUnavailableException.class);
-    }
-
-    @Test
-    void missingExpiredAndRevokedInvitesCreateNoAccount() {
-        TokenHash expired = invitation();
-        TokenHash revoked = invitation();
-        jdbc.update(
-            "update signup_invites set created_at = now() - interval '2 days', "
-                + "expires_at = now() - interval '1 day' where token_hash = ?",
-            expired.value());
-        jdbc.update("update signup_invites set revoked_at = now() where token_hash = ?", revoked.value());
-        for (TokenHash invalid : List.of(hash(), expired, revoked)) {
-            String name = username();
-            var attempt = usernamePrepared(name, invalid);
-            assertThatThrownBy(() -> registration.registerUsername(attempt))
-                .isInstanceOf(RegistrationUnavailableException.class);
-            assertThat(jdbc.queryForObject("select count(*) from users where username = ?", Integer.class, name))
-                .isZero();
-        }
     }
 
     private void assertOneWinner(Callable<RegistrationCommit.Result> first, Callable<RegistrationCommit.Result> second)
@@ -223,8 +151,6 @@ class RegistrationCommitTests {
             try {
                 input.call();
                 return true;
-            } catch (RegistrationUnavailableException _) {
-                return false;
             } catch (AccountProblem problem) {
                 if (problem.kind() != AccountProblem.Kind.UNAVAILABLE_USERNAME) {
                     throw problem;
@@ -234,26 +160,10 @@ class RegistrationCommitTests {
         };
     }
 
-    private RegistrationCommit.UsernameRegistration usernamePrepared(String username, TokenHash invite) {
+    private RegistrationCommit.UsernameRegistration usernamePrepared(String username) {
         return new RegistrationCommit.UsernameRegistration(
             new Username(username),
-            new PasswordHash("{test}encoded-placeholder"),
-            invite);
-    }
-
-    private TokenHash invitation() {
-        TokenHash token = hash();
-        jdbc.update(
-            "insert into signup_invites (id, token_hash, created_at, "
-                + "expires_at) values (?, ?, now() - interval '1 minute', now() + " + "interval '1 hour')",
-            UUID.randomUUID(),
-            token.value());
-        return token;
-    }
-
-    private TokenHash hash() {
-        return new TokenHash(
-            UUID.randomUUID().toString().replace("-", "") + UUID.randomUUID().toString().replace("-", ""));
+            new PasswordHash("{test}encoded-placeholder"));
     }
 
     private String username() {

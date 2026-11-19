@@ -40,14 +40,12 @@ export function AccountForm({ register = false }: Readonly<{ register?: boolean 
   useEffect(() => {
     if (error) errorRef.current?.focus();
   }, [error]);
-  const invitation = useInvitation(register);
-  const needsInvitation = register && invitation === '';
   const idleAction = register ? 'Create account' : 'Sign in';
   const actionLabel = busy ? 'Please wait…' : idleAction;
 
   async function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busy || needsInvitation) return;
+    if (busy) return;
     if (register && password !== passwordConfirmation) {
       setError(PASSWORD_MISMATCH);
       return;
@@ -55,7 +53,7 @@ export function AccountForm({ register = false }: Readonly<{ register?: boolean 
     setBusy(true);
     setError('');
     try {
-      if (register) await gateway.register({ username, password, invitation });
+      if (register) await gateway.register({ username, password });
       else await gateway.signIn(username, password);
       setPassword('');
       setPasswordConfirmation('');
@@ -93,11 +91,6 @@ export function AccountForm({ register = false }: Readonly<{ register?: boolean 
       footer={<PolicyLinks newTab={register} showPrivacy={!register} showSupport={register} />}
     >
       <h1 className="text-title font-extrabold tracking-tight">{register ? 'Create your account' : 'Welcome back'}</h1>
-      {needsInvitation && (
-        <output className="mt-5 block rounded-inset bg-subtle p-4 text-body">
-          Open your invitation link to continue.
-        </output>
-      )}
       <form
         onInput={firstInput}
         id="account-form"
@@ -204,7 +197,7 @@ export function AccountForm({ register = false }: Readonly<{ register?: boolean 
             {error}
           </p>
         )}
-        <button className={`${primaryButton} w-full`} type="submit" disabled={busy || needsInvitation}>
+        <button className={`${primaryButton} w-full`} type="submit" disabled={busy}>
           {actionLabel}
         </button>
       </form>
@@ -250,27 +243,4 @@ function PasswordVisibilityToggle({
       <Icon aria-hidden="true" size={20} />
     </button>
   );
-}
-
-function useInvitation(register: boolean) {
-  const [invitation, setInvitation] = useState(() => invitationFromFragment() ?? '');
-  useEffect(() => {
-    if (!register) return;
-    function receiveInvitation() {
-      if (window.location.hash === '') return;
-      const incoming = invitationFromFragment();
-      if (incoming !== null) setInvitation(incoming);
-      window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search);
-    }
-    receiveInvitation();
-    window.addEventListener('hashchange', receiveInvitation);
-    return () => window.removeEventListener('hashchange', receiveInvitation);
-  }, [register]);
-  return invitation;
-}
-
-function invitationFromFragment(): string | null {
-  const fragment = window.location.hash.slice(1);
-  if (/^(?:[A-Za-z0-9_-]{8}|[A-Za-z0-9_-]{22}|[A-Za-z0-9_-]{43})$/.test(fragment)) return fragment;
-  return new URLSearchParams(fragment).get('invite');
 }

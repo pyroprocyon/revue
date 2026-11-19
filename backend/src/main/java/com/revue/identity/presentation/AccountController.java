@@ -23,13 +23,10 @@ public class AccountController {
         return accounts.csrf();
     }
 
-    /** Creates a username account using a valid invitation. */
+    /** Creates a username account. */
     @PostMapping(path = "/api/v1/auth/register", consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
-    public AccountService.Profile register(
-        @RequestParam String username,
-        @RequestParam String password,
-        @RequestParam String invitation) {
-        return accounts.register(username, password, invitation);
+    public AccountService.Profile register(@RequestParam String username, @RequestParam String password) {
+        return accounts.register(username, password);
     }
 
     /** Authenticates a username and establishes the browser session. */

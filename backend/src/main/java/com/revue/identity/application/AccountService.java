@@ -2,14 +2,13 @@ package com.revue.identity.application;
 
 import com.revue.identity.domain.Account;
 import com.revue.identity.domain.PasswordPolicy;
-import com.revue.identity.domain.TokenHash;
 import com.revue.identity.domain.Username;
 import java.time.Clock;
 import java.util.Optional;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
 
-/** Coordinates invited registration, password verification and learner sessions. */
+/** Coordinates registration, password verification and learner sessions. */
 @Service
 public class AccountService {
     private final AccountQueries accounts;
@@ -19,7 +18,6 @@ public class AccountService {
     private final AuthenticationAdmission admission;
     private final AccountSession session;
     private final Clock clock;
-    private final PilotInvitation pilotInvitation;
 
     public AccountService(
         AccountQueries accounts,
@@ -28,8 +26,7 @@ public class AccountService {
         PasswordHasher hasher,
         AuthenticationAdmission admission,
         AccountSession session,
-        Clock clock,
-        PilotInvitation pilotInvitation) {
+        Clock clock) {
         this.accounts = accounts;
         this.registration = registration;
         this.login = login;
@@ -37,25 +34,15 @@ public class AccountService {
         this.admission = admission;
         this.session = session;
         this.clock = clock;
-        this.pilotInvitation = pilotInvitation;
     }
 
-    /** Validates signup, hashes the password and creates an account using a valid invitation. */
-    public Profile register(String rawUsername, String password, String invitation) {
+    /** Validates signup, hashes the password and creates an account. */
+    public Profile register(String rawUsername, String password) {
         Username username = new Username(rawUsername);
         PasswordPolicy.validate(password);
-        TokenHash invite = PilotInvitation.hash(invitation);
         try (var _ = admission.enter(username.value())) {
-            boolean available = pilotInvitation.isConfigured()
-                ? pilotInvitation.accepts(invite)
-                : accounts.inviteAvailable(invite);
-            if (!available) {
-                throw new IllegalArgumentException(
-                    "Use a valid invitation link. If you already registered, sign in instead");
-            }
-            // Hashing precedes the transaction; database invitations are locked and rechecked inside it.
-            var result = registration.registerUsername(
-                new RegistrationCommit.UsernameRegistration(username, hasher.encode(password), invite));
+            var result = registration
+                .registerUsername(new RegistrationCommit.UsernameRegistration(username, hasher.encode(password)));
             session.establish(new AccountSession.Identity(result.accountId(), result.credentialVersion()));
             return current();
         }

@@ -4,17 +4,13 @@ import com.revue.AfterCommit;
 import com.revue.identity.application.RegistrationStore;
 import com.revue.identity.domain.Account;
 import com.revue.identity.domain.PasswordHash;
-import com.revue.identity.domain.SignupInvite;
-import com.revue.identity.domain.TokenHash;
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.LockModeType;
 import java.time.Instant;
-import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Repository;
 
-/** Persists account registration and invitation redemption within JPA transactions. */
+/** Persists account registration within JPA transactions. */
 @Repository
 public class JpaRegistrationStore implements RegistrationStore {
     private static final Logger LOG = LoggerFactory.getLogger(JpaRegistrationStore.class);
@@ -26,20 +22,7 @@ public class JpaRegistrationStore implements RegistrationStore {
     }
 
     @Override
-    public Optional<SignupInvite> lockInvite(TokenHash tokenHash) {
-        return entityManager
-            .createQuery("select i from SignupInvite i where i.tokenHash = :hash", SignupInviteRow.class)
-            .setParameter("hash", tokenHash.value())
-            .setLockMode(LockModeType.PESSIMISTIC_WRITE)
-            .getResultList()
-            .stream()
-            .findFirst()
-            .map(SignupInviteRow::toDomain);
-    }
-
-    @Override
     public Instant currentTime() {
-        // Transaction-start time would ignore time spent waiting for the invitation lock.
         return (Instant) entityManager.createNativeQuery("select clock_timestamp()", Instant.class).getSingleResult();
     }
 
@@ -69,24 +52,5 @@ public class JpaRegistrationStore implements RegistrationStore {
                     .log("Account committed"));
         }
         return inserted;
-    }
-
-    @Override
-    public void saveRedemption(SignupInvite invite) {
-        // This managed row was locked by lockInvite in the same application transaction.
-        SignupInviteRow row = entityManager.find(SignupInviteRow.class, invite.id());
-        row.recordRedemption(invite);
-        entityManager.flush();
-        if (!invite.reusable()) {
-            AfterCommit.log(
-                () -> LOG.atInfo()
-                    .addKeyValue("event.name", "invitation.redeemed")
-                    .addKeyValue("event.outcome", "success")
-                    .addKeyValue("entity.type", "invitation")
-                    .addKeyValue("entity.id", invite.id().toString())
-                    .addKeyValue("state.from", "available")
-                    .addKeyValue("state.to", "redeemed")
-                    .log("Single-use invitation redemption committed"));
-        }
     }
 }

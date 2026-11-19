@@ -9,7 +9,7 @@ import {
 } from '../../../shared/navigation/paths';
 
 export type AccountProfile = { username: string };
-export type Signup = { username: string; password: string; invitation: string };
+export type Signup = { username: string; password: string };
 
 export interface AccountGateway {
   prepareWrite(): void;

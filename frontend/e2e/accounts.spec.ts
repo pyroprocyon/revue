@@ -45,7 +45,7 @@ for (const width of [375, 1366]) {
     pilot,
   }, info) => {
     await page.setViewportSize({ width, height: 800 });
-    await page.goto(pilot.invitation());
+    await page.goto(pilot.signupUrl);
     await register(page, username());
     await page.addInitScript(() => {
       new MutationObserver(() => {
@@ -85,7 +85,7 @@ test('invited learner registers with six characters, reloads, signs out and sign
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Review before it’s due.' })).toBeVisible();
   expect(await context.cookies()).toHaveLength(0);
-  await page.goto(pilot.invitation().replace('/register#invite=', '/i#'));
+  await page.goto(pilot.origin + '/i#old-code');
   await expect(page).not.toHaveURL(/#/);
   await expect(page.getByRole('textbox', { name: /email/i })).toHaveCount(0);
   await expect(page.getByRole('checkbox')).toHaveCount(0);
@@ -139,7 +139,7 @@ test('invited learner registers with six characters, reloads, signs out and sign
 
 test('wrong and unknown credentials give the same error and a learner can retry', async ({ page, pilot }) => {
   const name = username();
-  await page.goto(pilot.invitation());
+  await page.goto(pilot.signupUrl);
   await register(page, name);
   await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
   await page.getByRole('button', { name: 'Sign out' }).click();
@@ -156,14 +156,14 @@ test('wrong and unknown credentials give the same error and a learner can retry'
 
 test('existing learners keep their shared-set destination when switching to sign-in', async ({ page, pilot }) => {
   const name = username();
-  await page.goto(pilot.invitation());
+  await page.goto(pilot.signupUrl);
   await register(page, name);
   await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
   await page.getByRole('button', { name: 'Sign out' }).click();
   await expect(page).toHaveURL(/\/sign-in$/);
-  const invitation = new URL(pilot.invitation());
-  invitation.searchParams.set('returnTo', '/sets/philippine-history');
-  await page.goto(invitation.href);
+  const signupUrl = new URL(pilot.signupUrl);
+  signupUrl.searchParams.set('returnTo', '/sets/philippine-history');
+  await page.goto(signupUrl.href);
   await page.getByRole('link', { name: 'Sign in', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Welcome back', exact: true })).toBeVisible();
   await signIn(page, name);
@@ -175,20 +175,15 @@ test('existing learners keep their shared-set destination when switching to sign
   await expect(page.getByRole('heading', { name: 'Your review', exact: true })).toBeVisible();
 });
 
-test('two browsers keep separate accounts and a duplicate username leaves its invite usable', async ({
-  page,
-  browser,
-  pilot,
-}) => {
+test('two browsers keep separate accounts after a duplicate username', async ({ page, browser, pilot }) => {
   const first = username();
-  const firstInvite = pilot.invitation();
-  await page.goto(firstInvite);
+  await page.goto(pilot.signupUrl);
   await register(page, first);
   await expect(page.getByText(first, { exact: true })).toBeVisible();
   const otherContext = await browser.newContext({ baseURL: pilot.origin });
   try {
     const other = await otherContext.newPage();
-    await other.goto(pilot.invitation());
+    await other.goto(pilot.signupUrl);
     await register(other, first);
     await expect(other.getByRole('alert')).toContainText('That username is unavailable');
     expect((await other.request.get('/api/v1/me')).status()).toBe(401);
@@ -200,10 +195,6 @@ test('two browsers keep separate accounts and a duplicate username leaves its in
     await other.getByRole('button', { name: 'Sign out' }).click();
     await expect(other).toHaveURL(/\/sign-in$/);
     expect((await page.request.get('/api/v1/me')).status()).toBe(200);
-    await other.goto(firstInvite);
-    await register(other, username());
-    await expect(other.getByRole('alert')).toContainText('Use a valid invitation link');
-    expect((await other.request.get('/api/v1/me')).status()).toBe(401);
   } finally {
     await otherContext.close();
   }
@@ -272,7 +263,7 @@ test('returning to Account rechecks quietly once and restores focus without shif
   page,
   pilot,
 }) => {
-  await page.goto(pilot.invitation());
+  await page.goto(pilot.signupUrl);
   await register(page, username());
   const signOut = page.getByRole('button', { name: 'Sign out', exact: true });
   await expect(signOut).toBeVisible();
@@ -319,25 +310,17 @@ test('returning to Account rechecks quietly once and restores focus without shif
   expect(requests).toBe(1);
 });
 
-test('an invitation opened on an already-mounted registration page enables signup without reload', async ({
-  page,
-  pilot,
-}) => {
+test('a shared registration URL works after reload without an invitation', async ({ page }) => {
   await page.goto('/register');
-  await expect(page.getByRole('button', { name: 'Create account' })).toBeDisabled();
+  await page.reload();
   const name = username();
-  await page.getByRole('textbox', { name: 'Username' }).fill(name);
-  await page.goto(pilot.invitation());
-  await expect(page.getByRole('button', { name: 'Create account' })).toBeEnabled();
-  await expect(page).not.toHaveURL(/#invite=/);
-  await expect(page.getByRole('textbox', { name: 'Username' })).toHaveValue(name);
   await register(page, name);
   await expect(page.getByText(name, { exact: true })).toBeVisible();
 });
 
 test('first sign-in while offline gives guidance and recovers after reconnecting', async ({ page, context, pilot }) => {
   const name = username();
-  await page.goto(pilot.invitation());
+  await page.goto(pilot.signupUrl);
   await register(page, name);
   await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
   await page.getByRole('button', { name: 'Sign out' }).click();
@@ -359,14 +342,14 @@ test('first sign-in while offline gives guidance and recovers after reconnecting
 });
 
 test('the same short pilot link registers two independent learners', async ({ page, browser, pilot }) => {
-  const invitation = pilot.invitation(true);
+  const signupUrl = pilot.signupUrl;
   const second = await browser.newContext({ baseURL: pilot.origin, viewport: { width: 390, height: 844 } });
   try {
     const other = await second.newPage();
     for (const learner of [page, other]) {
       const name = username();
-      await learner.goto(invitation);
-      await expect(learner).toHaveURL(/\/i$/);
+      await learner.goto(signupUrl);
+      await expect(learner).toHaveURL(/\/register$/);
       expect((await learner.request.get('/api/v1/me')).status()).toBe(401);
       expect((await register(learner, name)).status()).toBe(200);
       await expect(learner.getByText(name, { exact: true })).toBeVisible();
@@ -393,7 +376,7 @@ test('a short public share opens the intended set and its trial without signing 
 
 test('signup checks the confirmation locally and sends only one password after correction', async ({ page, pilot }) => {
   const name = username();
-  await page.goto(pilot.invitation());
+  await page.goto(pilot.signupUrl);
   const requests: string[] = [];
   page.on('request', (request) => {
     if (request.url().endsWith('/api/v1/auth/register') && request.method() === 'POST')
@@ -423,13 +406,13 @@ test('signup checks the confirmation locally and sends only one password after c
   await expect(page.getByText(name, { exact: true })).toBeVisible();
   expect(requests).toHaveLength(1);
   const sent = new URLSearchParams(requests[0]);
-  expect([...sent.keys()].sort()).toEqual(['invitation', 'password', 'username']);
+  expect([...sent.keys()].sort()).toEqual(['password', 'username']);
   expect(sent.get('password')).toBe(PASSWORD);
 });
 
 test('signed-in navigation keeps every public route connected to Today', async ({ page, pilot }) => {
   const name = username();
-  await page.goto(pilot.invitation());
+  await page.goto(pilot.signupUrl);
   await register(page, name);
   const account = page.getByText(name, { exact: true });
   await expect(account).toBeVisible();

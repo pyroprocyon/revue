@@ -134,45 +134,8 @@ class AccountRulesTests {
     }
 
     @Test
-    void invitationsAreSingleUseAndExpireAtTheDeadline() {
-        SignupInvite invite = new SignupInvite(
-            UUID.randomUUID(),
-            new TokenHash("a".repeat(64)),
-            NOW,
-            NOW.plusSeconds(60),
-            null,
-            null,
-            null,
-            false);
-        assertThat(invite.redeem(UUID.randomUUID(), NOW).redeemedAt()).isEqualTo(NOW);
-        assertThatIllegalStateException().isThrownBy(() -> invite.redeem(UUID.randomUUID(), NOW.plusSeconds(60)));
-        assertThatIllegalStateException().isThrownBy(() -> invite.redeem(UUID.randomUUID(), NOW.minusSeconds(1)));
-        SignupInvite detached = new SignupInvite(
-            invite.id(),
-            invite.tokenHash(),
-            NOW,
-            invite.expiresAt(),
-            null,
-            NOW,
-            null,
-            false);
-        assertThatIllegalStateException().isThrownBy(() -> detached.redeem(UUID.randomUUID(), NOW));
-        SignupInvite revoked = new SignupInvite(
-            invite.id(),
-            invite.tokenHash(),
-            NOW,
-            invite.expiresAt(),
-            NOW,
-            null,
-            null,
-            false);
-        assertThatIllegalStateException().isThrownBy(() -> revoked.redeem(UUID.randomUUID(), NOW));
-    }
-
-    @Test
     void sensitiveValuesDoNotAppearInDiagnosticStrings() {
         assertThat(new EmailAddress("private@example.com").toString()).doesNotContain("private@example.com");
-        assertThat(new TokenHash("b".repeat(64)).toString()).doesNotContain("b".repeat(64));
         assertThat(new PasswordHash("{test}encoded-test-value").toString()).doesNotContain("encoded-test-value");
     }
 

@@ -61,11 +61,7 @@ export const httpAccount: AccountGateway = {
     return { username: profile.username };
   },
   async register(input: Signup) {
-    return postForProfile('/api/v1/auth/register', {
-      username: input.username,
-      password: input.password,
-      invitation: input.invitation,
-    });
+    return postForProfile('/api/v1/auth/register', input);
   },
   async signIn(username, password) {
     return postForProfile('/api/v1/auth/login', { username, password });

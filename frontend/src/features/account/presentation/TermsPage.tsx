@@ -6,8 +6,8 @@ export function TermsPage() {
     <PolicyPageLayout title="Terms">
       <PolicySection title="Using Revue">
         <p>
-          Pilot accounts are available by invitation. Use your own account, keep your password and unused invitation
-          link private, and respect other learners and credited sources.
+          Pilot accounts are available by invitation. Use your own account, keep your password private, and respect
+          other learners and credited sources.
         </p>
       </PolicySection>
       <PolicySection title="Learning limits">

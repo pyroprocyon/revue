@@ -28,7 +28,7 @@ test('typing prepares one form token and signup rotates it before deck creation'
   page.on('request', (request) => {
     if (new URL(request.url()).pathname === tokenPath) requests++;
   });
-  await page.goto(pilot.invitation());
+  await page.goto(pilot.signupUrl);
   const username = page.getByLabel('Username', { exact: true });
   await username.focus();
   expect(requests).toBe(0);
