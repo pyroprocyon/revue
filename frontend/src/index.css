@@ -224,7 +224,6 @@
   initial-value: 0;
 }
 
-/* Only the front deck and its neighbors interpolate their distance as they cross the front. */
 @keyframes deck-offset {
   from { --deck-offset: 2; }
   to { --deck-offset: -2; }

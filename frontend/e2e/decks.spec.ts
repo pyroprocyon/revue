@@ -779,10 +779,9 @@ test('Library decks follow the finger on phones and tablets and filter the same 
   await expect.poll(stripBottom).toBeLessThan(stripBottomAtRest);
   const stage = scroller.locator('.deck-carousel-stage');
   expect(await stage.evaluate((element) => element.style.getPropertyValue('--deck-progress'))).toBe('');
-  // While the finger is held between snaps, the front card should already be changing scale.
-  const frontScale = () =>
+  const frontCardScaleBetweenSnaps = () =>
     activeDeck.evaluate((link) => new DOMMatrixReadOnly(getComputedStyle(link.closest('article')!).transform).a);
-  await expect.poll(frontScale).toBeLessThan(1);
+  await expect.poll(frontCardScaleBetweenSnaps).toBeLessThan(1);
   const earlyInDrag = await stripBottom();
   await touch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: y - 60 }] });
   await expect.poll(async () => earlyInDrag - (await stripBottom())).toBeCloseTo(30, 0);

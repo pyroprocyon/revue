@@ -111,7 +111,7 @@ export function AccountLayout({ focused = false }: Readonly<{ focused?: boolean 
 
   useEffect(() => {
     let pendingRequest: { controller: AbortController; startedAt: number } | undefined;
-    let needsCheck = true;
+    let leftSinceLastReturn = true;
     let confirmedAt: number | undefined;
     let revision = sessionRevision();
     async function checkSession() {
@@ -128,8 +128,11 @@ export function AccountLayout({ focused = false }: Readonly<{ focused?: boolean 
       try {
         const profile = await gateway.current(request.controller.signal);
         if (pendingRequest !== request) return;
-        if (checkChangedRevision()) return;
-        if (needsCheck && !withinSessionWindow(request.startedAt)) {
+        if (storedSessionChanged()) {
+          recheckAfterSessionMismatch();
+          return;
+        }
+        if (leftSinceLastReturn && !withinSessionWindow(request.startedAt)) {
           pendingRequest = undefined;
           checkVisibleSession();
           return;
@@ -152,39 +155,43 @@ export function AccountLayout({ focused = false }: Readonly<{ focused?: boolean 
         }
       }
     }
+    function canReuseRecentCheck() {
+      return revision !== undefined && withinSessionWindow(pendingRequest?.startedAt ?? confirmedAt);
+    }
+    function storedSessionChanged() {
+      return sessionRevision() !== revision;
+    }
     function markForReturn() {
-      needsCheck = true;
+      leftSinceLastReturn = true;
     }
     function checkVisibleSession() {
       if (document.visibilityState !== 'visible') {
         markForReturn();
         return;
       }
-      const returning = needsCheck;
-      needsCheck = false;
-      if (checkChangedRevision() || !returning) return;
-      if (revision !== undefined && withinSessionWindow(pendingRequest?.startedAt ?? confirmedAt)) return;
-      void checkSession();
+      const returning = leftSinceLastReturn;
+      leftSinceLastReturn = false;
+      if (storedSessionChanged()) {
+        recheckAfterSessionMismatch();
+      } else if (returning && !canReuseRecentCheck()) {
+        void checkSession();
+      }
     }
     function recheckAfterSessionMismatch() {
+      revision = sessionRevision();
       pendingTab.current = null;
       forgetCsrfToken();
       void checkSession();
     }
-    function checkChangedRevision() {
-      const latest = sessionRevision();
-      if (latest === revision) return false;
-      revision = latest;
-      recheckAfterSessionMismatch();
-      return true;
-    }
     function restorePage(event: PageTransitionEvent) {
       if (event.persisted) checkVisibleSession();
     }
-    const stopHearingChanges = onSessionChange(checkChangedRevision, recheckAfterSessionMismatch);
+    const stopHearingChanges = onSessionChange(() => {
+      if (storedSessionChanged()) recheckAfterSessionMismatch();
+    }, recheckAfterSessionMismatch);
     checkVisibleSession();
     // A visible secondary window can open before it gains focus for the first time.
-    if (!document.hasFocus()) needsCheck = true;
+    if (!document.hasFocus()) leftSinceLastReturn = true;
     window.addEventListener('pagehide', markForReturn);
     window.addEventListener('pageshow', restorePage);
     const stopHearingMismatches = onSessionMismatch(recheckAfterSessionMismatch);
