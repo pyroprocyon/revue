@@ -361,6 +361,8 @@ test('a session check on a phone hides the delete confirmation, then brings back
   page,
   pilot,
 }) => {
+  // Use the same clock for the initial confirmation and the simulated return 30 seconds later.
+  await page.clock.setFixedTime(new Date());
   await page.setViewportSize({ width: 375, height: 667 });
   await signup(page, pilot.signupUrl);
   await createDeckWithCard(page, 'Session checks', 'What does a leaf turn toward?', 'The light');
