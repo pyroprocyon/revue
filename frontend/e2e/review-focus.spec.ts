@@ -347,6 +347,7 @@ for (const { cardCount, focusExit } of [
       return route.fulfill({ status: 404 });
     });
     try {
+      await page.clock.setFixedTime(new Date());
       await page.goto('/review/set-1/start');
       await expect(page.getByRole('heading', { name: 'First question', exact: true })).toBeFocused();
       await page.getByRole('button', { name: 'Show answer' }).click();
