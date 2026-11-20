@@ -2,7 +2,6 @@ import { Link, useLocation } from 'react-router';
 import { TODAY_PATH, HOME_PATH, PRIVACY_PATH, TERMS_PATH } from '../../shared/navigation/paths';
 import { OPENED_FROM_HELP, routeState } from '../../shared/navigation/routeState';
 import { usePublicSession } from '../../shared/navigation/publicSession';
-import { textLink } from '../../shared/ui/buttonStyles';
 import { BackButton, HomeLink } from '../../shared/ui/HeaderLinks';
 import { PageLayout } from '../../shared/ui/PageLayout';
 import { SupportLink } from '../../shared/ui/SupportLink';
@@ -10,8 +9,11 @@ import { SessionCheckScreen } from '../../shared/ui/MessageScreen';
 import { useFocusOnMount } from '../../shared/ui/useFocusOnMount';
 import { WorkspaceLayout } from '../../shared/ui/WorkspaceLayout';
 import { ArrowUpRight, ChevronRight, FileText, Mail, ShieldCheck } from 'lucide-react';
+import { HomeScreenHelp } from './HomeScreenHelp';
 
-const helpLink = 'flex min-h-16 items-center gap-3 py-4';
+const helpLink = 'help-directory-row pressable';
+const helpIcon = 'size-9 shrink-0 rounded-xl bg-accent-soft/60 p-2 text-accent-strong';
+const linkArrow = 'size-4 shrink-0 text-muted';
 
 export function HelpPage() {
   const session = usePublicSession();
@@ -45,23 +47,26 @@ function HelpContent({ signedIn }: Readonly<{ signedIn: boolean }>) {
       </h1>
       <nav
         aria-label="Help and policies"
-        className="mt-6 divide-y divide-line rounded-card bg-surface px-compact-gutter py-2 shadow-card sm:mt-8 sm:px-8"
+        className="mt-[1.125rem] max-w-[40.625rem] overflow-hidden rounded-[1.25rem] border border-line bg-surface shadow-xs lg:mt-6"
       >
-        <SupportLink className={helpLink}>
-          <Mail aria-hidden="true" className="size-5 shrink-0 text-muted" />
-          <span className="flex-1">Contact support</span>
-          <ArrowUpRight aria-hidden="true" className="size-5 shrink-0" />
-        </SupportLink>
-        <Link to={PRIVACY_PATH} state={OPENED_FROM_HELP} className={`${textLink} ${helpLink}`}>
-          <ShieldCheck aria-hidden="true" className="size-5 shrink-0 text-muted" />
-          <span className="flex-1">Privacy notice</span>
-          <ChevronRight aria-hidden="true" className="size-5 shrink-0" />
-        </Link>
-        <Link to={TERMS_PATH} state={OPENED_FROM_HELP} className={`${textLink} ${helpLink}`}>
-          <FileText aria-hidden="true" className="size-5 shrink-0 text-muted" />
-          <span className="flex-1">Terms</span>
-          <ChevronRight aria-hidden="true" className="size-5 shrink-0" />
-        </Link>
+        <HomeScreenHelp />
+        <div className="mx-3.5 divide-y divide-line lg:mx-[1.375rem]">
+          <SupportLink className={helpLink}>
+            <Mail aria-hidden="true" className={helpIcon} />
+            <span className="flex-1">Contact support</span>
+            <ArrowUpRight aria-hidden="true" className={linkArrow} />
+          </SupportLink>
+          <Link to={PRIVACY_PATH} state={OPENED_FROM_HELP} className={helpLink}>
+            <ShieldCheck aria-hidden="true" className={helpIcon} />
+            <span className="flex-1">Privacy notice</span>
+            <ChevronRight aria-hidden="true" className={linkArrow} />
+          </Link>
+          <Link to={TERMS_PATH} state={OPENED_FROM_HELP} className={helpLink}>
+            <FileText aria-hidden="true" className={helpIcon} />
+            <span className="flex-1">Terms</span>
+            <ChevronRight aria-hidden="true" className={linkArrow} />
+          </Link>
+        </div>
       </nav>
     </section>
   );

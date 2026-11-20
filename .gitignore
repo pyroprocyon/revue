@@ -9,6 +9,7 @@ backend/target/
 # Frontend dependencies and build output
 node_modules/
 frontend/dist/
+frontend/public/icons/
 frontend/coverage/
 
 # Editors and operating systems

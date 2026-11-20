@@ -4,6 +4,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createBrowserRouter, RouterProvider } from 'react-router';
 import { appRoutes } from './app/routes';
+import { watchPhoneInstall } from './app/homeScreenInstall';
 import './index.css';
 
 const rootElement = document.getElementById('root');
@@ -11,6 +12,7 @@ if (!rootElement) {
   throw new Error('index.html has no #root element');
 }
 
+watchPhoneInstall();
 const queryClient = new QueryClient();
 const router = createBrowserRouter(appRoutes);
 
