@@ -3,6 +3,25 @@
 /* Small, short phones such as the iPhone SE (375 x 667) and 360 x 640 Androids, where saved Review compacts its card. */
 @custom-variant short-phone (@media (width < 40rem) and (height < 44rem));
 
+.help-directory-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 4.125rem;
+  padding-block: 0.5rem;
+  color: inherit;
+  font-weight: 650;
+  line-height: 1.3;
+  text-align: start;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.help-directory-row:focus-visible {
+  outline-offset: -3px;
+}
+
 .review-progress {
   display: block;
   width: 100%;
