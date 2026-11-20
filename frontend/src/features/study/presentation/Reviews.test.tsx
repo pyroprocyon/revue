@@ -341,7 +341,10 @@ describe('saved daily study', () => {
       if (path === '/api/v1/auth/session') return Promise.resolve(jsonResponse(200, { signedIn: false }));
       return respond(path, init);
     });
-    fireEvent(window, new Event('focus'));
+    using clock = vi.spyOn(Date, 'now');
+    clock.mockReturnValue(Date.now() + 30_000);
+    fireEvent.blur(window);
+    fireEvent.focus(window);
     expect(await screen.findByRole('heading', { name: 'Welcome back' })).toBeDefined();
     expect(screen.queryByRole('heading', { name: card.question })).toBeNull();
   });
@@ -366,7 +369,8 @@ describe('saved daily study', () => {
       await act(async () => {
         focusManager.setFocused(false);
         focusManager.setFocused(true);
-        fireEvent(window, new Event('focus'));
+        fireEvent.blur(window);
+        fireEvent.focus(window);
       });
       expect(fetcher.mock.calls.filter(([path]) => path.startsWith('/api/v1/cards/due'))).toHaveLength(queueReads);
     } finally {

@@ -1,12 +1,14 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Navigate, Outlet, useLocation } from 'react-router';
+import { Navigate, Outlet, useLocation, useNavigate } from 'react-router';
 import { safeAccountReturnPath } from '../application/account';
 import type { AccountProfile } from '../application/account';
 import { useAccountGateway } from './AccountProvider';
+import { onSessionChange, sessionRevision } from '../../../shared/navigation/sessionChanges';
 import { lastConfirmedProfile, rememberConfirmedProfile } from './confirmedProfile';
 import {
   bindWritesTo,
+  forgetCsrfToken,
   onConfirmedWrite,
   onOutdatedPage,
   onSessionMismatch,
@@ -23,17 +25,25 @@ import { FocusRequestContext, InteractionPausedContext } from '../../../shared/u
 
 type Session = { status: 'loading' | 'signed-out' } | { status: 'ready'; profile: AccountProfile };
 
+const SESSION_FRESH_MS = 30_000;
+function withinSessionWindow(time: number | undefined) {
+  if (time === undefined) return false;
+  const elapsed = Date.now() - time;
+  return elapsed >= 0 && elapsed < SESSION_FRESH_MS;
+}
+
 const OUTDATED_REVIEW_MESSAGE = 'Your last change wasn’t sent. Go to Today to keep studying.';
 const OUTDATED_PAGE_MESSAGE =
   'Your last change wasn’t sent. Copy anything you typed, then go to Today. If your decks are missing there, they’re still saved, and you can edit them again once they’re back.';
 
 /**
- * Private routes mount only for an account the server confirmed. Returning to the tab, a write rejected for an old
- * session, or opening a private page from the last confirmed account rechecks the session quietly while private
- * controls are paused.
+ * Private routes mount only for an account the server confirmed. A short tab switch can reuse that confirmation. Account changes in other
+ * tabs and rejected sessions always require a fresh server response before private controls become active again.
  */
 export function AccountLayout({ focused = false }: Readonly<{ focused?: boolean }>) {
   const location = useLocation();
+  const navigate = useNavigate();
+  const pendingTab = useRef<{ from: string; to: string; learner: string | null } | null>(null);
   const gateway = useAccountGateway();
   const queryClient = useQueryClient();
   const [session, setSession] = useState<Session>(() => {
@@ -41,7 +51,9 @@ export function AccountLayout({ focused = false }: Readonly<{ focused?: boolean 
     return profile ? { status: 'ready', profile } : { status: 'loading' };
   });
   // A remembered account starts unpaused so its page can take route-entry focus. The first check pauses it at once.
-  const [checking, setChecking] = useState(session.status === 'loading');
+  const [checking, setChecking] = useState(
+    () => session.status === 'loading' || document.visibilityState !== 'visible',
+  );
   const [verificationError, setVerificationError] = useState(false);
   const [outdated, setOutdated] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -83,10 +95,29 @@ export function AccountLayout({ focused = false }: Readonly<{ focused?: boolean 
   }, [checking, verificationError]);
 
   useEffect(() => {
-    let pendingRequest: symbol | undefined;
+    if (checking) return;
+    const tab = pendingTab.current;
+    pendingTab.current = null;
+    if (
+      tab &&
+      !verificationError &&
+      tab.learner === learner &&
+      tab.from === location.key &&
+      tab.to !== location.pathname + location.search + location.hash
+    ) {
+      void navigate(tab.to);
+    }
+  }, [checking, verificationError, learner, location.key, location.pathname, location.search, location.hash, navigate]);
+
+  useEffect(() => {
+    let pendingRequest: { controller: AbortController; startedAt: number } | undefined;
+    let needsCheck = true;
+    let confirmedAt: number | undefined;
+    let revision = sessionRevision();
     async function checkSession() {
-      if (pendingRequest) return;
-      const request = Symbol();
+      confirmedAt = undefined;
+      pendingRequest?.controller.abort();
+      const request = { controller: new AbortController(), startedAt: Date.now() };
       pendingRequest = request;
       const activeElement = document.activeElement;
       if (activeElement instanceof HTMLElement && privateContent.current?.contains(activeElement)) {
@@ -95,8 +126,15 @@ export function AccountLayout({ focused = false }: Readonly<{ focused?: boolean 
       setChecking(true);
       setVerificationError(false);
       try {
-        const profile = await gateway.current();
+        const profile = await gateway.current(request.controller.signal);
         if (pendingRequest !== request) return;
+        if (checkChangedRevision()) return;
+        if (needsCheck && !withinSessionWindow(request.startedAt)) {
+          pendingRequest = undefined;
+          checkVisibleSession();
+          return;
+        }
+        if (profile !== null) confirmedAt = Date.now();
         if (lastUsername.current !== profile?.username || profile === null) {
           previousFocus.current = null;
           pendingFocus.current = null;
@@ -114,28 +152,55 @@ export function AccountLayout({ focused = false }: Readonly<{ focused?: boolean 
         }
       }
     }
-    function invalidateSessionCheck() {
-      pendingRequest = undefined;
+    function markForReturn() {
+      needsCheck = true;
     }
     function checkVisibleSession() {
-      if (document.visibilityState === 'visible') void checkSession();
-      else invalidateSessionCheck();
+      if (document.visibilityState !== 'visible') {
+        markForReturn();
+        return;
+      }
+      const returning = needsCheck;
+      needsCheck = false;
+      if (checkChangedRevision() || !returning) return;
+      if (revision !== undefined && withinSessionWindow(pendingRequest?.startedAt ?? confirmedAt)) return;
+      void checkSession();
     }
     function recheckAfterSessionMismatch() {
-      // A check already in flight can have read the account from before a sign-in in another tab.
-      invalidateSessionCheck();
-      checkVisibleSession();
+      pendingTab.current = null;
+      forgetCsrfToken();
+      void checkSession();
     }
-    void checkSession();
+    function checkChangedRevision() {
+      const latest = sessionRevision();
+      if (latest === revision) return false;
+      revision = latest;
+      recheckAfterSessionMismatch();
+      return true;
+    }
+    function restorePage(event: PageTransitionEvent) {
+      if (event.persisted) checkVisibleSession();
+    }
+    const stopHearingChanges = onSessionChange(checkChangedRevision, recheckAfterSessionMismatch);
+    checkVisibleSession();
+    // A visible secondary window can open before it gains focus for the first time.
+    if (!document.hasFocus()) needsCheck = true;
+    window.addEventListener('pagehide', markForReturn);
+    window.addEventListener('pageshow', restorePage);
     const stopHearingMismatches = onSessionMismatch(recheckAfterSessionMismatch);
     window.addEventListener('focus', checkVisibleSession);
-    window.addEventListener('blur', invalidateSessionCheck);
+    window.addEventListener('blur', markForReturn);
     document.addEventListener('visibilitychange', checkVisibleSession);
     return () => {
-      invalidateSessionCheck();
+      pendingRequest?.controller.abort();
+      pendingRequest = undefined;
+      pendingTab.current = null;
       stopHearingMismatches();
+      stopHearingChanges();
+      window.removeEventListener('pagehide', markForReturn);
+      window.removeEventListener('pageshow', restorePage);
       window.removeEventListener('focus', checkVisibleSession);
-      window.removeEventListener('blur', invalidateSessionCheck);
+      window.removeEventListener('blur', markForReturn);
       document.removeEventListener('visibilitychange', checkVisibleSession);
     };
   }, [attempt, gateway, queryClient]);
@@ -151,9 +216,17 @@ export function AccountLayout({ focused = false }: Readonly<{ focused?: boolean 
   const noticeLevel = session.status === 'ready' ? 'h2' : 'h1';
   const content = (
     <>
-      {checking && session.status === 'loading' && (
+      {checking && (
         <WhenSlow>
-          <output className="mb-4 block text-muted">Loading your account…</output>
+          <output
+            className={
+              session.status === 'loading'
+                ? 'mb-4 block text-muted'
+                : 'pointer-events-none fixed inset-x-0 top-2 z-20 mx-auto w-fit rounded-control bg-surface px-3 py-2 text-support text-ink shadow-control'
+            }
+          >
+            {session.status === 'loading' ? 'Loading your account…' : 'Checking your session…'}
+          </output>
         </WhenSlow>
       )}
       {verificationError && (
@@ -193,7 +266,18 @@ export function AccountLayout({ focused = false }: Readonly<{ focused?: boolean 
       <div className="pt-2 sm:pt-6">{content}</div>
     </StudyLayout>
   ) : (
-    <WorkspaceLayout navigationDisabled={interactionsPaused}>{content}</WorkspaceLayout>
+    <WorkspaceLayout
+      navigationDisabled={verificationError}
+      onTabWhileChecking={
+        checking && session.status === 'ready'
+          ? (to) => {
+              pendingTab.current = { from: location.key, to, learner };
+            }
+          : undefined
+      }
+    >
+      {content}
+    </WorkspaceLayout>
   );
 }
 

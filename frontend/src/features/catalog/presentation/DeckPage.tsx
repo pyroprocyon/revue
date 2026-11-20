@@ -438,8 +438,7 @@ function DeckContent({
       heading="New card"
       added={cardsAdded > 0}
       draft={form.draft}
-      saving={addWrite.saving}
-      problem={<DeckWriteProblem state={addWrite.state} />}
+      writeState={addWrite.state}
       onDraftChange={updateDraft}
       onSave={(draft) =>
         void addWrite.run(
@@ -895,8 +894,7 @@ function EditCard({ card, draft, onDraftChange, onChanged, onClose }: Readonly<E
       prepareWrite={gateway.prepareWrite}
       heading="Edit card"
       card={card}
-      saving={write.saving}
-      problem={<DeckWriteProblem state={write.state} />}
+      writeState={write.state}
       draft={draft}
       onDraftChange={onDraftChange}
       onSave={(saved) =>

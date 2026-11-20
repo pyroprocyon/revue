@@ -346,6 +346,38 @@ test('the shortcut brings Saved sets above the phone navigation and moves keyboa
     .toBe(true);
 });
 
+test('recent Library lists survive an in-app tab switch and refresh after a browser return', async ({
+  page,
+  pilot,
+}) => {
+  await register(page, pilot.signupUrl);
+  const reads: string[] = [];
+  page.on('request', (request) => {
+    const path = new URL(request.url()).pathname;
+    if (path === '/api/v1/decks' || path === '/api/v1/me/saved-sets') reads.push(path);
+  });
+  const tabs = page.getByRole('navigation', { name: 'Your workspace' });
+  const library = tabs.getByRole('link', { name: 'Library' });
+  const account = tabs.getByRole('link', { name: 'Account' });
+  const savedSets = page.waitForResponse('**/api/v1/me/saved-sets');
+  await library.click();
+  await (await savedSets).finished();
+  await expect(page.getByRole('link', { name: 'Create a deck' })).toBeVisible();
+  await account.click();
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await library.click();
+  await expect(page.getByRole('link', { name: 'Create a deck' })).toBeVisible();
+  expect(reads.sort()).toEqual(['/api/v1/decks', '/api/v1/me/saved-sets']);
+  await account.click();
+  await page.evaluate(() => {
+    window.dispatchEvent(new Event('blur'));
+    window.dispatchEvent(new Event('focus'));
+  });
+  await library.click();
+  await expect.poll(() => reads.length).toBe(4);
+  expect(reads.sort()).toEqual(['/api/v1/decks', '/api/v1/decks', '/api/v1/me/saved-sets', '/api/v1/me/saved-sets']);
+});
+
 test('Library preserves its page through a preview and offers Previous after a failed read', async ({
   page,
   pilot,

@@ -334,6 +334,7 @@ async function holdSessionChecks(page: Page) {
       held = new Promise<void>((resolve) => {
         release = resolve;
       });
+      await page.clock.setFixedTime(new Date((await page.evaluate(() => Date.now())) + 30_000));
       const check = page.waitForRequest('**/api/v1/me');
       await page.evaluate(() => {
         window.dispatchEvent(new Event('blur'));
@@ -485,6 +486,83 @@ test('deck screens fit phone, tablet and desktop widths and enlarged text', asyn
       await page.screenshot({ path: info.outputPath(`${screen}-${label}.png`), fullPage: true });
     }
   }
+});
+
+test('phone card fields fit the draft while writing and when reopening a card', async ({ page, pilot }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await signup(page, pilot.signupUrl);
+  await page.goto('/library/decks/new');
+  await page.getByLabel('Name', { exact: true }).fill('Java memory');
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  const question = 'Why does a generational collector collect young objects more often?';
+  const answer = page.getByRole('textbox', { name: 'Answer', exact: true });
+  const explanation = page.getByRole('textbox', { name: 'Explanation', exact: true });
+  const longAnswer = 'Most allocations become unreachable quickly. '.repeat(8).trim();
+  await page.getByLabel('Question', { exact: true }).fill(question);
+  const emptyHeight = await answer.evaluate((field) => field.clientHeight);
+  await answer.fill(longAnswer);
+  expect(await answer.evaluate((field) => field.clientHeight)).toBeGreaterThan(emptyHeight);
+  await page.getByText('Optional details', { exact: true }).click();
+  await explanation.fill('One collection cycle.\n'.repeat(12));
+  for (const field of [answer, explanation]) {
+    expect(await field.evaluate((element) => element.scrollHeight - element.clientHeight)).toBeLessThanOrEqual(1);
+  }
+  await page.getByRole('button', { name: 'Save card', exact: true }).click();
+  await expect(answer).toHaveValue('');
+  expect(await answer.evaluate((field) => field.clientHeight)).toBe(emptyHeight);
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
+  await editCard(page, question);
+  await expect(answer).toHaveValue(longAnswer);
+  await page.setViewportSize({ width: 320, height: 568 });
+  expect(await answer.evaluate((field) => field.scrollHeight - field.clientHeight)).toBeLessThanOrEqual(1);
+});
+
+test('a failed phone save shows the error below Save and preserves the long draft for retry', async ({
+  page,
+  pilot,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await signup(page, pilot.signupUrl);
+  await page.goto('/library/decks/new');
+  await page.getByLabel('Name', { exact: true }).fill('Save recovery');
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await addCard(page, 'What is a heap?', 'Memory for allocated objects.');
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
+  await page.getByRole('button', { name: 'Add card', exact: true }).click();
+  const question = page.getByLabel('Question', { exact: true });
+  const answer = page.getByLabel('Answer', { exact: true });
+  const save = page.getByRole('button', { name: 'Save card', exact: true });
+  const alert = page.getByRole('alert').filter({ hasText: 'confirm the change' });
+  const longAnswer = 'Young objects become unreachable before the next collection.\n\n'.repeat(8);
+  await answer.fill(longAnswer);
+  await save.click();
+  await expect(question).toBeFocused();
+  const questionLabel = page.locator('label').filter({ hasText: /^Question$/ });
+  await expect(questionLabel).toBeInViewport({ ratio: 1 });
+  await question.fill('Why collect young objects?');
+  await page.route('**/api/v1/decks/*/cards', (route) =>
+    route.request().method() === 'POST' ? route.fulfill({ status: 503, json: {} }) : route.continue(),
+  );
+  await save.click();
+  await expect(alert).toBeInViewport({ ratio: 1 });
+  await expect(alert).toBeFocused();
+  await expect(answer).toHaveValue(longAnswer);
+  await page.unroute('**/api/v1/decks/*/cards');
+  await save.click();
+  await expect(answer).toHaveValue('');
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
+  await editCard(page, 'Why collect young objects?');
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = '200%';
+  });
+  await question.fill('Why collect young objects more often?');
+  await page.route('**/api/v1/cards/*', (route) => route.fulfill({ status: 503, json: {} }));
+  await save.click();
+  await expect(alert).toBeInViewport({ ratio: 1 });
+  await expect(alert).toBeFocused();
+  await expect(question).toHaveValue('Why collect young objects more often?');
+  await expect(answer).toHaveValue(longAnswer.trim());
 });
 
 test('unsaved card text survives cancelled navigation, Back, reload and closing the form', async ({
@@ -662,6 +740,8 @@ test('Library decks follow the finger on phones and tablets and filter the same 
   const activeDeck = carousel.getByRole('link');
   const next = carousel.getByRole('button', { name: /^Next deck:/ });
   const previous = carousel.getByRole('button', { name: /^Previous deck:/ });
+  const desktopTiles = decks.locator('ul > li');
+  await expect(desktopTiles).toHaveCount(0);
   await expect(activeDeck).toHaveAccessibleName('Open Biology quiz');
   await expect(page.getByRole('link', { name: 'Create a deck', exact: true })).toHaveCount(1);
   const nav = (await page.getByRole('navigation', { name: 'Your workspace' }).boundingBox())!;
@@ -684,10 +764,25 @@ test('Library decks follow the finger on phones and tablets and filter the same 
     const box = (await thirdDeckStrip.boundingBox())!;
     return box.y + box.height;
   };
+  const immediateMovement = await thirdDeckStrip.evaluate((strip) => {
+    const stack = strip.closest<HTMLElement>('.deck-carousel-scroller')!;
+    const initialBottom = strip.getBoundingClientRect().bottom;
+    stack.scrollTo({ top: 56, behavior: 'instant' });
+    const distance = initialBottom - strip.getBoundingClientRect().bottom;
+    stack.scrollTo({ top: 0, behavior: 'instant' });
+    return distance;
+  });
+  expect(immediateMovement).toBeCloseTo(56, 0);
   const stripBottomAtRest = await stripBottom();
   await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
   await touch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: y - 30 }] });
   await expect.poll(stripBottom).toBeLessThan(stripBottomAtRest);
+  const stage = scroller.locator('.deck-carousel-stage');
+  expect(await stage.evaluate((element) => element.style.getPropertyValue('--deck-progress'))).toBe('');
+  // While the finger is held between snaps, the front card should already be changing scale.
+  const frontScale = () =>
+    activeDeck.evaluate((link) => new DOMMatrixReadOnly(getComputedStyle(link.closest('article')!).transform).a);
+  await expect.poll(frontScale).toBeLessThan(1);
   const earlyInDrag = await stripBottom();
   await touch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: y - 60 }] });
   await expect.poll(async () => earlyInDrag - (await stripBottom())).toBeCloseTo(30, 0);
@@ -785,6 +880,7 @@ test('Library decks follow the finger on phones and tablets and filter the same 
   expect(reads.sort()).toEqual(['/api/v1/decks', '/api/v1/me/saved-sets']);
 
   await page.setViewportSize({ width: 375, height: 667 });
+  await expect(desktopTiles).toHaveCount(0);
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await expect(activeDeck).toHaveAccessibleName('Open Biology quiz');
   await activeDeck.focus();
@@ -797,6 +893,32 @@ test('Library decks follow the finger on phones and tablets and filter the same 
   await expect(search).toHaveValue('biology');
   await expect(activeDeck).toHaveAccessibleName('Open Biology final');
   await expect(activeDeck).toBeFocused();
+});
+
+test('the phone stack follows replacement decks after reconnecting with the same deck count', async ({
+  page,
+  pilot,
+}) => {
+  await signup(page, pilot.signupUrl);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  let titles = ['Biology', 'History', 'Physics', 'Math'];
+  await page.route('**/api/v1/decks', (route) =>
+    route.fulfill({ json: { items: titles.map((title) => ({ id: title, title, cardCount: 1, archived: false })) } }),
+  );
+  await page.goto('/library');
+  const stack = page.getByRole('region', { name: 'Decks', exact: true });
+  await expect(stack.getByRole('button', { name: 'Next deck: History' })).toBeVisible();
+
+  titles = ['Biology', 'Chemistry', 'Music', 'Math'];
+  await page.evaluate(() => {
+    window.dispatchEvent(new Event('offline'));
+    window.dispatchEvent(new Event('online'));
+  });
+  await stack.getByRole('button', { name: 'Next deck: Chemistry' }).click();
+  await expect(stack.getByRole('link')).toHaveAccessibleName('Open Chemistry');
+  await stack.getByRole('button', { name: 'Next deck: Music' }).click();
+  await expect(stack.getByRole('status')).toContainText('3 of 4');
+  await expect(stack.getByRole('link')).toHaveAccessibleName('Open Music');
 });
 
 test('adjacent deck strips remain tappable when the phone text size changes', async ({ page, pilot }) => {

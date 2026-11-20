@@ -1,3 +1,4 @@
+import { useListRefetchOnMount } from './LibraryProvider';
 import { useInfiniteQuery, useQuery, useQueryClient, type InfiniteData, type QueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import {
@@ -12,7 +13,14 @@ import { deckKeys, reviewKeys } from '../../../shared/cache/queryKeys';
 
 export function useDecks(username: string, enabled: boolean) {
   const gateway = useDeckGateway();
-  return useQuery({ queryKey: deckKeys.list(username), queryFn: () => gateway.list(), enabled, retry: false });
+  const refetchOnMount = useListRefetchOnMount();
+  return useQuery({
+    refetchOnMount,
+    queryKey: deckKeys.list(username),
+    queryFn: () => gateway.list(),
+    enabled,
+    retry: false,
+  });
 }
 
 export function useDeckCards(username: string, deckId: string, query: DeckCardQuery) {

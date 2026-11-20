@@ -65,6 +65,7 @@ test('saved review survives a lost response, exact retry, reload and removal', a
   page.on('request', (request) => {
     if (new URL(request.url()).pathname === '/api/v1/cards/due') queueRequests.push(request.url());
   });
+  await page.clock.setFixedTime(new Date((await page.evaluate(() => Date.now())) + 30_000));
   const sessionRecheck = page.waitForResponse((response) => response.url().endsWith('/api/v1/me'));
   await page.evaluate(() => {
     Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
@@ -335,6 +336,7 @@ test('review session checks stay quiet and preserve the layout on iPhone SE', as
       await route.continue();
     });
     try {
+      await page.clock.setFixedTime(new Date((await page.evaluate(() => Date.now())) + 30_000));
       const recheck = page.waitForRequest((request) => request.url().endsWith('/api/v1/me'));
       await page.evaluate(() => {
         window.dispatchEvent(new Event('blur'));

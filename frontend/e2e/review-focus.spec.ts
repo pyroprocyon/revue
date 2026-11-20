@@ -132,6 +132,7 @@ test('optional review details open without moving the card and close when the se
     await tip.press('Enter');
     await expect(tipDialog).toBeVisible();
     pauseSession = true;
+    await page.clock.setFixedTime(new Date((await page.evaluate(() => Date.now())) + 30_000));
     const sessionRequest = page.waitForRequest('**/api/v1/me');
     await page.evaluate(() => {
       window.dispatchEvent(new Event('blur'));
@@ -353,6 +354,7 @@ for (const { cardCount, focusExit } of [
       await page.getByRole('button', { name: /^Good:/ }).click();
       await ratingRequest;
       checkSession = true;
+      await page.clock.setFixedTime(new Date((await page.evaluate(() => Date.now())) + 30_000));
       const sessionRequest = page.waitForRequest('**/api/v1/me');
       await page.evaluate(() => {
         window.dispatchEvent(new Event('blur'));
