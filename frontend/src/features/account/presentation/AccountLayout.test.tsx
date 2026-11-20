@@ -418,4 +418,47 @@ describe('signed-in layout', () => {
     await screen.findByRole('heading', { name: 'Sign in again' });
     expect(client.getQueryData(['private-library'])).toBeUndefined();
   });
+
+  it('follows the browser when it closes a pending sign-out, and Sign out opens again after a failure', async () => {
+    const { gateway } = setup();
+    await screen.findByRole('heading', { name: 'Your account' });
+    let failSignOut!: (reason: Error) => void;
+    vi.mocked(gateway.signOut).mockReturnValueOnce(
+      new Promise<void>((_, reject) => {
+        failSignOut = reject;
+      }),
+    );
+    const trigger = screen.getByRole('button', { name: 'Sign out' });
+    fireEvent.click(trigger);
+    const dialog = screen.getByRole('dialog', { name: 'Sign out of Revue?' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Sign out' }));
+    fireEvent(dialog, new Event('cancel', { cancelable: true }));
+    expect(screen.getByRole('dialog', { name: 'Sign out of Revue?' })).toBe(dialog);
+    fireEvent(dialog, new Event('cancel', { cancelable: false }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+    await act(async () => {
+      failSignOut(new Error('offline'));
+    });
+    fireEvent.click(trigger);
+    const reopened = within(screen.getByRole('dialog', { name: 'Sign out of Revue?' }));
+    expect(reopened.getByRole('button', { name: 'Sign out' })).toBeDefined();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('hides the sign-out confirmation during a session check and shows it again for the same account', async () => {
+    const { gateway } = setup();
+    await screen.findByRole('heading', { name: 'Your account' });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
+    expect(screen.getByRole('dialog', { name: 'Sign out of Revue?' })).toBeDefined();
+    const pending = deferredProfile();
+    vi.mocked(gateway.current).mockReturnValueOnce(pending.promise);
+    returnAfterWindowExpires();
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await act(async () => {
+      pending.resolve({ username: 'first_student' });
+    });
+    expect(screen.getByRole('dialog', { name: 'Sign out of Revue?' })).toBeDefined();
+    expect(gateway.signOut).not.toHaveBeenCalled();
+  });
 });

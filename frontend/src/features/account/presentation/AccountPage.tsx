@@ -17,10 +17,10 @@ export function AccountPage() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
-  const paused = useContext(InteractionPausedContext);
+  const interactionsPaused = useContext(InteractionPausedContext);
   const dialog = useRef<HTMLDialogElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
-  const showConfirmation = confirming && !paused;
+  const showConfirmation = confirming && !interactionsPaused;
 
   useLayoutEffect(() => {
     const element = dialog.current;
@@ -29,7 +29,7 @@ export function AccountPage() {
     return () => element.close();
   }, [showConfirmation]);
 
-  function staySignedIn() {
+  function closeConfirmation() {
     dialog.current?.close();
     setConfirming(false);
     trigger.current?.focus();
@@ -85,7 +85,9 @@ export function AccountPage() {
               aria-busy={busy}
               onCancel={(event) => {
                 event.preventDefault();
-                if (!busy) staySignedIn();
+                const browserAllowsKeepingOpen = event.cancelable;
+                if (busy && browserAllowsKeepingOpen) return;
+                closeConfirmation();
               }}
               className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-32px)] max-w-[26rem] overflow-y-auto rounded-card bg-surface p-5 text-ink shadow-card backdrop:bg-ink/40 sm:p-6"
             >
@@ -108,7 +110,7 @@ export function AccountPage() {
                   type="button"
                   className="pressable min-h-12 rounded-control border border-line bg-surface px-3 py-2 text-label font-semibold disabled:text-muted"
                   disabled={busy}
-                  onClick={staySignedIn}
+                  onClick={closeConfirmation}
                 >
                   Stay signed in
                 </button>

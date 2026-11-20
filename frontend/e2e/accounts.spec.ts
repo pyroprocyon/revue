@@ -154,6 +154,45 @@ test('wrong and unknown credentials give the same error and a learner can retry'
   await expect(page.getByText(name, { exact: true })).toBeVisible();
 });
 
+test('repeated Escape closes a slow sign-out, and Sign out still works after that request fails', async ({
+  page,
+  pilot,
+}) => {
+  await page.goto(pilot.signupUrl);
+  await register(page, username());
+  const trigger = page.getByRole('button', { name: 'Sign out', exact: true });
+  const dialog = page.getByRole('dialog', { name: 'Sign out of Revue?' });
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route(
+    '**/api/v1/auth/logout',
+    async (route) => {
+      await held;
+      await route.abort('failed');
+    },
+    { times: 1 },
+  );
+
+  await trigger.click();
+  await dialog.getByRole('button', { name: 'Sign out', exact: true }).click();
+  await page.keyboard.press('Escape');
+  await expect(dialog.getByRole('button', { name: 'Signing out…' })).toBeVisible();
+  await expect(async () => {
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden({ timeout: 250 });
+  }).toPass({ timeout: 5_000 });
+  await expect(trigger).toBeFocused();
+
+  const failed = page.waitForEvent('requestfailed', (request) => request.url().endsWith('/api/v1/auth/logout'));
+  release();
+  await failed;
+  await trigger.click();
+  await dialog.getByRole('button', { name: 'Sign out', exact: true }).click();
+  await expect(page).toHaveURL(/\/sign-in$/);
+});
+
 test('existing learners keep their shared-set destination when switching to sign-in', async ({ page, pilot }) => {
   const name = username();
   await page.goto(pilot.signupUrl);
