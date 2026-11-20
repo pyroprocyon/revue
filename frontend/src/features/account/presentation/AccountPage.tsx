@@ -1,10 +1,11 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { UserRound } from 'lucide-react';
-import { useState } from 'react';
+import { LogOut, UserRound } from 'lucide-react';
+import { useContext, useLayoutEffect, useRef, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router';
 import type { AccountProfile } from '../application/account';
 import { useAccountGateway } from './AccountProvider';
 import { accountLink } from '../../../shared/ui/buttonStyles';
+import { InteractionPausedContext } from '../../../shared/ui/FocusRequestContext';
 import { SIGN_IN_PATH } from '../../../shared/navigation/paths';
 import { WorkspacePage } from '../../../shared/ui/WorkspacePage';
 
@@ -15,6 +16,25 @@ export function AccountPage() {
   const profile = useOutletContext<AccountProfile>();
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const paused = useContext(InteractionPausedContext);
+  const dialog = useRef<HTMLDialogElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const showConfirmation = confirming && !paused;
+
+  useLayoutEffect(() => {
+    const element = dialog.current;
+    if (!showConfirmation || !element) return;
+    element.showModal();
+    return () => element.close();
+  }, [showConfirmation]);
+
+  function staySignedIn() {
+    dialog.current?.close();
+    setConfirming(false);
+    trigger.current?.focus();
+  }
+
   async function signOut() {
     if (busy) return;
     setBusy(true);
@@ -47,16 +67,61 @@ export function AccountPage() {
         <div className="border-t border-line px-compact-gutter py-3 sm:px-8">
           <button
             type="button"
-            className={`${accountLink} border border-line disabled:text-muted`}
-            disabled={busy}
-            onClick={() => void signOut()}
+            className={`${accountLink} border border-line`}
+            ref={trigger}
+            aria-haspopup="dialog"
+            onClick={() => {
+              setError('');
+              setConfirming(true);
+            }}
           >
-            {busy ? 'Signing out…' : 'Sign out'}
+            Sign out
           </button>
-          {error && (
-            <p role="alert" className="mt-3 text-body">
-              {error}
-            </p>
+          {showConfirmation && (
+            <dialog
+              ref={dialog}
+              aria-labelledby="sign-out-title"
+              aria-describedby="sign-out-description"
+              aria-busy={busy}
+              onCancel={(event) => {
+                event.preventDefault();
+                if (!busy) staySignedIn();
+              }}
+              className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-32px)] max-w-[26rem] overflow-y-auto rounded-card bg-surface p-5 text-ink shadow-card backdrop:bg-ink/40 sm:p-6"
+            >
+              <span className="mb-3 grid size-10 place-items-center rounded-inset bg-highlight-soft text-highlight-strong">
+                <LogOut aria-hidden="true" className="size-5" />
+              </span>
+              <h2 id="sign-out-title" className="text-section font-bold">
+                Sign out of Revue?
+              </h2>
+              <p id="sign-out-description" className="mt-2 text-body text-muted">
+                You’ll need to sign in again to continue studying with this account.
+              </p>
+              {error && (
+                <p role="alert" className="mt-3 text-body">
+                  {error}
+                </p>
+              )}
+              <div className="mt-5 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="pressable min-h-12 rounded-control border border-line bg-surface px-3 py-2 text-label font-semibold disabled:text-muted"
+                  disabled={busy}
+                  onClick={staySignedIn}
+                >
+                  Stay signed in
+                </button>
+                <button
+                  type="button"
+                  className="pressable min-h-12 rounded-control bg-highlight-soft px-4 py-2 text-label font-semibold text-highlight-strong aria-disabled:bg-subtle aria-disabled:text-muted"
+                  aria-disabled={busy}
+                  onClick={() => void signOut()}
+                >
+                  {busy ? 'Signing out…' : 'Sign out'}
+                </button>
+              </div>
+            </dialog>
           )}
         </div>
       </div>

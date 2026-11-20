@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
-import { test, expect } from './fixtures';
+import { test, expect, signOut } from './fixtures';
 
 async function register(page: Page, signupUrl: string) {
   const username = `library_${randomUUID().replaceAll('-', '').slice(0, 20)}`;
@@ -92,7 +92,7 @@ test('onboarding samples offer practice and reject direct saves', async ({ page,
 
 test('signing in from a private Library link returns to Library', async ({ page, pilot }) => {
   const name = await register(page, pilot.signupUrl);
-  await page.getByRole('button', { name: 'Sign out' }).click();
+  await signOut(page);
   await expect(page).toHaveURL(/\/sign-in$/);
   await page.goto('/library');
   await expect(page).toHaveURL(/\/sign-in\?returnTo=%2Flibrary$/);
@@ -189,7 +189,7 @@ test('explicit save survives sign-in return, duplicate save, reload and another 
   await expect(page.getByRole('link', { name: 'Create a deck', exact: true })).toBeVisible();
   await page.screenshot({ path: info.outputPath('library-empty-phone.png'), fullPage: true });
   await page.getByRole('link', { name: 'Account', exact: true }).click();
-  await page.getByRole('button', { name: 'Sign out' }).click();
+  await signOut(page);
   await expect(page).toHaveURL(/\/sign-in$/);
   await page.goto('/sets/published-test-set');
   await page.getByRole('link', { name: 'Sign in to save' }).click();

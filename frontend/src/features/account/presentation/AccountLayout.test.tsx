@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
 import { MemoryRouter, Route, Routes, useOutletContext } from 'react-router';
@@ -404,10 +404,17 @@ describe('signed-in layout', () => {
     await screen.findByRole('heading', { name: 'Your account' });
     client.setQueryData(['private-library'], ['private']);
     vi.mocked(gateway.signOut).mockRejectedValueOnce(new Error('offline'));
-    fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
+    const trigger = screen.getByRole('button', { name: 'Sign out' });
+    fireEvent.click(trigger);
+    const dialog = () => within(screen.getByRole('dialog', { name: 'Sign out of Revue?' }));
+    fireEvent.click(dialog().getByRole('button', { name: 'Stay signed in' }));
+    expect(gateway.signOut).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(trigger);
+    fireEvent.click(trigger);
+    fireEvent.click(dialog().getByRole('button', { name: 'Sign out' }));
     await screen.findByRole('alert');
     expect(client.getQueryData(['private-library'])).toEqual(['private']);
-    fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
+    fireEvent.click(dialog().getByRole('button', { name: 'Sign out' }));
     await screen.findByRole('heading', { name: 'Sign in again' });
     expect(client.getQueryData(['private-library'])).toBeUndefined();
   });

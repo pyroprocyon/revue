@@ -1,4 +1,4 @@
-import { test as base, expect } from '@playwright/test';
+import { test as base, expect, type Page } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { appendFileSync, mkdirSync } from 'node:fs';
@@ -94,3 +94,8 @@ export const test = base.extend<object, { pilot: PilotApp }>({
 });
 
 export { expect } from '@playwright/test';
+
+export async function signOut(page: Page) {
+  await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+  await page.getByRole('dialog', { name: 'Sign out of Revue?' }).getByRole('button', { name: 'Sign out' }).click();
+}
