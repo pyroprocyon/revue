@@ -1,3 +1,4 @@
+import { CircleAlert } from 'lucide-react';
 import { useId } from 'react';
 
 type TextFieldProps = {
@@ -11,10 +12,13 @@ type TextFieldProps = {
   note?: string;
   nearLimitNote?: string;
   placeholder?: string;
+  error?: string | null;
 };
 
 const fieldStyle =
   'mt-1 block min-h-12 w-full rounded-control border border-field-edge bg-field py-2 text-body text-ink placeholder:text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent sm:mt-2 sm:py-3';
+export const textFieldStyle = `${fieldStyle} px-3`;
+const invalidFieldStyle = 'border-missed bg-highlight-soft/40';
 const NEAR_LIMIT_SHARE = 0.9;
 
 export function TextField({
@@ -28,19 +32,22 @@ export function TextField({
   note,
   nearLimitNote,
   placeholder,
+  error,
 }: Readonly<TextFieldProps>) {
   const fieldId = useId();
   const noteId = useId();
   const limitId = useId();
-  const controlStyle = `${fieldStyle} ${growWithText ? 'px-[min(0.75rem,12px)]' : 'px-3'}`;
+  const errorId = useId();
+  const controlStyle = `${fieldStyle} ${growWithText ? 'px-[min(0.75rem,12px)]' : 'px-3'} ${error ? invalidFieldStyle : ''}`;
   const nearLimit = value.length >= maxLength * NEAR_LIMIT_SHARE;
-  const describedBy = [note && noteId, nearLimit && limitId].filter(Boolean).join(' ');
+  const describedBy = [error && errorId, note && noteId, nearLimit && limitId].filter(Boolean).join(' ');
   const shared = {
     id: fieldId,
     value,
     maxLength,
     required: !optional,
     placeholder,
+    'aria-invalid': error ? true : undefined,
     'aria-describedby': describedBy || undefined,
   };
   return (
@@ -74,9 +81,16 @@ export function TextField({
           />
         </div>
       )}
+      {error && (
+        <p id={errorId} className="mt-1.5 flex items-start gap-1.5 text-support font-semibold text-missed">
+          <CircleAlert aria-hidden="true" className="mt-[0.2em] size-4 shrink-0" />
+          {error}
+        </p>
+      )}
       {nearLimit && (
         <p id={limitId} className="mt-1 text-support text-muted">
-          {value.length} of {maxLength} characters{nearLimitNote && `. ${nearLimitNote}`}
+          {value.length.toLocaleString('en-US')} of {maxLength.toLocaleString('en-US')} characters
+          {nearLimitNote && `. ${nearLimitNote}`}
         </p>
       )}
     </div>

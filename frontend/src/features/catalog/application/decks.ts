@@ -50,10 +50,20 @@ export type DeckFailureReason =
   | 'unknown';
 
 export class DeckFailure extends Error {
-  constructor(public readonly reason: DeckFailureReason) {
+  readonly availableCards: number | undefined;
+
+  constructor(
+    public readonly reason: DeckFailureReason,
+    availableCards?: number,
+  ) {
     super(reason);
+    this.availableCards = availableCards;
   }
 }
+
+/** One confirmed import. A retry of the same import returns the same count. */
+export type CardImport = { deckId: string; importedCards: number };
+export type CardToImport = { question: string; answer: string; explanation?: string };
 
 /** A learner's private decks and cards. Every result is confirmed by the server. */
 export interface DeckGateway {
@@ -65,6 +75,8 @@ export interface DeckGateway {
   remove(deckId: string): Promise<void>;
   cards(deckId: string, query: DeckCardQuery, signal?: AbortSignal): Promise<DeckCardPage>;
   addCard(deckId: string, draft: CardDraft, requestId: string): Promise<DeckCard>;
+  /** Saves all the cards or none. Reusing the request ID for the same deck and cards returns the first result. */
+  importCards(deckId: string, cards: CardToImport[], requestId: string): Promise<CardImport>;
   editCard(cardId: string, draft: CardDraft, expectedVersion: number): Promise<DeckCard>;
   removeCard(cardId: string): Promise<void>;
 }

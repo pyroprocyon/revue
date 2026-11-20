@@ -38,7 +38,7 @@ export function safeAccountReturnPath(path: string | null): string | null {
     const [topic, mode, extra] = path.slice(REVIEW_PATH.length + 1).split('/');
     return isReviewTopic(topic) && (mode === undefined || mode === 'start') && extra === undefined ? path : null;
   }
-  if (path.startsWith(DECK_PREFIX)) return /^[1-9]\d*$/.test(path.slice(DECK_PREFIX.length)) ? path : null;
+  if (path.startsWith(DECK_PREFIX)) return /^[1-9]\d*(\/paste)?$/.test(path.slice(DECK_PREFIX.length)) ? path : null;
   if (!path.startsWith(SET_PREVIEW_PREFIX)) return null;
   return isSetKey(path.slice(SET_PREVIEW_PREFIX.length)) ? path : null;
 }

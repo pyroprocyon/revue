@@ -1,4 +1,4 @@
-import { Pencil, Trash2 } from 'lucide-react';
+import { ChevronRight, ClipboardPaste, Pencil, Trash2 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useDeckDraftGuard, useHasUnsavedDeckChanges } from './UnsavedDeckChanges';
 import {
@@ -12,7 +12,7 @@ import {
   type Ref,
   type RefObject,
 } from 'react';
-import { Navigate, useLocation, useOutletContext, useParams, useSearchParams } from 'react-router';
+import { Link, Navigate, useLocation, useNavigate, useOutletContext, useParams, useSearchParams } from 'react-router';
 import type { AccountProfile } from '../../account/application/account';
 import { DeckFailure, type CardDraft, type Deck, type DeckCard, type DeckProgress } from '../application/decks';
 import { CardForm, draftOf } from './CardForm';
@@ -36,7 +36,7 @@ import {
 } from './useDecks';
 import { useTwoPanes } from './useTwoPanes';
 import { deckKeys } from '../../../shared/cache/queryKeys';
-import { LIBRARY_PATH, signInPath } from '../../../shared/navigation/paths';
+import { LIBRARY_PATH, pasteCardsPath, signInPath } from '../../../shared/navigation/paths';
 import { routeState } from '../../../shared/navigation/routeState';
 import { usePageCursor } from '../../../shared/navigation/usePageCursor';
 import { FocusRequestContext } from '../../../shared/ui/FocusRequestContext';
@@ -45,6 +45,7 @@ import { primaryButton, secondaryButton } from '../../../shared/ui/buttonStyles'
 import { NavigationLink } from '../../../shared/ui/NavigationLink';
 import { WhenSlow } from '../../../shared/ui/WhenSlow';
 import { WorkspacePage } from '../../../shared/ui/WorkspacePage';
+import { cardCountLabel } from '../../../shared/ui/cardCount';
 import { DECKS_UNAVAILABLE_TEXT, decksUnavailable } from './decksUnavailable';
 
 export function DeckPage() {
@@ -57,6 +58,13 @@ export function DeckPage() {
   const dueOnly = params.get('due') === '1';
   const cards = useDeckCards(profile.username, deckId, { after, search: term, dueOnly });
   const client = useQueryClient();
+  const navigate = useNavigate();
+  const [importNotice] = useState(() => importedCardsNotice(routeState(location).importedCards));
+  // Browsers keep history state across reloads and Back, so the import is confirmed only on arrival.
+  useEffect(() => {
+    if (routeState(location).importedCards === undefined) return;
+    void navigate(location, { replace: true, state: { ...routeState(location), importedCards: undefined } });
+  }, [location, navigate]);
   const hasDrafts = useHasUnsavedDeckChanges();
   const search = useCallback(
     (value: string, replace = false) => {
@@ -84,6 +92,7 @@ export function DeckPage() {
         key={`${profile.username}:${deckId}`}
         username={profile.username}
         justCreated={routeState(location).createdDeck === true}
+        arrivalNotice={importNotice}
         deck={deck}
         progress={page.progress}
         {...loadedCards(deck, cards.data?.pages)}
@@ -108,6 +117,10 @@ export function DeckPage() {
       </NavigationLink>
     </WorkspacePage>
   );
+}
+
+function importedCardsNotice(importedCards: number | undefined) {
+  return importedCards === undefined ? null : `${cardCountLabel(importedCards)} imported.`;
 }
 
 function loadedCards(deck: Deck, pages: CardPages['pages'] | undefined) {
@@ -200,6 +213,7 @@ function emptyMessage(items: DeckCard[] | undefined, term: string, paginated: bo
 type DeckContentProps = {
   username: string;
   justCreated: boolean;
+  arrivalNotice: string | null;
   deck: Deck;
   progress: DeckProgress;
   dueCardIds: string[];
@@ -219,6 +233,7 @@ type DeckContentProps = {
 function DeckContent({
   username,
   justCreated,
+  arrivalNotice,
   deck,
   progress,
   dueCardIds,
@@ -241,7 +256,7 @@ function DeckContent({
   const guard = useDeckDraftGuard();
   const requestFocus = useContext(FocusRequestContext);
   const [panes, wide] = useTwoPanes();
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState(arrivalNotice);
   const [form, setForm] = useState<CardFormState>(() => firstCardForm(deck, term));
   const [cardsAdded, setCardsAdded] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -440,6 +455,7 @@ function DeckContent({
       draft={form.draft}
       writeState={addWrite.state}
       onDraftChange={updateDraft}
+      beforeFields={<PasteCardsLink deckId={deck.id} />}
       onSave={(draft) =>
         void addWrite.run(
           () => gateway.addCard(deck.id, draft, form.requestId),
@@ -597,6 +613,19 @@ const onePane = 'mt-2 grid gap-3';
 function cardAfterDeletion(cards: DeckCard[], cardId: string) {
   const index = cards.findIndex((card) => card.id === cardId);
   return (cards[index + 1] ?? cards[index - 1])?.id ?? null;
+}
+
+function PasteCardsLink({ deckId }: Readonly<{ deckId: string }>) {
+  return (
+    <Link
+      to={pasteCardsPath(deckId)}
+      className="pressable flex min-h-12 items-center gap-3 rounded-control bg-accent-soft px-3 py-2 text-label font-semibold text-accent-strong"
+    >
+      <ClipboardPaste aria-hidden="true" className="size-5 shrink-0" />
+      <span className="min-w-0 flex-1 wrap-anywhere">Paste many cards at once</span>
+      <ChevronRight aria-hidden="true" className="size-5 shrink-0" />
+    </Link>
+  );
 }
 
 /** Always present, so screen readers announce each new message without focus moving to it. */
