@@ -670,12 +670,25 @@ class DeckHttpTests {
                 Long.parseLong(deck.id()),
                 new CardText("Question", "Answer", null, null, null),
                 null);
+            store.importCards(
+                owner.id,
+                Long.parseLong(deck.id()),
+                List.of(new CardText("Imported", "Answer", null, null, null)),
+                UUID.randomUUID(),
+                new DeckStore.InitialSchedule("profile", "{}"));
             status.setRollbackOnly();
         });
         assertThat(jdbc.queryForObject("select count(*) from decks where owner_id = ?", Integer.class, owner.id))
             .isZero();
+        assertThat(
+            jdbc.queryForObject(
+                "select count(*) from deck_import_requests where owner_id = ?",
+                Integer.class,
+                owner.id))
+            .isZero();
         assertThat(StructuredEvents.named(output, "deck.created")).isEmpty();
         assertThat(StructuredEvents.named(output, "card.created")).isEmpty();
+        assertThat(StructuredEvents.named(output, "deck.cards_imported")).isEmpty();
     }
 
     @Test
@@ -690,6 +703,242 @@ class DeckHttpTests {
             .isInstanceOf(DataIntegrityViolationException.class);
         assertThatThrownBy(() -> jdbc.update("delete from cards where id = ?", shared))
             .hasMessageContaining("retired, never deleted");
+    }
+
+    @Test
+    void importedCardsSaveInPreviewOrderWithSchedulesAndAnExactRetryReturnsTheFirstResult(CapturedOutput output)
+        throws Exception {
+        var owner = new Browser();
+        String deckPath = owner.createDeck("Philippine geography");
+        owner.send(post(deckPath + "/cards"), card("Already here", "Answer"));
+        String key = UUID.randomUUID().toString();
+        var rows = pasted(
+            card("What is an archipelago?", "A group of islands."),
+            card("  What is a strait?  ", "A narrow channel\nbetween two seas."),
+            card("What is an isthmus? " + PRIVATE_TEXT, "A narrow strip of land."));
+
+        var imported = owner.send(post(deckPath + "/import").header("Idempotency-Key", key), rows);
+        assertThat(imported.getResponse().getStatus()).isEqualTo(201);
+        assertThat(imported.getResponse().getHeader("Cache-Control")).contains("no-store");
+        assertThat(body(imported).get("importedCards").asInt()).isEqualTo(3);
+        var cards = body(owner.send(get(deckPath + "/cards"))).get("items");
+        assertThat(cards.valueStream().map(item -> item.get("question").asString())).containsExactly(
+            "Already here",
+            "What is an archipelago?",
+            "What is a strait?",
+            "What is an isthmus? " + PRIVATE_TEXT);
+        assertThat(cards.get(2).get("answer").asString()).isEqualTo("A narrow channel\nbetween two seas.");
+        assertThat(jdbc.queryForObject("""
+            select count(*) from schedules s join cards c on c.id = s.card_id
+            where s.user_id = ? and c.deck_id = ? and s.version = 0 and s.next_review_date is null
+            """, Long.class, owner.id, deckId(deckPath))).isEqualTo(3);
+
+        var retried = owner.send(post(deckPath + "/import").header("Idempotency-Key", key), rows);
+        assertThat(retried.getResponse().getStatus()).isEqualTo(201);
+        assertThat(body(retried)).isEqualTo(body(imported));
+        String otherDeckPath = owner.createDeck("Other deck");
+        var changedRows = pasted(card("What is an archipelago?", "Many islands."));
+        var elsewhere = owner.send(post(otherDeckPath + "/import").header("Idempotency-Key", key), rows);
+        var changed = owner.send(post(deckPath + "/import").header("Idempotency-Key", key), changedRows);
+        assertThat(List.of(elsewhere, changed)).allSatisfy(refused -> {
+            assertThat(refused.getResponse().getStatus()).isEqualTo(409);
+            assertThat(body(refused).get("reason").asString()).isEqualTo("CREATE_CONFLICT");
+        });
+        assertThat(store.countCards(owner.id)).isEqualTo(4);
+
+        var events = StructuredEvents.named(output, "deck.cards_imported");
+        assertThat(events).hasSize(1);
+        assertThat(events.getFirst().at("/state/from").asLong()).isEqualTo(1);
+        assertThat(events.getFirst().at("/state/to").asLong()).isEqualTo(4);
+        assertThat(output.getOut()).doesNotContain(PRIVATE_TEXT);
+    }
+
+    @Test
+    void overlappingConfirmationsOfOneImportCreateEachCardOnce(CapturedOutput output) throws Exception {
+        var owner = new Browser();
+        String deckPath = owner.createDeck("Overlap");
+        String key = UUID.randomUUID().toString();
+        var rows = pasted(card("First", "1"), card("Second", "2"));
+        try (var workers = Executors.newVirtualThreadPerTaskExecutor()) {
+            Callable<MvcResult> confirm = () -> owner
+                .send(post(deckPath + "/import").header("Idempotency-Key", key), rows);
+            var results = workers.invokeAll(List.of(confirm, confirm));
+            for (var result : results) {
+                assertThat(result.get().getResponse().getStatus()).isEqualTo(201);
+                assertThat(body(result.get()).get("importedCards").asInt()).isEqualTo(2);
+            }
+        }
+        assertThat(store.countCards(owner.id)).isEqualTo(2);
+        assertThat(StructuredEvents.named(output, "deck.cards_imported")).hasSize(1);
+    }
+
+    @Test
+    void separateImportsRacingForTheLastFreeCardSaveOnlyOne() throws Exception {
+        var owner = new Browser();
+        String deckPath = owner.createDeck("Last slot");
+        jdbc.update("""
+            insert into cards(deck_id, position, question, answer, created_at, updated_at)
+            select ?, number, 'Question', 'Answer', now(), now() from generate_series(1, ?) number
+            """, deckId(deckPath), DeckService.MAX_CARDS_PER_LEARNER - 1);
+        try (var workers = Executors.newVirtualThreadPerTaskExecutor()) {
+            Callable<Integer> confirm = () -> owner
+                .send(post(deckPath + "/import").header("Idempotency-Key", UUID.randomUUID()), pasted(card("Q", "A")))
+                .getResponse()
+                .getStatus();
+            var results = workers.invokeAll(List.of(confirm, confirm));
+            assertThat(List.of(results.get(0).get(), results.get(1).get())).containsExactlyInAnyOrder(201, 409);
+        }
+        assertThat(store.countCards(owner.id)).isEqualTo(DeckService.MAX_CARDS_PER_LEARNER);
+    }
+
+    @Test
+    void importsSaveNothingPastTheCardLimitAndAnExactRetryStillSucceedsAtTheLimit() throws Exception {
+        var owner = new Browser();
+        String deckPath = owner.createDeck("Nearly full");
+        jdbc.update("""
+            insert into cards(deck_id, position, question, answer, created_at, updated_at)
+            select ?, number, 'Question', 'Answer', now(), now() from generate_series(1, ?) number
+            """, deckId(deckPath), DeckService.MAX_CARDS_PER_LEARNER - 1);
+
+        var tooMany = owner.send(
+            post(deckPath + "/import").header("Idempotency-Key", UUID.randomUUID().toString()),
+            pasted(card("One", "1"), card("Two", "2")));
+        assertThat(tooMany.getResponse().getStatus()).isEqualTo(409);
+        assertThat(body(tooMany).get("reason").asString()).isEqualTo("CARD_LIMIT");
+        assertThat(body(tooMany).get("availableCards").asInt()).isEqualTo(1);
+        assertThat(store.countCards(owner.id)).isEqualTo(DeckService.MAX_CARDS_PER_LEARNER - 1);
+
+        String key = UUID.randomUUID().toString();
+        var lastCard = pasted(card("Last", "Card"));
+        var first = owner.send(post(deckPath + "/import").header("Idempotency-Key", key), lastCard);
+        assertThat(first.getResponse().getStatus()).isEqualTo(201);
+        var retried = owner.send(post(deckPath + "/import").header("Idempotency-Key", key), lastCard);
+        assertThat(retried.getResponse().getStatus()).isEqualTo(201);
+        assertThat(body(retried)).isEqualTo(body(first));
+        var library = body(owner.send(get("/api/v1/decks"))).get("items");
+        assertThat(library.get(0).get("cardCount").asLong()).isEqualTo(DeckService.MAX_CARDS_PER_LEARNER);
+        var full = owner
+            .send(post(deckPath + "/import").header("Idempotency-Key", UUID.randomUUID().toString()), lastCard);
+        assertThat(body(full).get("availableCards").asInt()).isZero();
+    }
+
+    @Test
+    void importsCheckEveryRowAndTheTwoHundredCardLimitBeforeSavingAny(CapturedOutput output) throws Exception {
+        var owner = new Browser();
+        String deckPath = owner.createDeck("Checked");
+        var tooLong = card("Question", "a".repeat(CardText.MAX_ANSWER + 1));
+        var refusedImports = List.of(
+            Map.of("cards", List.of()),
+            pasted(card("Question", "Answer"), card("No answer", "  ")),
+            pasted(card("Question", "Answer"), tooLong),
+            pasted(card("Null\0character", "Answer")),
+            Map.of(
+                "cards",
+                java.util.stream.IntStream.rangeClosed(1, DeckService.MAX_CARDS_PER_IMPORT + 1)
+                    .mapToObj(number -> card("Question " + number, "Answer"))
+                    .toList()));
+        for (var rows : refusedImports) {
+            var refused = owner.send(post(deckPath + "/import").header("Idempotency-Key", UUID.randomUUID()), rows);
+            assertThat(refused.getResponse().getStatus()).isEqualTo(422);
+        }
+        var withoutKey = owner.send(post(deckPath + "/import"), pasted(card("Question", "Answer")));
+        assertThat(withoutKey.getResponse().getStatus()).isEqualTo(400);
+        assertThat(store.countCards(owner.id)).isZero();
+        assertThat(StructuredEvents.named(output, "deck.cards_imported")).isEmpty();
+
+        var largest = Map.of(
+            "cards",
+            java.util.stream.IntStream.rangeClosed(1, DeckService.MAX_CARDS_PER_IMPORT)
+                .mapToObj(number -> card("Question " + number, "Answer"))
+                .toList());
+        var accepted = owner.send(post(deckPath + "/import").header("Idempotency-Key", UUID.randomUUID()), largest);
+        assertThat(body(accepted).get("importedCards").asInt()).isEqualTo(DeckService.MAX_CARDS_PER_IMPORT);
+    }
+
+    @Test
+    void importsReachOnlyTheSignedInLearnersOwnDecks() throws Exception {
+        var owner = new Browser();
+        String deckPath = owner.createDeck("Owner's deck");
+        var other = new Browser();
+        String key = UUID.randomUUID().toString();
+        var rows = pasted(card("Question", "Answer"));
+
+        var intoOwnersDeck = other.send(post(deckPath + "/import").header("Idempotency-Key", key), rows);
+        assertThat(intoOwnersDeck.getResponse().getStatus()).isEqualTo(404);
+        assertThat(body(intoOwnersDeck).get("reason").asString()).isEqualTo("NOT_FOUND");
+        var namingOwner = other.send(
+            post(other.createDeck("Other's deck") + "/import").header("Idempotency-Key", key)
+                .header("X-Revue-Learner", owner.username),
+            rows);
+        assertThat(namingOwner.getResponse().getStatus()).isEqualTo(403);
+        assertThat(store.countCards(other.id)).isZero();
+
+        var ownImport = owner.send(post(deckPath + "/import").header("Idempotency-Key", key), rows);
+        assertThat(ownImport.getResponse().getStatus()).isEqualTo(201);
+        assertThat(store.countCards(owner.id)).isEqualTo(1);
+        var csrfless = post(deckPath + "/import").header("Idempotency-Key", UUID.randomUUID())
+            .contentType("application/json")
+            .content(json.writeValueAsString(rows))
+            .cookie(owner.cookies.get("SESSION"));
+        assertThat(mvc.perform(csrfless).andReturn().getResponse().getStatus()).isEqualTo(403);
+        assertThat(store.countCards(owner.id)).isEqualTo(1);
+    }
+
+    @Test
+    void importedCardsEnterTodayUnderTheAllowanceAndReturnOnTheirManilaDate() throws Exception {
+        var owner = new Browser();
+        String deckPath = owner.createDeck("Small deck");
+        var imported = owner.send(
+            post(deckPath + "/import").header("Idempotency-Key", UUID.randomUUID()),
+            pasted(card("Imported 1", "Answer"), card("Imported 2", "Answer")));
+        assertThat(imported.getResponse().getStatus()).isEqualTo(201);
+
+        var queue = body(owner.send(get("/api/v1/cards/due")));
+        assertThat(queue.get("newCards").asInt()).isEqualTo(2);
+        long firstCard = queue.get("cards").get(0).get("id").asLong();
+        assertThat(queue.get("cards").get(0).get("question").asString()).isEqualTo("Imported 1");
+        var rated = owner.rate(firstCard, 0);
+        assertThat(rated.getResponse().getStatus()).isEqualTo(200);
+        LocalDate nextReview = LocalDate.parse(body(rated).get("nextReviewDate").asString());
+        assertThat(nextReview).isAfter(LocalDate.of(2026, 11, 16));
+
+        now.set(nextReview.atStartOfDay(java.time.ZoneId.of("Asia/Manila")).toInstant().minusSeconds(1));
+        var dayBefore = body(owner.send(get("/api/v1/cards/due")));
+        assertThat(dayBefore.get("dueCards").asInt()).isZero();
+        now.set(nextReview.atStartOfDay(java.time.ZoneId.of("Asia/Manila")).toInstant());
+        var onNextDate = body(owner.send(get("/api/v1/cards/due")));
+        assertThat(onNextDate.get("dueCards").asInt()).isEqualTo(1);
+        assertThat(onNextDate.get("cards").get(0).get("id").asLong()).isEqualTo(firstCard);
+    }
+
+    @Test
+    void importedCardsWaitInTheDeckWhenTodaysNewCardAllowanceIsUsed() throws Exception {
+        var owner = new Browser();
+        String studiedPath = owner.createDeck("Studied today");
+        for (int number = 1; number <= 10; number++) {
+            owner.addRatedCard(studiedPath, "Studied " + number);
+        }
+        String deckPath = owner.createDeck("Imported later");
+        owner.send(
+            post(deckPath + "/import").header("Idempotency-Key", UUID.randomUUID()),
+            pasted(card("Waiting", "Answer")));
+
+        var today = body(owner.send(get("/api/v1/cards/due")));
+        assertThat(today.get("newCards").asInt()).isZero();
+        assertThat(today.get("cards").isEmpty()).isTrue();
+        assertThat(body(owner.send(get(deckPath + "/cards"))).get("deck").get("cardCount").asLong()).isEqualTo(1);
+
+        now.set(Instant.parse("2026-11-16T16:00:00Z"));
+        assertThat(body(owner.send(get("/api/v1/cards/due"))).get("newCards").asInt()).isEqualTo(1);
+    }
+
+    @SafeVarargs
+    private static Map<String, List<Map<String, String>>> pasted(Map<String, String>... cards) {
+        return Map.of("cards", List.of(cards));
+    }
+
+    private static long deckId(String deckPath) {
+        return Long.parseLong(deckPath.substring(deckPath.lastIndexOf('/') + 1));
     }
 
     private long rowsFor(String table, long cardId) {
