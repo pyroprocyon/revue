@@ -13,7 +13,12 @@ async function offerInstall(page: Page, outcome: 'accepted' | 'dismissed' | 'fai
         root.dataset.promptCalls = String(Number(root.dataset.promptCalls ?? 0) + 1);
         if (result === 'failed') throw new Error('Installer unavailable');
       },
-      userChoice: Promise.resolve({ outcome: result }),
+      userChoice:
+        result === 'dismissed'
+          ? new Promise((resolve) =>
+              window.addEventListener('dismiss-test-install', () => resolve({ outcome: result }), { once: true }),
+            )
+          : Promise.resolve({ outcome: result }),
     });
     window.dispatchEvent(event);
     return event.defaultPrevented;
@@ -45,6 +50,33 @@ test('launcher metadata and icons are public and a signed-out launch preserves T
   await expect(page).toHaveURL(/\/sign-in\?returnTo=%2Ftoday$/);
 });
 
+test('Help keeps words intact on a narrow phone with enlarged text', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.goto('/help');
+  await page.getByRole('button', { name: setupName }).waitFor();
+  await page.evaluate(async () => {
+    document.documentElement.style.fontSize = '200%';
+    await document.fonts.ready;
+  });
+  const labels = page.locator('.help-directory-row > span');
+  await expect(labels).toHaveCount(4);
+  const brokenWords = await labels.evaluateAll((spans) =>
+    spans.flatMap((span) => {
+      const text = span.firstChild!;
+      return Array.from(span.textContent.matchAll(/\S+/g))
+        .filter((word) => {
+          const range = document.createRange();
+          range.setStart(text, word.index);
+          range.setEnd(text, word.index + word[0].length);
+          return range.getClientRects().length > 1;
+        })
+        .map((word) => word[0]);
+    }),
+  );
+  expect(brokenWords).toEqual([]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+});
+
 test('a fresh Home Screen launch reaches Today with only the session cookies', async ({ page, browser, pilot }) => {
   const password = randomUUID();
   await page.goto(pilot.signupUrl);
@@ -74,8 +106,15 @@ test.describe('Android Home screen', () => {
     await page.getByRole('link', { name: 'Privacy notice' }).click();
     expect(await offerInstall(page, 'dismissed')).toBe(true);
     await page.goBack();
-    await page.getByRole('button', { name: setupName }).click();
+    const install = page.getByRole('button', { name: setupName });
+    await install.press('Enter');
+    await expect(install).toHaveAttribute('aria-disabled', 'true');
+    await expect(install).toBeFocused();
+    await page.keyboard.press('Enter');
     await expect(page.locator('html')).toHaveAttribute('data-prompt-calls', '1');
+    await page.evaluate(() => window.dispatchEvent(new Event('dismiss-test-install')));
+    await expect(install).toBeEnabled();
+    await expect(install).toBeFocused();
     await page.getByRole('button', { name: setupName }).click();
     await expect(page.getByText('Install and create shortcut', { exact: true })).toBeVisible();
     expect(await offerInstall(page, 'failed')).toBe(true);
