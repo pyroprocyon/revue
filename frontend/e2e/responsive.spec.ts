@@ -225,7 +225,13 @@ test('compact account controls remain reachable at supported widths', async ({ p
   await expect(page.getByRole('link', { name: 'Browse sets', exact: true })).toHaveCount(0);
   await expect(page.locator('a[href$="/try"]')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Try a practice set' })).toHaveCount(0);
+  await signOut.press('Enter');
+  const dialog = page.getByRole('dialog', { name: 'Sign out of Revue?' });
+  await expect(dialog.getByRole('button', { name: 'Stay signed in' })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(signOut).toBeFocused();
   await signOut.click();
+  await dialog.getByRole('button', { name: 'Sign out' }).click();
   await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
 });
 

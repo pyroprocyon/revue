@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Page } from '@playwright/test';
-import { test, expect } from './fixtures';
+import { test, expect, signOut } from './fixtures';
 
 async function signup(page: Page, signupUrl: string) {
   await page.goto(signupUrl);
@@ -697,7 +697,7 @@ test('sign-in returns to the requested private deck or new-deck form', async ({ 
   const deckPath = new URL(page.url()).pathname;
   for (const path of [deckPath, '/library/decks/new']) {
     await page.getByRole('link', { name: 'Account', exact: true }).click();
-    await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+    await signOut(page);
     await expect(page).toHaveURL(/\/sign-in$/);
     await page.goto(path);
     await expect(page).toHaveURL(new RegExp(`/sign-in\\?returnTo=${encodeURIComponent(path)}$`));

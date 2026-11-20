@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
-import { test, expect } from './fixtures';
+import { test, expect, signOut } from './fixtures';
 
 // Synthetic credentials exist only in the disposable test database.
 const PASSWORD = 'kanjii';
@@ -116,7 +116,7 @@ test('invited learner registers with six characters, reloads, signs out and sign
   expect(await me.json()).toEqual({ username: name });
   expect(me.headers()['cache-control']).toContain('no-store');
 
-  await page.getByRole('button', { name: 'Sign out' }).click();
+  await signOut(page);
   await expect(page).toHaveURL(/\/sign-in$/);
   expect((await page.request.get('/api/v1/me')).status()).toBe(401);
   await page.goto('/account');
@@ -142,7 +142,7 @@ test('wrong and unknown credentials give the same error and a learner can retry'
   await page.goto(pilot.signupUrl);
   await register(page, name);
   await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
-  await page.getByRole('button', { name: 'Sign out' }).click();
+  await signOut(page);
   await expect(page).toHaveURL(/\/sign-in$/);
   expect((await signIn(page, name, 'wrongpass')).status()).toBe(401);
   await expect(page.getByRole('alert')).toHaveText('Username or password is incorrect');
@@ -159,7 +159,7 @@ test('existing learners keep their shared-set destination when switching to sign
   await page.goto(pilot.signupUrl);
   await register(page, name);
   await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
-  await page.getByRole('button', { name: 'Sign out' }).click();
+  await signOut(page);
   await expect(page).toHaveURL(/\/sign-in$/);
   const signupUrl = new URL(pilot.signupUrl);
   signupUrl.searchParams.set('returnTo', '/sets/philippine-history');
@@ -192,7 +192,7 @@ test('two browsers keep separate accounts after a duplicate username', async ({ 
     await expect(other.getByText(second, { exact: true })).toBeVisible();
     expect(await (await page.request.get('/api/v1/me')).json()).toEqual({ username: first });
     expect(await (await other.request.get('/api/v1/me')).json()).toEqual({ username: second });
-    await other.getByRole('button', { name: 'Sign out' }).click();
+    await signOut(other);
     await expect(other).toHaveURL(/\/sign-in$/);
     expect((await page.request.get('/api/v1/me')).status()).toBe(200);
   } finally {
@@ -368,7 +368,7 @@ test('a fresh tab follows sign-out and account switches in another tab', async (
   const second = username();
   await page.goto(pilot.signupUrl);
   await register(page, second);
-  await page.getByRole('button', { name: 'Sign out' }).click();
+  await signOut(page);
   await expect(page).toHaveURL(/\/sign-in$/);
   await page.goto(pilot.signupUrl);
   await register(page, first);
@@ -393,7 +393,7 @@ test('a fresh tab follows sign-out and account switches in another tab', async (
     }
   });
   try {
-    await peer.getByRole('button', { name: 'Sign out' }).click();
+    await signOut(peer);
     await expect(peer).toHaveURL(/\/sign-in$/);
     await expect.poll(() => checks).toBe(1);
     await signIn(peer, second);
@@ -402,7 +402,7 @@ test('a fresh tab follows sign-out and account switches in another tab', async (
   } finally {
     release();
   }
-  await peer.getByRole('button', { name: 'Sign out' }).click();
+  await signOut(peer);
   await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
   expect(checks).toBe(3);
 });
@@ -441,7 +441,7 @@ test('first sign-in while offline gives guidance and recovers after reconnecting
   await page.goto(pilot.signupUrl);
   await register(page, name);
   await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
-  await page.getByRole('button', { name: 'Sign out' }).click();
+  await signOut(page);
   await expect(page).toHaveURL(/\/sign-in$/);
   await page.reload();
   await page.getByRole('textbox', { name: 'Username' }).fill(name);
@@ -595,7 +595,7 @@ test('signed-in navigation keeps every public route connected to Today', async (
   await page.getByRole('link', { name: 'Account', exact: true }).click();
   await expect(account).toBeVisible();
 
-  await page.getByRole('button', { name: 'Sign out' }).click();
+  await signOut(page);
   await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
   await page.getByRole('link', { name: 'Revue', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Review before it’s due.' })).toBeVisible();
