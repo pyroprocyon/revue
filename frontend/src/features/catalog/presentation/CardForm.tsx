@@ -1,10 +1,12 @@
 import { useFirstInput } from '../../../shared/ui/useFirstInput';
 import { ChevronDown } from 'lucide-react';
 import { useUnsavedDeckForm } from './UnsavedDeckChanges';
-import { useContext, useEffect, useId, useRef, useState, type ReactNode, type SubmitEvent } from 'react';
+import { useContext, useEffect, useId, useRef, useState, type SubmitEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { CardScreenBar } from './CardScreen';
 import { CARD_FIELD_MAX_LENGTH, type CardDraft, type DeckCard } from '../application/decks';
+import { DeckWriteProblem } from './DeckWriteProblem';
+import type { DeckWriteState } from './useDecks';
 import { TextField } from './TextField';
 import { primaryButton, secondaryButton } from '../../../shared/ui/buttonStyles';
 import { useFocusOnMount } from '../../../shared/ui/useFocusOnMount';
@@ -13,8 +15,7 @@ type CardFormProps = {
   heading: string;
   card?: DeckCard;
   added?: boolean;
-  saving: boolean;
-  problem: ReactNode;
+  writeState: DeckWriteState;
   prepareWrite: () => void;
   onSave: (draft: CardDraft) => void;
   onCancel: () => void;
@@ -41,14 +42,14 @@ export function CardForm({
   heading,
   card,
   added,
-  saving,
-  problem,
+  writeState,
   prepareWrite,
   onSave,
   onCancel,
   draft,
   onDraftChange,
 }: Readonly<CardFormProps>) {
+  const saving = writeState.status === 'saving';
   const firstInput = useFirstInput(prepareWrite);
   const [initialDraft] = useState(() => draftOf(card));
   const dirty = draftChanged(draft, initialDraft);
@@ -83,6 +84,12 @@ export function CardForm({
       onInput={firstInput}
       ref={form}
       onSubmit={submit}
+      onInvalid={(event) => {
+        const firstInvalid = event.currentTarget.querySelector<HTMLTextAreaElement>('textarea:invalid');
+        if (firstInvalid && event.target === firstInvalid) {
+          firstInvalid.labels[0]?.scrollIntoView({ block: 'center', behavior: 'instant' });
+        }
+      }}
       aria-busy={saving}
       className={`@container/card-form scroll-mt-20 scroll-mb-24 sm:scroll-mb-4 rounded-card border border-line bg-surface p-compact-gutter sm:p-6`}
     >
@@ -106,7 +113,7 @@ export function CardForm({
               >
                 {card ? 'Cancel' : 'Done'}
               </button>
-              <div className="min-w-20 flex-1 text-center leading-tight">
+              <div className="min-w-20 flex-1 text-center leading-tight @max-[17rem]/workspace:order-first @max-[17rem]/workspace:basis-full">
                 <h2 {...headingFocus} className="text-label font-bold outline-none">
                   {heading}
                 </h2>
@@ -117,18 +124,20 @@ export function CardForm({
                 form={formId}
                 aria-label={saving ? undefined : 'Save card'}
                 disabled={saving}
-                className={`${primaryButton} ml-auto shrink-0 px-4`}
+                className={`${primaryButton} ml-auto shrink-0 px-4 @max-[17rem]/workspace:px-2`}
               >
                 {saving ? 'Saving…' : 'Save'}
               </button>
             </div>,
             bar.slot,
           )}
+        {bar && <DeckWriteProblem state={writeState} focusOnFailure />}
         <div className="grid min-w-0 gap-2.5 sm:gap-4 @min-[34rem]/card-form:grid-cols-2">
-          <TextField label="Question" rows={2} {...field('question')} />
+          <TextField label="Question" growWithText rows={3} {...field('question')} />
           <TextField
             label="Answer"
-            rows={2}
+            growWithText
+            rows={3}
             note="Keep it to one idea"
             nearLimitNote="Add extra details under Optional details, in Explanation."
             {...field('answer')}
@@ -140,14 +149,14 @@ export function CardForm({
             <ChevronDown aria-hidden="true" className="size-4 shrink-0 group-open:rotate-180" />
           </summary>
           <div className="grid min-w-0 gap-3 px-3 pb-3 sm:gap-4">
-            <TextField label="Explanation" rows={2} optional {...field('explanation')} />
+            <TextField label="Explanation" growWithText rows={3} optional {...field('explanation')} />
             <div className="grid min-w-0 gap-3 sm:gap-4 @min-[34rem]/card-form:grid-cols-2">
               <TextField label="Tip to remember" optional {...field('memoryHook')} />
               <TextField label="Source" optional {...field('source')} />
             </div>
           </div>
         </details>
-        {problem}
+        {bar === null && <DeckWriteProblem state={writeState} />}
         {bar === null && (
           <div className="flex flex-wrap gap-2 sm:gap-3 @min-[34rem]/card-form:justify-end">
             <button

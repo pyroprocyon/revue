@@ -259,7 +259,7 @@ test('privacy details and contact remain reachable with a keyboard and enlarged 
   await expect(page.locator('#help-and-corrections')).toBeInViewport();
 });
 
-test('returning to Account rechecks quietly once and restores focus without shifting the content', async ({
+test('returning to Account reports a slow check once and restores focus without shifting the content', async ({
   page,
   pilot,
 }) => {
@@ -287,15 +287,16 @@ test('returning to Account rechecks quietly once and restores focus without shif
   });
   const controlsPaused = () => signOut.evaluate((element) => element.closest('[inert]') !== null);
   try {
+    await page.clock.setFixedTime(new Date((await page.evaluate(() => Date.now())) + 30_000));
     const recheck = page.waitForRequest((request) => request.url().endsWith('/api/v1/me'));
     await page.evaluate(() => {
+      window.dispatchEvent(new Event('blur'));
       window.dispatchEvent(new Event('focus'));
       document.dispatchEvent(new Event('visibilitychange'));
     });
     await recheck;
     await expect.poll(controlsPaused).toBe(true);
-    await expect(page.getByRole('status')).toHaveCount(0);
-    await expect(page.getByText('Checking session…', { exact: true })).toHaveCount(0);
+    await expect(page.getByRole('status')).toHaveText('Checking your session…');
     await expect(signOut).not.toBeFocused();
     const inertHeading = page.getByText('Your account', { exact: true });
     expect(await inertHeading.evaluate((element) => element.getBoundingClientRect().top + window.scrollY)).toBe(
@@ -308,6 +309,102 @@ test('returning to Account rechecks quietly once and restores focus without shif
   await expect(page.getByRole('status')).toHaveCount(0);
   await expect(signOut).toBeFocused();
   expect(requests).toBe(1);
+});
+
+test.describe('workspace touch navigation', () => {
+  test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
+
+  test('one tap opens the chosen tab on entry and resets a Library link during a slow return', async ({
+    page,
+    pilot,
+  }) => {
+    await page.goto(pilot.signupUrl);
+    await register(page, username());
+    let checks = 0;
+    let release!: () => void;
+    let pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route('**/api/v1/me', async (route) => {
+      checks++;
+      await pending;
+      await route.continue();
+    });
+    const tabs = page.locator('nav[aria-label="Your workspace"]');
+    try {
+      await page.goto('/library');
+      await tabs.locator('a[href="/account"]').tap();
+      await expect(page).toHaveURL('/account');
+      await expect(page.getByRole('button', { name: 'Sign out' })).toHaveCount(0);
+      release();
+      await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
+      expect(checks).toBe(1);
+      await page.goto('/library#my-decks-heading');
+      await expect(page.getByRole('heading', { name: 'Library', exact: true })).toBeVisible();
+      pending = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      await page.clock.setFixedTime(new Date((await page.evaluate(() => Date.now())) + 30_000));
+      const resume = () =>
+        page.evaluate(() => {
+          window.dispatchEvent(new Event('blur'));
+          window.dispatchEvent(new Event('focus'));
+        });
+      await resume();
+      await expect.poll(() => checks).toBe(3);
+      await tabs.getByRole('link', { name: 'Library' }).tap();
+      await resume();
+      release();
+      await expect(page).toHaveURL('/library');
+      expect(checks).toBe(3);
+    } finally {
+      release();
+    }
+  });
+});
+
+test('a fresh tab follows sign-out and account switches in another tab', async ({ page, context, pilot }) => {
+  const first = username();
+  const second = username();
+  await page.goto(pilot.signupUrl);
+  await register(page, second);
+  await page.getByRole('button', { name: 'Sign out' }).click();
+  await expect(page).toHaveURL(/\/sign-in$/);
+  await page.goto(pilot.signupUrl);
+  await register(page, first);
+  await expect(page.getByText(first, { exact: true })).toBeVisible();
+
+  const peer = await context.newPage();
+  await peer.goto(pilot.origin + '/account');
+  await expect(peer.getByText(first, { exact: true })).toBeVisible();
+  let release!: () => void;
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let checks = 0;
+  await page.route('**/api/v1/me', async (route) => {
+    checks++;
+    if (checks === 1) {
+      const signedOut = await route.fetch();
+      await pending;
+      await route.fulfill({ response: signedOut });
+    } else {
+      await route.continue();
+    }
+  });
+  try {
+    await peer.getByRole('button', { name: 'Sign out' }).click();
+    await expect(peer).toHaveURL(/\/sign-in$/);
+    await expect.poll(() => checks).toBe(1);
+    await signIn(peer, second);
+    await expect(page.getByText(second, { exact: true })).toBeVisible();
+    expect(checks).toBe(2);
+  } finally {
+    release();
+  }
+  await peer.getByRole('button', { name: 'Sign out' }).click();
+  await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
+  expect(checks).toBe(3);
 });
 
 test('a shared registration URL works after reload without an invitation', async ({ page }) => {

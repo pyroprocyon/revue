@@ -14,7 +14,7 @@ export type Signup = { username: string; password: string };
 export interface AccountGateway {
   prepareWrite(): void;
   signedIn(): Promise<boolean>;
-  current(): Promise<AccountProfile | null>;
+  current(signal?: AbortSignal): Promise<AccountProfile | null>;
   register(input: Signup): Promise<AccountProfile>;
   signIn(username: string, password: string): Promise<AccountProfile>;
   signOut(): Promise<void>;

@@ -201,11 +201,6 @@
   .workspace-navigation .workspace-link { min-width: 7rem; }
 }
 
-/* The deck stack is a native scroller, so the browser owns the drag, momentum and snap.
-   The stage stays in view while one snap point per deck scrolls behind it. Each card places
-   itself from --deck-progress, the scroll position measured in decks. React sets --deck-reach,
-   the upcoming decks drawn below the front deck, and --deck-stage-fitted when the stack may
-   fill the screen. */
 .deck-carousel {
   --deck-reach: 1;
   --deck-card-height: 10rem;
@@ -223,8 +218,19 @@
   margin-inline: calc(-1 * var(--spacing-compact-gutter));
 }
 
+@property --deck-offset {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+
+/* Only the front deck and its neighbors interpolate their distance as they cross the front. */
+@keyframes deck-offset {
+  from { --deck-offset: 2; }
+  to { --deck-offset: -2; }
+}
+
 .deck-carousel-stage {
-  --deck-progress: 0;
   display: grid;
   gap: 0.5rem;
   margin-inline: var(--spacing-compact-gutter);
@@ -251,7 +257,6 @@
    and is slightly narrower. Scaling from the edge that faces away from the front keeps every
    strip exactly one strip height tall. */
 .deck-carousel-card {
-  --deck-offset: calc(var(--deck-index) - var(--deck-progress));
   --deck-distance: max(var(--deck-offset), -1 * var(--deck-offset));
   --deck-side: clamp(-1, var(--deck-offset) * 1000, 1);
   border: 1px solid color-mix(in srgb, var(--color-accent) 20%, transparent);
@@ -315,40 +320,39 @@
 
       .deck-carousel-scroller::-webkit-scrollbar { display: none; }
       .deck-carousel-stage {
-        position: sticky;
-        top: 0;
+        position: relative;
+        isolation: isolate;
         display: block;
-        height: var(--deck-stage-height);
+        height: 0;
         margin-inline: 0;
       }
 
       .deck-carousel-snap-points {
         position: static;
         height: auto;
-        margin-top: calc(-1 * var(--deck-stage-height));
         overflow: visible;
       }
 
       .deck-carousel-card {
         position: absolute;
-        top: var(--deck-front-top);
+        top: calc(var(--deck-front-top) + var(--deck-index) * var(--deck-strip-height));
         inset-inline: var(--spacing-compact-gutter);
         z-index: var(--deck-layer);
         display: block;
         height: var(--deck-card-height);
-        background: color-mix(in srgb, var(--deck-strip-fill, var(--color-accent-soft)) calc(clamp(0, 2 * var(--deck-distance), 1) * 100%), var(--color-surface));
         transform-origin: 50% calc(50% + 50% * var(--deck-side));
-        transform:
-          translateY(calc(var(--deck-offset) * var(--deck-strip-height) - var(--deck-card-lift, 0px)))
-          scale(calc(1 - 0.03 * clamp(0, var(--deck-distance), 1) - 0.006 * max(var(--deck-distance) - 1, 0)));
+        transform: scale(calc(1 - 0.03 * clamp(0, var(--deck-distance), 1) - 0.006 * max(var(--deck-distance) - 1, 0)));
       }
 
+      .deck-carousel-card[data-slot="front"] {
+        background: color-mix(in srgb, var(--deck-strip-fill, var(--color-accent-soft)) calc(clamp(0, 2 * var(--deck-distance), 1) * 100%), var(--color-surface));
+      }
       .deck-carousel-card[data-first-deck] {
-        --deck-card-lift: calc(var(--deck-first-lift) * (1 - min(1, var(--deck-distance))));
+        translate: 0 calc(-1 * var(--deck-first-lift) * (1 - min(1, var(--deck-distance))));
       }
 
       .deck-carousel-card[data-after-first] {
-        --deck-preview-title-lift: calc(var(--deck-first-lift) * (1 - clamp(0, 2 * var(--deck-progress), 1)) / 2);
+        --deck-preview-title-lift: calc(var(--deck-first-lift) * clamp(0, 2 * var(--deck-offset) - 1, 1) / 2);
       }
 
       .deck-carousel-summary,
@@ -392,6 +396,15 @@
 
       @media (prefers-reduced-motion: no-preference) {
         .deck-carousel-scroller { scroll-behavior: smooth; }
+        @supports (animation-timeline: scroll()) {
+          .deck-carousel-card:is([data-slot="front"], [data-adjacent]) {
+            --deck-center: calc(var(--deck-index) * var(--deck-strip-height));
+            --deck-span: calc(2 * var(--deck-strip-height));
+            animation: deck-offset linear both;
+            animation-timeline: scroll();
+            animation-range: calc(var(--deck-center) - var(--deck-span)) calc(var(--deck-center) + var(--deck-span));
+          }
+        }
       }
     }
   }
@@ -637,6 +650,9 @@
     color-scheme: light;
     -webkit-tap-highlight-color: transparent;
   }
+
+  /* Route controls accept a single tap even when the page is pinch-zoomed. */
+  a[href], button { touch-action: manipulation; }
 
   /* In-page links scroll smoothly when reduced motion is off. */
   @media (prefers-reduced-motion: no-preference) {

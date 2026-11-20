@@ -1,3 +1,4 @@
+import { useFocusOnMount } from '../../../shared/ui/useFocusOnMount';
 import { Navigate } from 'react-router';
 import { DECK_TITLE_MAX_LENGTH, type DeckFailureReason } from '../application/decks';
 import type { DeckWriteState } from './useDecks';
@@ -22,7 +23,9 @@ const PROBLEM_TEXT: Record<Exclude<DeckFailureReason, 'signed-out'>, string> = {
 export function DeckWriteProblem({
   state,
   namingDeck = false,
-}: Readonly<{ state: DeckWriteState; namingDeck?: boolean }>) {
+  focusOnFailure = false,
+}: Readonly<{ state: DeckWriteState; namingDeck?: boolean; focusOnFailure?: boolean }>) {
+  const alertFocus = useFocusOnMount<HTMLParagraphElement>(focusOnFailure && state.status === 'failed');
   if (state.status !== 'failed') return null;
   if (state.reason === 'signed-out') return <Navigate replace to={signInPath(LIBRARY_PATH)} />;
   const message =
@@ -30,8 +33,12 @@ export function DeckWriteProblem({
       ? `Enter a deck name with ${DECK_TITLE_MAX_LENGTH} characters or fewer.`
       : PROBLEM_TEXT[state.reason];
   return (
-    <div className="rounded-inset bg-highlight-soft p-4 text-support text-ink">
-      <p role="alert">{message}</p>
+    <div
+      className={`rounded-inset bg-highlight-soft p-4 text-support text-ink ${focusOnFailure ? '@max-[17rem]/workspace:p-2' : ''}`}
+    >
+      <p role="alert" {...(focusOnFailure && alertFocus)}>
+        {message}
+      </p>
       {state.reason === 'outdated' && (
         <button type="button" onClick={() => loadPage(TODAY_PATH)} className={`${primaryButton} mt-3`}>
           Go to Today

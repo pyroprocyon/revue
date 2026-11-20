@@ -9,6 +9,7 @@ import { SkipToContent } from './LayoutParts';
 type WorkspaceLayoutProps = {
   children: ReactNode;
   navigationDisabled?: boolean;
+  onTabWhileChecking?: (path: string) => void;
 };
 
 const destinations = [
@@ -22,7 +23,11 @@ function navigationLink({ isActive }: Readonly<{ isActive: boolean }>) {
 }
 
 /** One set of destinations adapts from a phone tab bar to a desktop sidebar. */
-export function WorkspaceLayout({ children, navigationDisabled = false }: Readonly<WorkspaceLayoutProps>) {
+export function WorkspaceLayout({
+  children,
+  navigationDisabled = false,
+  onTabWhileChecking,
+}: Readonly<WorkspaceLayoutProps>) {
   const today = useMatch(TODAY_PATH);
   const deck = useMatch(DECK_ROUTE);
   const newDeck = useMatch(NEW_DECK_PATH);
@@ -37,7 +42,24 @@ export function WorkspaceLayout({ children, navigationDisabled = false }: Readon
           </div>
           <nav aria-label="Your workspace" className="workspace-navigation" inert={navigationDisabled}>
             {destinations.map(({ to, label, icon: Icon }) => (
-              <NavLink key={to} to={to} className={navigationLink}>
+              <NavLink
+                key={to}
+                to={to}
+                className={navigationLink}
+                onClick={(event) => {
+                  if (
+                    !onTabWhileChecking ||
+                    event.button !== 0 ||
+                    event.metaKey ||
+                    event.ctrlKey ||
+                    event.shiftKey ||
+                    event.altKey
+                  )
+                    return;
+                  event.preventDefault();
+                  onTabWhileChecking(to);
+                }}
+              >
                 <Icon aria-hidden="true" className="size-5 shrink-0" />
                 <span>{label}</span>
               </NavLink>

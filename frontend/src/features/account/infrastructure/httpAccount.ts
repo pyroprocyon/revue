@@ -1,3 +1,4 @@
+import { announceSessionChange } from '../../../shared/navigation/sessionChanges';
 import type { AccountGateway, AccountProfile, Signup } from '../application/account';
 import {
   csrfToken,
@@ -31,6 +32,7 @@ async function post(path: string, values?: Record<string, string>): Promise<Resp
     throw new Error(detail?.detail?.slice(0, 240) ?? 'Please wait a moment and try again.');
   }
   forgetCsrfToken();
+  announceSessionChange();
   return response;
 }
 
@@ -52,8 +54,8 @@ export const httpAccount: AccountGateway = {
     if (typeof status?.signedIn !== 'boolean') throw new Error(SESSION_CHECK_FAILED);
     return status.signedIn;
   },
-  async current() {
-    const response = await sameOriginRequest('/api/v1/me');
+  async current(signal) {
+    const response = await sameOriginRequest('/api/v1/me', { signal });
     if (response.status === 401) return null;
     if (!response.ok) throw new Error(ACCOUNT_LOAD_FAILED);
     const profile = (await response.json()) as Partial<AccountProfile> | null;

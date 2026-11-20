@@ -1,5 +1,5 @@
 import { ChevronRight, Search, X } from 'lucide-react';
-import { useContext, useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
+import { useContext, useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
 import { Link, Navigate, useOutletContext } from 'react-router';
 import { DeckFailure, type Deck } from '../application/decks';
 import type { useDecks } from './useDecks';
@@ -225,11 +225,7 @@ function DeckList({
               initialIndex={initialIndex}
               onOpen={openDeck}
             />
-            <ul className="hidden auto-rows-fr grid-cols-2 gap-4 @min-[64rem]/workspace:grid">
-              {matches.map((deck) => (
-                <DeckTile key={deck.id} deck={deck} onOpen={openDeck} />
-              ))}
-            </ul>
+            <DeckGrid decks={matches} onOpen={openDeck} />
           </>
         )}
       </div>
@@ -265,6 +261,29 @@ function DeckGroupChoice({
         </button>
       ))}
     </fieldset>
+  );
+}
+
+function DeckGrid({
+  decks,
+  onOpen,
+}: Readonly<{ decks: readonly Deck[]; onOpen: (event: MouseEvent<HTMLAnchorElement>) => void }>) {
+  const grid = useRef<HTMLUListElement>(null);
+  const [visible, setVisible] = useState(false);
+  useLayoutEffect(() => {
+    const element = grid.current;
+    if (!element) return;
+    // The workspace container query decides when the grid has a box. Mount its links
+    // before focus is restored on desktop and skip building hidden tiles on phones.
+    setVisible(element.getClientRects().length > 0);
+    const sizeChanges = new ResizeObserver(([entry]) => setVisible(entry.contentRect.width > 0));
+    sizeChanges.observe(element);
+    return () => sizeChanges.disconnect();
+  }, []);
+  return (
+    <ul ref={grid} className="hidden auto-rows-fr grid-cols-2 gap-4 @min-[64rem]/workspace:grid">
+      {visible && decks.map((deck) => <DeckTile key={deck.id} deck={deck} onOpen={onOpen} />)}
+    </ul>
   );
 }
 

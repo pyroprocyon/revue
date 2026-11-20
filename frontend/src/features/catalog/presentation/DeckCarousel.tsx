@@ -40,14 +40,12 @@ export function DeckCarousel({
   const selectedIndex = useRef(initialIndex);
   const carousel = useRef<HTMLElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
-  const stage = useRef<HTMLDivElement>(null);
   const snapPoints = useRef<HTMLDivElement>(null);
   const scrollStep = useRef(0);
   const frontLink = useRef<HTMLAnchorElement>(null);
   const focusWasInCarousel = useRef(false);
   const fittedStageHeight = useFittedStageHeight(carousel, fillsScreen);
   const frontIndex = Math.min(nearestIndex, decks.length - 1);
-  const firstDeckId = decks[0].id;
   const frontDeck = decks[frontIndex];
   const position = `${frontIndex + 1} of ${decks.length}`;
   const firstDrawnIndex = Math.max(0, frontIndex - PREVIOUS_DECKS_DRAWN);
@@ -77,42 +75,42 @@ export function DeckCarousel({
     const points = snapPoints.current;
     const firstPoint = points?.firstElementChild;
     if (!section || !element || !firstPoint) return;
-    let scrollFrame: number | null = null;
-    const paintScrollPosition = () => {
-      scrollFrame = null;
-      const progress = scrollStep.current > 0 ? element.scrollTop / scrollStep.current : 0;
-      stage.current?.style.setProperty('--deck-progress', String(progress));
-      if (scrollStep.current === 0) return;
-      selectDeck(Math.min(decks.length - 1, Math.max(0, Math.round(progress))));
-    };
-    function schedulePaint() {
-      scrollFrame ??= window.requestAnimationFrame(paintScrollPosition);
-    }
+    let selectionObserver: IntersectionObserver | undefined;
+    let observedHeight = -1;
     const measureStep = () => {
       const enlargedText = Number.parseFloat(getComputedStyle(document.documentElement).fontSize) >= ENLARGED_TEXT_PX;
       section.toggleAttribute('data-enlarged-text', enlargedText);
       const scrollsNatively = getComputedStyle(element).overflowY === 'auto';
       setNativeScroll(scrollsNatively);
       const step = scrollsNatively && decks.length > 1 ? firstPoint.getBoundingClientRect().height : 0;
-      if (step !== scrollStep.current) {
-        scrollStep.current = step;
-        if (step > 0)
-          element.scrollTo({ top: Math.min(selectedIndex.current, decks.length - 1) * step, behavior: 'instant' });
-      }
-      selectDeck(Math.min(selectedIndex.current, decks.length - 1));
-      schedulePaint();
+      const height = element.clientHeight;
+      const stepChanged = step !== scrollStep.current;
+      scrollStep.current = step;
+      const index = Math.min(selectedIndex.current, decks.length - 1);
+      selectDeck(index);
+      if (stepChanged && step > 0) element.scrollTo({ top: index * step, behavior: 'instant' });
+      if (!stepChanged && height === observedHeight) return;
+      observedHeight = height;
+      selectionObserver?.disconnect();
+      if (step === 0) return;
+
+      // A snap point crosses this line when its deck becomes the nearest one, even on a fast fling.
+      const midpoint = step / 2;
+      selectionObserver = new IntersectionObserver(
+        () => selectDeck(Math.max(0, Math.min(decks.length - 1, Math.round(element.scrollTop / step)))),
+        { root: element, rootMargin: `-${midpoint}px 0px -${height - midpoint}px 0px` },
+      );
+      for (const point of points.children) selectionObserver.observe(point);
     };
     measureStep();
     const sizeChanges = new ResizeObserver(measureStep);
     sizeChanges.observe(firstPoint);
     sizeChanges.observe(element);
-    element.addEventListener('scroll', schedulePaint, { passive: true });
     return () => {
-      element.removeEventListener('scroll', schedulePaint);
+      selectionObserver?.disconnect();
       sizeChanges.disconnect();
-      if (scrollFrame !== null) window.cancelAnimationFrame(scrollFrame);
     };
-  }, [decks.length, firstDeckId, selectDeck]);
+  }, [decks.length, selectDeck]);
 
   function bringToFront(index: number) {
     const element = scroller.current;
@@ -140,7 +138,7 @@ export function DeckCarousel({
         </output>
       )}
       <div ref={scroller} className="deck-carousel-scroller">
-        <div ref={stage} className="deck-carousel-stage">
+        <div className="deck-carousel-stage">
           {drawnDecks.map((drawnDeck, drawnOffset) => {
             const index = firstDrawnIndex + drawnOffset;
             return (
@@ -160,8 +158,9 @@ export function DeckCarousel({
           })}
         </div>
         <div ref={snapPoints} aria-hidden="true" className="deck-carousel-snap-points">
-          {decks.map((snapDeck) => (
-            <div key={snapDeck.id} />
+          {/* Snap points represent positions, so replacing a deck keeps its observed element. */}
+          {Array.from(decks.keys(), (position) => (
+            <div key={position} />
           ))}
         </div>
       </div>
@@ -231,7 +230,11 @@ function StackedDeck({
   onOpen,
 }: StackedDeckProps) {
   const distanceFromFront = Math.abs(stepsFromFront);
-  const placeInStack = { '--deck-index': index, '--deck-layer': -distanceFromFront } as CSSProperties;
+  const placeInStack = {
+    '--deck-index': index,
+    '--deck-offset': stepsFromFront,
+    '--deck-layer': -distanceFromFront,
+  } as CSSProperties;
   if (stepsFromFront === 0) {
     return (
       <article
@@ -300,14 +303,14 @@ function DeckPreview({ deck, adjacent, above, label, scroller, nativeScroll, onC
   useEffect(() => {
     const element = button.current;
     const root = scroller.current;
-    if (!nativeScroll || !element || !root) return;
+    if (adjacent || !nativeScroll || !element || !root) return;
     const observer = new IntersectionObserver(
       ([entry]) => setHasRoom(entry.intersectionRatio >= 0.94 && entry.intersectionRect.height >= 48),
       { root, threshold: 0.94 },
     );
     observer.observe(element);
     return () => observer.disconnect();
-  }, [nativeScroll, scroller]);
+  }, [adjacent, nativeScroll, scroller]);
   const canTap = adjacent || (nativeScroll && hasRoom);
   return (
     <button
