@@ -1,4 +1,4 @@
-import { Pencil } from 'lucide-react';
+import { ChevronRight, ClipboardPaste, Pencil } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useDeckDraftGuard } from './UnsavedDeckChanges';
 import {
@@ -15,7 +15,7 @@ import {
   type RefObject,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { useLocation, useNavigate } from 'react-router';
+import { Link, useLocation, useNavigate } from 'react-router';
 import type { CardDraft, Deck, DeckCard, DeckProgress } from '../application/decks';
 import { draftOf } from './cardDraft';
 import { CardPreview } from './CardPreview';
@@ -29,7 +29,7 @@ import { DeckWriteProblem } from './DeckWriteProblem';
 import { matchesCardSearch, updateCachedCards, updateDeckPages, useDeckWrite } from './useDecks';
 import { useTwoPanes } from './useTwoPanes';
 import { deckKeys } from '../../../shared/cache/queryKeys';
-import { LIBRARY_PATH } from '../../../shared/navigation/paths';
+import { LIBRARY_PATH, pasteCardsPath } from '../../../shared/navigation/paths';
 import { useSessionExpiredRedirect } from '../../../shared/navigation/SessionExpiredRedirect';
 import { routeState } from '../../../shared/navigation/routeState';
 import { FocusRequestContext } from '../../../shared/ui/FocusRequestContext';
@@ -78,6 +78,7 @@ function emptyMessage(items: DeckCard[] | undefined, term: string, paginated: bo
 type DeckContentProps = {
   username: string;
   justCreated: boolean;
+  arrivalNotice: string | null;
   deck: Deck;
   progress: DeckProgress;
   dueCardIds: string[];
@@ -97,6 +98,7 @@ type DeckContentProps = {
 export function DeckContent({
   username,
   justCreated,
+  arrivalNotice,
   deck,
   progress,
   dueCardIds,
@@ -125,7 +127,7 @@ export function DeckContent({
   const redirectAfterExpiration = useSessionExpiredRedirect();
   const [panes, wide, panesMeasured] = useTwoPanes();
   const [openedRightAfterCreate] = useState(justCreated);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState(arrivalNotice);
   const [form, setForm] = useState<CardFormState>(() => firstCardForm(deck, term, openedRightAfterCreate));
   const [cardsAdded, setCardsAdded] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -389,6 +391,7 @@ export function DeckContent({
         draft={form.draft}
         writeState={addWrite.state}
         onDraftChange={updateDraft}
+        beforeFields={<PasteCardsLink deckId={deck.id} />}
         onSave={(draft) => {
           const { requestId } = form;
           void addWrite.run(
@@ -595,6 +598,19 @@ function focusElement(target: FocusTarget, elements: FocusElements) {
 function cardAfterDeletion(cards: DeckCard[], cardId: string) {
   const index = cards.findIndex((card) => card.id === cardId);
   return (cards[index + 1] ?? cards[index - 1])?.id ?? null;
+}
+
+function PasteCardsLink({ deckId }: Readonly<{ deckId: string }>) {
+  return (
+    <Link
+      to={pasteCardsPath(deckId)}
+      className="pressable flex min-h-12 items-center gap-3 rounded-control bg-accent-soft px-3 py-2 text-label font-semibold text-accent-strong"
+    >
+      <ClipboardPaste aria-hidden="true" className="size-5 shrink-0" />
+      <span className="min-w-0 flex-1 wrap-anywhere">Paste many cards at once</span>
+      <ChevronRight aria-hidden="true" className="size-5 shrink-0" />
+    </Link>
+  );
 }
 
 /** Always present, so screen readers announce each new message without focus moving to it. */

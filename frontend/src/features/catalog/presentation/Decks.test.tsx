@@ -84,7 +84,7 @@ function api({
           ? jsonResponse(503)
           : jsonResponse(200, { deck, progress, items, dueCardIds: dueIds, nextCursor: null });
       }
-      return jsonResponse(404);
+      return deckNotFound();
     }
     const body = init?.body ? requestBodyJson(init) : undefined;
     writes.push({ method, path, body, csrf: new Headers(init?.headers).get('X-XSRF-TOKEN') });
@@ -119,7 +119,7 @@ function api({
       stored = stored.filter((card) => card.id !== '31');
       return jsonResponse(204);
     }
-    return jsonResponse(404);
+    return deckNotFound();
   });
   vi.stubGlobal('fetch', fetcher);
   return {
@@ -206,6 +206,11 @@ function type(label: string, text: string) {
   const field = screen.getByLabelText(label);
   expect(field.matches(':disabled'), `${label} is locked`).toBe(false);
   fireEvent.change(field, { target: { value: text } });
+}
+
+/** The deck API answers a missing deck or card with its own reason, unlike a server that lacks the route. */
+function deckNotFound() {
+  return jsonResponse(404, { reason: 'NOT_FOUND' });
 }
 
 /** The older server's token names no learner and it has no deck routes. An unverifiable one can't answer for its token. */
@@ -405,7 +410,7 @@ describe('personal decks', () => {
 
   it('keeps a draft when its deck disappears and a save is rejected', async () => {
     wideLayout();
-    const { removeDeck } = api({ cards: [osmosis], failWrite: async () => jsonResponse(404) });
+    const { removeDeck } = api({ cards: [osmosis], failWrite: async () => deckNotFound() });
     const { queryClient } = renderApp(deckPage);
     fireEvent.click(await screen.findByRole('button', { name: 'Edit card' }));
     type('Answer', 'Keep this until I can copy it');

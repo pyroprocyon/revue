@@ -11,6 +11,7 @@ export type RouteState = {
   savedCardCursors?: (string | undefined)[];
   deletedDeckTitle?: string;
   createdDeck?: boolean;
+  importedCards?: number;
 };
 
 export const OPENED_FROM_LIBRARY: RouteState = { fromLibrary: true };
@@ -25,6 +26,10 @@ export function previousCursorsState(previousCursors: (string | undefined)[]): R
 
 export function deletedDeckState(deletedDeckTitle: string): RouteState {
   return { deletedDeckTitle };
+}
+
+export function importedCardsState(importedCards: number): RouteState {
+  return { importedCards };
 }
 
 export function routeState(location: { state: unknown }): RouteState {

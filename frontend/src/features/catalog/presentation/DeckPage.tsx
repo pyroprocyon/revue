@@ -4,8 +4,8 @@ import { deckKeys } from '../../../shared/cache/queryKeys';
 import { routeState } from '../../../shared/navigation/routeState';
 import { NavigationLink } from '../../../shared/ui/NavigationLink';
 import { WorkspacePage } from '../../../shared/ui/WorkspacePage';
-import { useCallback } from 'react';
-import { useLocation, useOutletContext, useParams, useSearchParams } from 'react-router';
+import { useCallback, useEffect, useState } from 'react';
+import { useLocation, useNavigate, useOutletContext, useParams, useSearchParams } from 'react-router';
 import type { AccountProfile } from '../../account/application/account';
 import { SessionExpiredRedirect } from '../../../shared/navigation/SessionExpiredRedirect';
 import { DeckFailure, type Deck } from '../application/decks';
@@ -19,6 +19,7 @@ import { PageControls } from '../../../shared/ui/PageControls';
 import { primaryButton } from '../../../shared/ui/buttonStyles';
 import { WhenSlow } from '../../../shared/ui/WhenSlow';
 import { LoadingPlaceholder, LoadingStatus } from '../../../shared/ui/LoadingFeedback';
+import { cardCountLabel } from '../../../shared/ui/cardCount';
 import { DECKS_UNAVAILABLE_TEXT, decksUnavailable } from './decksUnavailable';
 
 const { usePageModule: useDeckContent, preload: preloadDeckContent } = pageModule(() =>
@@ -38,6 +39,13 @@ export function DeckPage() {
   const cards = useDeckCards(profile.username, deckId, { after, search: term, dueOnly });
   const client = useQueryClient();
   const editor = useDeckContent();
+  const navigate = useNavigate();
+  const [importNotice] = useState(() => importedCardsNotice(routeState(location).importedCards));
+  // Browsers keep history state across reloads and Back, so the import is confirmed only on arrival.
+  useEffect(() => {
+    if (routeState(location).importedCards === undefined) return;
+    void navigate(location, { replace: true, state: { ...routeState(location), importedCards: undefined } });
+  }, [location, navigate]);
   const hasDrafts = useHasUnsavedDeckChanges();
   const search = useCallback(
     (value: string, replace = false) => {
@@ -79,6 +87,7 @@ export function DeckPage() {
         key={`${profile.username}:${deckId}`}
         username={profile.username}
         justCreated={routeState(location).createdDeck === true}
+        arrivalNotice={importNotice}
         deck={deck}
         progress={page.progress}
         {...loadedCards(deck, cards.data?.pages)}
@@ -116,6 +125,10 @@ export function DeckPage() {
       {feedback}
     </WorkspacePage>
   );
+}
+
+function importedCardsNotice(importedCards: number | undefined) {
+  return importedCards === undefined ? null : `${cardCountLabel(importedCards)} imported.`;
 }
 
 function loadedCards(deck: Deck, pages: CardPages['pages'] | undefined) {
