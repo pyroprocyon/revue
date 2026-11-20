@@ -50,6 +50,7 @@ import {
   PUBLISHED_PATH,
   NEW_DECK_PATH,
   DECK_ROUTE,
+  PASTE_CARDS_ROUTE,
   HOME_PATH,
   HOW_IT_WORKS_PATH,
   SETS_PATH,
@@ -78,9 +79,13 @@ const { Page: NewDeckPage, preload: loadNewDeckPage } = deferredPage(() =>
 const { Page: ReviewPage, preload: loadReviewPage } = deferredPage(() =>
   import('../features/study/presentation/ReviewPage').then(({ ReviewPage }) => ReviewPage),
 );
+const { Page: PasteCardsPage, preload: loadPasteCardsPage } = deferredPage(() =>
+  import('../features/catalog/presentation/PasteCardsPage').then(({ PasteCardsPage }) => PasteCardsPage),
+);
 
 const workspacePages = [
   [NEW_DECK_PATH, loadNewDeckPage],
+  [PASTE_CARDS_ROUTE, loadPasteCardsPage],
   [TODAY_PATH, loadTodayOverview],
   [REVIEW_TOPIC_ROUTE, loadReviewPage],
   [START_TOPIC_ROUTE, loadReviewPage],
@@ -149,6 +154,14 @@ export function App() {
                         }
                       />
                       <Route path={DECK_ROUTE} element={<DeckPage />} />
+                      <Route
+                        path={PASTE_CARDS_ROUTE}
+                        element={
+                          <DeferredWorkspacePage title="Paste cards">
+                            <PasteCardsPage />
+                          </DeferredWorkspacePage>
+                        }
+                      />
                     </Route>
                   </Route>
                   <Route

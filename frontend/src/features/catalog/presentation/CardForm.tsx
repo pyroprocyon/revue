@@ -1,7 +1,7 @@
 import { useFirstInput } from '../../../shared/ui/useFirstInput';
 import { ChevronDown } from 'lucide-react';
 import { useUnsavedDeckForm } from './UnsavedDeckChanges';
-import { useContext, useEffect, useId, useRef, useState, type SubmitEvent } from 'react';
+import { useContext, useEffect, useId, useRef, useState, type ReactNode, type SubmitEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { CardScreenBar } from './CardScreen';
 import { draftChanged, draftOf } from './cardDraft';
@@ -26,6 +26,7 @@ type CardFormProps = {
   /** Owned by the page, so the text survives the form moving between the phone screen and the side pane. */
   draft: CardDraft;
   onDraftChange: (draft: CardDraft) => void;
+  beforeFields?: ReactNode;
 };
 
 export function CardForm({
@@ -38,6 +39,7 @@ export function CardForm({
   onCancel,
   draft,
   onDraftChange,
+  beforeFields,
 }: Readonly<CardFormProps>) {
   const saving = writeState.status === 'saving';
   const firstInput = useFirstInput(prepareWrite);
@@ -126,6 +128,7 @@ export function CardForm({
             bar.slot,
           )}
         {bar && <DeckWriteProblem state={writeState} focusOnFailure />}
+        {beforeFields}
         <div className="grid min-w-0 gap-2.5 sm:gap-4 @min-[34rem]/card-form:grid-cols-2">
           <TextField label="Question" growWithText rows={3} {...field('question')} />
           <TextField

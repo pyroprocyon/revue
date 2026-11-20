@@ -1,4 +1,11 @@
-import { DeckFailure, type Deck, type DeckCard, type DeckCardPage, type DeckGateway } from '../application/decks';
+import {
+  DeckFailure,
+  type CardImport,
+  type Deck,
+  type DeckCard,
+  type DeckCardPage,
+  type DeckGateway,
+} from '../application/decks';
 import {
   answeredByOlderServer,
   isOutdatedPageRefusal,
@@ -24,14 +31,27 @@ async function checked(response: Response): Promise<Response> {
   if (isOutdatedPageRefusal(response)) throw new DeckFailure('outdated');
   if (response.status === 401) throw new DeckFailure('signed-out');
   if (response.status === 403) throw new DeckFailure('expired-form');
-  if (response.status === 404) throw new DeckFailure('not-found');
+  if (response.status === 404) throw new DeckFailure((await namesMissingDeck(response)) ? 'not-found' : 'outdated');
   if (response.status === 422) throw new DeckFailure('invalid');
   if (response.status === 409) {
-    const problem = (await response.json()) as { reason?: keyof typeof CONFLICT_REASONS };
-    throw new DeckFailure((problem.reason && CONFLICT_REASONS[problem.reason]) ?? 'unknown');
+    const problem = (await response.json()) as { reason?: keyof typeof CONFLICT_REASONS; availableCards?: number };
+    throw new DeckFailure((problem.reason && CONFLICT_REASONS[problem.reason]) ?? 'unknown', problem.availableCards);
   }
   if (!response.ok) throw new DeckFailure('unknown');
   return response;
+}
+
+/**
+ * The deck API answers a missing deck or card with its own reason. A 404 without one comes from a server that lacks the
+ * route, such as the version before a rollback, so the deck may still be there.
+ */
+async function namesMissingDeck(response: Response): Promise<boolean> {
+  try {
+    const problem = (await response.json()) as { reason?: string };
+    return problem.reason === 'NOT_FOUND';
+  } catch {
+    return false;
+  }
 }
 
 /** A lost connection leaves the result unknown, never assumed. */
@@ -92,6 +112,16 @@ export const httpDecks: DeckGateway = {
   async addCard(deckId, draft, requestId) {
     return confirmed<DeckCard>(
       await write(`/api/v1/decks/${encodeURIComponent(deckId)}/cards`, 'POST', draft, { 'Idempotency-Key': requestId }),
+    );
+  },
+  async importCards(deckId, cards, requestId) {
+    return confirmed<CardImport>(
+      await write(
+        `/api/v1/decks/${encodeURIComponent(deckId)}/import`,
+        'POST',
+        { cards },
+        { 'Idempotency-Key': requestId },
+      ),
     );
   },
   async editCard(cardId, draft, expectedVersion) {
