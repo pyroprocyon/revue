@@ -7,7 +7,7 @@ type ClozeSpan = { numbers: number[]; contentStart: number; end: number };
 /** Converted text of each HTML field, kept by the paste page while it is open. */
 export type ConvertedHtml = Map<string, string>;
 
-const TAG = /<\/?([a-z][a-z0-9]*)\b[^<>]*>/gi;
+const TAG = /<(\/?)([a-z][a-z0-9]*)\b[^<>]*>/gi;
 const FIELD_TAG_NAMES = new Set([
   'br',
   'div',
@@ -48,7 +48,8 @@ const HTML_ENTITY_HINT = /&(#\d+|#x[0-9a-f]+|[a-z][a-z0-9]{1,31});/i;
 const SOUND_TAG = /\[sound:[^\]]*\]/g;
 const IMAGE_TAG = /<img\b/i;
 const TEXT_THAT_IS_NOT_SHOWN = 'script, style';
-const BLOCK_ELEMENTS = 'div, p, ul, ol, li, tr, table, blockquote, h1, h2, h3, h4, h5, h6';
+const BLOCK_ELEMENTS = 'div, p, ul, ol, li, tr, table, blockquote, h1, h2, h3, h4, h5, h6, hr, pre';
+const TAGS_WITHOUT_CLOSING = new Set(['br', 'hr', 'img']);
 const CELLS_AFTER_A_CELL = 'td + td, td + th, th + td, th + th';
 const CELL_SEPARATOR = ' | ';
 const NO_BREAK_SPACE = /\u00a0/g;
@@ -64,11 +65,24 @@ export function looksLikeHtml(field: string) {
   return HTML_ENTITY_HINT.test(field) || hasFieldTag(field);
 }
 
+/**
+ * Plain text such as "List<A>" or "x<a && y>b" looks like an opening tag, so a field counts as HTML only with a tag that
+ * never closes, such as "<br>", or with an opening tag and its closing tag.
+ */
 function hasFieldTag(field: string) {
-  for (const [, name] of field.matchAll(TAG)) {
-    if (FIELD_TAG_NAMES.has(name.toLowerCase())) return true;
+  const opened = new Set<string>();
+  const closed = new Set<string>();
+  for (const [, slash, tagName] of field.matchAll(TAG)) {
+    const name = tagName.toLowerCase();
+    if (!FIELD_TAG_NAMES.has(name)) continue;
+    if (slash === '') {
+      if (TAGS_WITHOUT_CLOSING.has(name)) return true;
+      opened.add(name);
+    } else {
+      closed.add(name);
+    }
   }
-  return false;
+  return [...opened].some((name) => closed.has(name));
 }
 
 /**
