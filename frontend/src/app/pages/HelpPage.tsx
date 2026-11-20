@@ -12,7 +12,7 @@ import { ArrowUpRight, ChevronRight, FileText, Mail, ShieldCheck } from 'lucide-
 import { HomeScreenHelp } from './HomeScreenHelp';
 
 const helpLink = 'help-directory-row pressable';
-const helpIcon = 'size-9 shrink-0 rounded-xl bg-accent-soft/60 p-2 text-accent-strong';
+const helpIcon = '@max-[16rem]/help:hidden size-9 shrink-0 rounded-xl bg-accent-soft/60 p-2 text-accent-strong';
 const linkArrow = 'size-4 shrink-0 text-muted';
 
 export function HelpPage() {
@@ -47,10 +47,10 @@ function HelpContent({ signedIn }: Readonly<{ signedIn: boolean }>) {
       </h1>
       <nav
         aria-label="Help and policies"
-        className="mt-[1.125rem] max-w-[40.625rem] overflow-hidden rounded-[1.25rem] border border-line bg-surface shadow-xs lg:mt-6"
+        className="@container/help mt-[1.125rem] max-w-[40.625rem] overflow-hidden rounded-[1.25rem] border border-line bg-surface shadow-xs lg:mt-6"
       >
         <HomeScreenHelp />
-        <div className="mx-3.5 divide-y divide-line lg:mx-[1.375rem]">
+        <div className="mx-3.5 @max-[16rem]/help:mx-2 divide-y divide-line lg:mx-[1.375rem]">
           <SupportLink className={helpLink}>
             <Mail aria-hidden="true" className={helpIcon} />
             <span className="flex-1">Contact support</span>

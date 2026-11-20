@@ -14,18 +14,21 @@ const steps = 'max-w-[51ch] list-decimal space-y-2 ps-6 marker:font-semibold mar
 function PhoneInstructions({ phone }: Readonly<{ phone: Phone }>) {
   if (phone === 'iPhone') {
     return (
-      <ol className={steps}>
-        <li>
-          Open Revue in Safari. Tap <Share aria-hidden="true" className="inline size-4 align-text-bottom" />{' '}
-          <strong>Share</strong> in the toolbar or page menu.
-        </li>
-        <li>
-          Choose <strong>Add to Home Screen</strong>.
-        </li>
-        <li>
-          If you see <strong>Open as Web App</strong>, leave it on. Tap <strong>Add</strong>.
-        </li>
-      </ol>
+      <>
+        <ol className={steps}>
+          <li>
+            Open Revue in Safari. Tap <Share aria-hidden="true" className="inline size-4 align-text-bottom" />{' '}
+            <strong>Share</strong> in the toolbar or page menu.
+          </li>
+          <li>
+            Choose <strong>Add to Home Screen</strong>.
+          </li>
+          <li>
+            If you see <strong>Open as Web App</strong>, leave it on. Tap <strong>Add</strong>.
+          </li>
+        </ol>
+        <p className="text-muted">If Revue asks you to sign in when you open it, you’ll return to Today afterward.</p>
+      </>
     );
   }
   return (
@@ -77,15 +80,15 @@ export function HomeScreenHelp() {
         type="button"
         onClick={() => void openSetup()}
         aria-expanded={offer ? undefined : open}
-        disabled={offer === 'prompting'}
-        className="help-directory-row pressable bg-accent-soft px-3.5 lg:px-[1.375rem]"
+        aria-disabled={offer === 'prompting'}
+        className="help-directory-row pressable bg-accent-soft px-3.5 @max-[16rem]/help:px-2 lg:px-[1.375rem]"
       >
         <img
           src="/icons/apple-touch-icon.png"
           width="36"
           height="36"
           alt=""
-          className="size-9 shrink-0 rounded-xl border border-line"
+          className="@max-[16rem]/help:hidden size-9 shrink-0 rounded-xl border border-line"
         />
         <span className="flex-1">Install Revue</span>
         {offer ? (
@@ -95,7 +98,7 @@ export function HomeScreenHelp() {
         )}
       </button>
       {open && !offer && (
-        <div className="mx-3.5 space-y-3 border-b border-line pt-3 pb-4 text-support text-ink lg:mx-[1.375rem]">
+        <div className="mx-3.5 @max-[16rem]/help:mx-2 space-y-3 border-b border-line pt-3 pb-4 text-support text-ink lg:mx-[1.375rem]">
           {error && (
             <output className="block">The installer couldn’t open. You can use the browser menu instead.</output>
           )}
