@@ -71,9 +71,13 @@ export function readPastedRows(text: string, convertedHtml: ConvertedHtml): Past
   });
 }
 
-function cardAsTyped([question = '', answer = '', explanation = '']: string[]): PastedCard {
+function cardAsTyped([question = '', answer = '', ...others]: string[]): PastedCard {
   const card = { question: question.trim(), answer: answer.trim() };
-  return explanation.trim() ? { ...card, explanation: explanation.trim() } : card;
+  const explanation = others
+    .map((field) => field.trim())
+    .filter((field) => field !== '')
+    .join('\n');
+  return explanation === '' ? card : { ...card, explanation };
 }
 
 /** Anki 2.1.54 and later start a plain-text export with header lines such as "#separator:tab" and "#html:true". */
@@ -222,6 +226,8 @@ export function writePastedRows(cards: PastedCard[]): string {
   return [WRITTEN_ROWS_HEADER, ...rows].join('\n');
 }
 
+/** A field that starts with "#" is quoted, so a question such as "#tags: …" can't be read as a header line. */
 function quotedWhenNeeded(field: string) {
-  return /[\t\n\r]/.test(field) || field.startsWith('"') ? `"${field.replaceAll('"', '""')}"` : field;
+  const needsQuotes = /[\t\n\r]/.test(field) || field.startsWith('"') || field.startsWith('#');
+  return needsQuotes ? `"${field.replaceAll('"', '""')}"` : field;
 }

@@ -213,6 +213,23 @@ describe('pasted rows from a spreadsheet, Quizlet or Anki', () => {
       },
     ];
     expect(parsePastedCards(formatPastedCards(lookLikeAnkiOrHeadings))).toEqual(lookLikeAnkiOrHeadings);
+    const headerFirst = [
+      { question: '#tags: what does this header set?', answer: 'Nothing', explanation: 'It is a question' },
+      { question: 'Second', answer: 'Two' },
+    ];
+    expect(parsePastedCards(formatPastedCards(headerFirst))).toEqual(headerFirst);
+  });
+
+  it('reads a spreadsheet row added below Edit text rows the same as a fresh paste, with every extra column', () => {
+    const written = formatPastedCards([{ question: 'Heart rate?', answer: '60 to 100', explanation: 'Typical' }]);
+    const row = 'Resting pulse?\t60\tAdult\tAt rest';
+    expect(parsePastedCards(row)).toEqual([
+      { question: 'Resting pulse?', answer: '60', explanation: 'Adult\nAt rest' },
+    ]);
+    expect(parsePastedCards(`${written}\n${row}`)).toEqual([
+      { question: 'Heart rate?', answer: '60 to 100', explanation: 'Typical' },
+      ...parsePastedCards(row),
+    ]);
   });
 
   it('reads HTML only in the fields that hold it when rows don’t say, so plain comparisons stay as typed', () => {
@@ -222,6 +239,11 @@ describe('pasted rows from a spreadsheet, Quizlet or Anki', () => {
       'Angle?\t90&deg;',
       'Compare\tA < B and C > D',
       'Less?\ta<b',
+      'Condition?\tx<a && y>b',
+      'Type?\tList<A>',
+      'Link?\t<a href="https://example.com">site</a>',
+      'Ratio?\t5<hr>10',
+      'Snippets?\t<pre>return x</pre><pre>return y</pre>',
     ].join('\n');
     expect(parsePastedCards(headerless)).toEqual([
       { question: 'Heart?', answer: 'Four\nchambers' },
@@ -229,6 +251,11 @@ describe('pasted rows from a spreadsheet, Quizlet or Anki', () => {
       { question: 'Angle?', answer: '90°' },
       { question: 'Compare', answer: 'A < B and C > D' },
       { question: 'Less?', answer: 'a<b' },
+      { question: 'Condition?', answer: 'x<a && y>b' },
+      { question: 'Type?', answer: 'List<A>' },
+      { question: 'Link?', answer: 'site' },
+      { question: 'Ratio?', answer: '5\n10' },
+      { question: 'Snippets?', answer: 'return x\nreturn y' },
     ]);
     expect(parsePastedCards('#html:true\nCompare\tA < B and C > D')).toEqual([
       { question: 'Compare', answer: 'A < B and C > D' },
