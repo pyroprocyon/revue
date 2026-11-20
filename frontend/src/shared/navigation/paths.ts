@@ -41,6 +41,12 @@ export function deckPath(deckId: string): string {
   return `/library/decks/${deckId}`;
 }
 
+export const PASTE_CARDS_ROUTE = `${DECK_ROUTE}/paste`;
+
+export function pasteCardsPath(deckId: string): string {
+  return `${deckPath(deckId)}/paste`;
+}
+
 export const TODAY_PATH = '/today';
 export const REVIEW_PATH = '/review';
 export const REVIEW_TOPIC_ROUTE = `${REVIEW_PATH}/:topic`;

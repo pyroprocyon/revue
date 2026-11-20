@@ -9,6 +9,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -102,6 +103,27 @@ public class JdbcDeckStore implements DeckStore {
             """, (row, index) -> toCard(matchingCreation(row), index), creationFields(text), deckId, owner, requestId)
             .stream()
             .findFirst();
+    }
+
+    @Override
+    public Optional<CardImport> replayImport(UUID owner, UUID requestId, long deckId, List<CardText> cards) {
+        return jdbc.query("""
+            select deck_id, imported_cards,
+                deck_id = ? and request_hash = sha256(array_send(?::text[])) as matches_request
+            from deck_import_requests
+            where owner_id = ? and request_id = ?
+            """, JdbcDeckStore::toMatchingImport, deckId, importFields(cards), owner, requestId).stream().findFirst();
+    }
+
+    private static CardImport toMatchingImport(ResultSet row, int index) throws SQLException {
+        if (!row.getBoolean("matches_request")) {
+            throw new DeckProblem(DeckProblem.Kind.CREATE_CONFLICT);
+        }
+        return new CardImport(row.getString("deck_id"), row.getInt("imported_cards"));
+    }
+
+    private static String[] importFields(List<CardText> cards) {
+        return cards.stream().flatMap(card -> Arrays.stream(creationFields(card))).toArray(String[]::new);
     }
 
     private static ResultSet matchingCreation(ResultSet row) throws SQLException {
@@ -200,6 +222,63 @@ public class JdbcDeckStore implements DeckStore {
         recordCreation(owner, requestId, deckId, added.id(), creationFields(text));
         logAfterCommit("card.created", "card", added.id(), owner, ABSENT, PRESENT);
         return added;
+    }
+
+    @Override
+    public CardImport importCards(
+        UUID owner,
+        long deckId,
+        List<CardText> cards,
+        UUID requestId,
+        InitialSchedule schedule) {
+        var parameters = new MapSqlParameterSource().addValue("owner", owner)
+            .addValue("deck", deckId)
+            .addValue("questions", cards.stream().map(CardText::question).toArray(String[]::new))
+            .addValue("answers", cards.stream().map(CardText::answer).toArray(String[]::new))
+            .addValue("explanations", cards.stream().map(CardText::explanation).toArray(String[]::new))
+            .addValue("memoryHooks", cards.stream().map(CardText::memoryHook).toArray(String[]::new))
+            .addValue("sources", cards.stream().map(CardText::source).toArray(String[]::new))
+            .addValue("schedulerId", schedule.schedulerId())
+            .addValue("initialState", schedule.state());
+        DeckGrowth growth = named.queryForObject("""
+            with pasted as (
+                select *
+                from unnest(cast(:questions as text[]), cast(:answers as text[]), cast(:explanations as text[]),
+                    cast(:memoryHooks as text[]), cast(:sources as text[]))
+                    with ordinality as item(question, answer, explanation, memory_hook, source, place)
+            ), deck_before as (
+                select count(*) as cards, coalesce(max(position) + 1, 0) as next_position
+                from cards where deck_id = :deck
+            ), added as (
+                insert into cards(deck_id, position, question, answer, explanation, memory_hook, source, created_at,
+                    updated_at)
+                select :deck, deck_before.next_position + pasted.place - 1, pasted.question, pasted.answer,
+                    pasted.explanation, pasted.memory_hook, pasted.source, clock_timestamp(), clock_timestamp()
+                from pasted cross join deck_before
+                order by pasted.place
+                returning id
+            ), scheduled as (
+                insert into schedules(user_id, card_id, scheduler_id, scheduler_state)
+                select :owner, id, :schedulerId, cast(:initialState as jsonb) from added
+                returning card_id
+            )
+            select (select cards from deck_before) as cards_before, (select count(*) from scheduled) as imported
+            """, parameters, (row, index) -> new DeckGrowth(row.getLong("cards_before"), row.getInt("imported")));
+        jdbc.update("""
+            insert into deck_import_requests(owner_id, request_id, deck_id, request_hash, imported_cards)
+            values (?, ?, ?, sha256(array_send(?::text[])), ?)
+            """, owner, requestId, deckId, importFields(cards), growth.imported());
+        logAfterCommit(
+            "deck.cards_imported",
+            "deck",
+            Long.toString(deckId),
+            owner,
+            growth.cardsBefore(),
+            growth.cardsBefore() + growth.imported());
+        return new CardImport(Long.toString(deckId), growth.imported());
+    }
+
+    private record DeckGrowth(long cardsBefore, int imported) {
     }
 
     @Override

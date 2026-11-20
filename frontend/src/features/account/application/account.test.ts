@@ -20,8 +20,13 @@ describe('account return destination', () => {
     }
   });
 
-  it('returns to deck creation or a private deck without permitting arbitrary URL suffixes', () => {
-    for (const path of ['/library/decks/new', '/library/decks/1', '/library/decks/9223372036854775807']) {
+  it('returns to deck creation, a private deck or its paste page without permitting arbitrary URL suffixes', () => {
+    for (const path of [
+      '/library/decks/new',
+      '/library/decks/1',
+      '/library/decks/9223372036854775807',
+      '/library/decks/7/paste',
+    ]) {
       expect(safeAccountReturnPath(path)).toBe(path);
     }
     for (const suffix of [
@@ -32,6 +37,9 @@ describe('account return destination', () => {
       '1?user=other',
       '1#secret',
       'new/other',
+      'new/paste',
+      '1/paste/other',
+      '1/paste?text=private',
       '1%2Fother',
       '1'.repeat(130),
     ]) {

@@ -85,6 +85,14 @@ public class DeckController {
         return privateResponse(HttpStatus.CREATED, decks.addCard(id, draft, requestId));
     }
 
+    @PostMapping("/api/v1/decks/{id}/import")
+    ResponseEntity<DeckStore.CardImport> importCards(
+        @PathVariable long id,
+        @RequestBody DeckService.ImportDraft draft,
+        @RequestHeader(name = "Idempotency-Key") UUID requestId) {
+        return privateResponse(HttpStatus.CREATED, decks.importCards(id, draft, requestId));
+    }
+
     @PatchMapping("/api/v1/cards/{id}")
     ResponseEntity<DeckStore.Card> editCard(
         @PathVariable long id,
@@ -112,6 +120,9 @@ public class DeckController {
         };
         var body = ProblemDetail.forStatus(status);
         body.setProperty("reason", problem.kind().name());
+        if (problem.kind() == DeckProblem.Kind.CARD_LIMIT) {
+            body.setProperty("availableCards", problem.availableCards());
+        }
         return privateResponse(status, body);
     }
 

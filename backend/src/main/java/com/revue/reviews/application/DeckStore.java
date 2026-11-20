@@ -38,6 +38,14 @@ public interface DeckStore {
     record CardBatch(Deck deck, Progress progress, List<Card> items, Set<String> dueCardIds) {
     }
 
+    /** The result of one confirmed import, as first saved. A retry returns the same count. */
+    record CardImport(String deckId, int importedCards) {
+    }
+
+    /** The schedule every imported card starts with, before its first review. */
+    record InitialSchedule(String schedulerId, String state) {
+    }
+
     long countDecks(UUID owner);
 
     long countCards(UUID owner);
@@ -45,6 +53,12 @@ public interface DeckStore {
     Optional<Deck> replayDeck(UUID owner, UUID requestId, DeckTitle title);
 
     Optional<Card> replayCard(UUID owner, UUID requestId, long deckId, CardText text);
+
+    /**
+     * Returns the saved result of an earlier import with this request ID. Throws a create conflict when that import
+     * went to another deck or had other cards.
+     */
+    Optional<CardImport> replayImport(UUID owner, UUID requestId, long deckId, List<CardText> cards);
 
     void setArchived(UUID owner, long deckId, boolean archived);
 
@@ -63,6 +77,12 @@ public interface DeckStore {
 
     /** Adds the card after the deck's existing cards. The caller has confirmed that the owner has this deck. */
     Card addCard(UUID owner, long deckId, CardText text, @Nullable UUID requestId);
+
+    /**
+     * Adds the cards after the deck's existing cards, in the given order, each with its initial schedule. The caller
+     * has confirmed that the owner has this deck and room for the cards.
+     */
+    CardImport importCards(UUID owner, long deckId, List<CardText> cards, UUID requestId, InitialSchedule schedule);
 
     /** Reads one page in the order the cards were added. Empty when the owner has no such deck. */
     Optional<CardBatch> cardBatch(UUID owner, long deckId, CardQuery query);

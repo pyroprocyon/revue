@@ -8,6 +8,7 @@ import { LibraryPage } from '../features/catalog/presentation/LibraryPage';
 import { LibraryBrowsingLayout } from '../features/catalog/presentation/LibraryBrowsingLayout';
 import { httpLibrary } from '../features/catalog/infrastructure/httpLibrary';
 import { DeckProvider } from '../features/catalog/presentation/DeckProvider';
+import { PasteCardsPage } from '../features/catalog/presentation/PasteCardsPage';
 import { DeckPage } from '../features/catalog/presentation/DeckPage';
 import { NewDeckPage } from '../features/catalog/presentation/NewDeckPage';
 import { httpDecks } from '../features/catalog/infrastructure/httpDecks';
@@ -40,6 +41,7 @@ import {
   LIBRARY_PATH,
   NEW_DECK_PATH,
   DECK_ROUTE,
+  PASTE_CARDS_ROUTE,
   HOME_PATH,
   HOW_IT_WORKS_PATH,
   SETS_PATH,
@@ -90,6 +92,7 @@ export function App() {
                     <Route element={<UnsavedDeckChanges />}>
                       <Route path={NEW_DECK_PATH} element={<NewDeckPage />} />
                       <Route path={DECK_ROUTE} element={<DeckPage />} />
+                      <Route path={PASTE_CARDS_ROUTE} element={<PasteCardsPage />} />
                     </Route>
                   </Route>
                   <Route path={ACCOUNT_PATH} element={<AccountPage />} />

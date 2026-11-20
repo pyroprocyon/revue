@@ -4,6 +4,7 @@ type RouteState = {
   previousCursors?: (string | undefined)[];
   deletedDeckTitle?: string;
   createdDeck?: boolean;
+  importedCards?: number;
 };
 
 export const OPENED_FROM_HELP: RouteState = { fromHelp: true };
@@ -16,6 +17,10 @@ export function previousCursorsState(previousCursors: (string | undefined)[]): R
 
 export function deletedDeckState(deletedDeckTitle: string): RouteState {
   return { deletedDeckTitle };
+}
+
+export function importedCardsState(importedCards: number): RouteState {
+  return { importedCards };
 }
 
 export function routeState(location: { state: unknown }): RouteState {

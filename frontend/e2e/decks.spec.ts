@@ -511,12 +511,12 @@ test('phone card fields fit the draft while writing and when reopening a card', 
   }
   await page.getByRole('button', { name: 'Save card', exact: true }).click();
   await expect(answer).toHaveValue('');
-  expect(await answer.evaluate((field) => field.clientHeight)).toBe(emptyHeight);
+  await expect.poll(() => answer.evaluate((field) => field.clientHeight)).toBe(emptyHeight);
   await page.getByRole('button', { name: 'Done', exact: true }).click();
   await editCard(page, question);
   await expect(answer).toHaveValue(longAnswer);
   await page.setViewportSize({ width: 320, height: 568 });
-  expect(await answer.evaluate((field) => field.scrollHeight - field.clientHeight)).toBeLessThanOrEqual(1);
+  await expect.poll(() => answer.evaluate((field) => field.scrollHeight - field.clientHeight)).toBeLessThanOrEqual(1);
 });
 
 test('a failed phone save shows the error below Save and preserves the long draft for retry', async ({

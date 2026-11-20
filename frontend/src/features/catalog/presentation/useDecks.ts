@@ -86,7 +86,8 @@ export async function updateCachedCards(
   });
 }
 
-export type DeckWriteState = { status: 'idle' | 'saving' } | { status: 'failed'; reason: DeckFailureReason };
+export type DeckWriteState =
+  { status: 'idle' | 'saving' } | { status: 'failed'; reason: DeckFailureReason; availableCards?: number };
 
 /**
  * Runs one deck or card change at a time and reports success only after the server confirms it.
@@ -107,10 +108,10 @@ export function useDeckWrite() {
       refreshDecks();
       setState({ status: 'idle' });
     } catch (error) {
-      const reason = error instanceof DeckFailure ? error.reason : 'unknown';
-      if (reason === 'signed-out') client.clear();
+      const failure = error instanceof DeckFailure ? error : new DeckFailure('unknown');
+      if (failure.reason === 'signed-out') client.clear();
       else refreshDecks();
-      setState({ status: 'failed', reason });
+      setState({ status: 'failed', reason: failure.reason, availableCards: failure.availableCards });
     } finally {
       busy.current = false;
     }
