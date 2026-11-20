@@ -3,7 +3,9 @@ package com.revue.reviews.application;
 import com.revue.reviews.domain.CardText;
 import com.revue.reviews.domain.DailyReviewScheduler;
 import com.revue.reviews.domain.DeckTitle;
+import com.revue.reviews.domain.MemoryModel;
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
@@ -16,16 +18,19 @@ import org.springframework.transaction.annotation.Transactional;
 public class DeckService {
     public static final int MAX_DECKS_PER_LEARNER = 50;
     public static final int MAX_CARDS_PER_LEARNER = 5000;
+    public static final int MAX_CARDS_PER_IMPORT = 200;
     private static final int MAX_PAGE_SIZE = 100;
     private static final int MAX_SEARCH_LENGTH = 200;
     private final LearnerAccess learners;
     private final DeckStore store;
     private final Clock clock;
+    private final MemoryModel memory;
 
-    public DeckService(LearnerAccess learners, DeckStore store, Clock clock) {
+    public DeckService(LearnerAccess learners, DeckStore store, Clock clock, MemoryModel memory) {
         this.learners = learners;
         this.store = store;
         this.clock = clock;
+        this.memory = memory;
     }
 
     /** A deck title as the learner typed it, before it is checked. */
@@ -39,6 +44,10 @@ public class DeckService {
         @Nullable String explanation,
         @Nullable String memoryHook,
         @Nullable String source) {
+    }
+
+    /** The cards a learner confirmed in a paste preview, in the order they appear there. */
+    public record ImportDraft(@Nullable List<CardDraft> cards) {
     }
 
     /** One deck with a bounded page of its cards and the cursor for the next page. */
@@ -122,10 +131,27 @@ public class DeckService {
                 return replay.get();
             }
         }
-        if (store.countCards(learner) >= MAX_CARDS_PER_LEARNER) {
-            throw new DeckProblem(DeckProblem.Kind.CARD_LIMIT);
-        }
+        requireRoomFor(learner, 1);
         return store.addCard(learner, deckId, text, requestId);
+    }
+
+    /**
+     * Saves every confirmed card with its initial schedule, or none of them. An exact retry returns the first result,
+     * even after that import filled the account.
+     */
+    public DeckStore.CardImport importCards(long deckId, ImportDraft draft, UUID requestId) {
+        List<CardText> cards = checkedImport(draft);
+        UUID learner = learners.lockCurrent();
+        if (!store.ownsDeck(learner, deckId)) {
+            throw notFound();
+        }
+        var replay = store.replayImport(learner, requestId, deckId, cards);
+        if (replay.isPresent()) {
+            return replay.get();
+        }
+        requireRoomFor(learner, cards.size());
+        var schedule = new DeckStore.InitialSchedule(DailyReviewScheduler.PROFILE, memory.initialState());
+        return store.importCards(learner, deckId, cards, requestId, schedule);
     }
 
     /** Replaces the card's text. The learner's schedule for the card is unchanged. */
@@ -139,6 +165,28 @@ public class DeckService {
         if (!store.deleteCard(learners.lockCurrent(), cardId)) {
             throw notFound();
         }
+    }
+
+    private void requireRoomFor(UUID learner, int newCards) {
+        long availableCards = Math.max(0, MAX_CARDS_PER_LEARNER - store.countCards(learner));
+        if (newCards > availableCards) {
+            throw DeckProblem.cardLimit(availableCards);
+        }
+    }
+
+    private static List<CardText> checkedImport(ImportDraft draft) {
+        List<CardDraft> drafts = draft.cards();
+        if (drafts == null || drafts.isEmpty() || drafts.size() > MAX_CARDS_PER_IMPORT) {
+            throw new DeckProblem(DeckProblem.Kind.INVALID_TEXT);
+        }
+        List<CardText> cards = new ArrayList<>(drafts.size());
+        for (CardDraft card : drafts) {
+            if (card == null) {
+                throw new DeckProblem(DeckProblem.Kind.INVALID_TEXT);
+            }
+            cards.add(checkedText(card));
+        }
+        return cards;
     }
 
     private static DeckTitle checkedTitle(DeckDraft draft) {
