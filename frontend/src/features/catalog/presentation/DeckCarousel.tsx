@@ -94,11 +94,11 @@ export function DeckCarousel({
       selectionObserver?.disconnect();
       if (step === 0) return;
 
-      // A snap point crosses this line when its deck becomes the nearest one, even on a fast fling.
       const midpoint = step / 2;
+      const nearestSnapPointMargin = `-${midpoint}px 0px -${height - midpoint}px 0px`;
       selectionObserver = new IntersectionObserver(
         () => selectDeck(Math.max(0, Math.min(decks.length - 1, Math.round(element.scrollTop / step)))),
-        { root: element, rootMargin: `-${midpoint}px 0px -${height - midpoint}px 0px` },
+        { root: element, rootMargin: nearestSnapPointMargin },
       );
       for (const point of points.children) selectionObserver.observe(point);
     };

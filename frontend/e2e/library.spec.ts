@@ -346,10 +346,7 @@ test('the shortcut brings Saved sets above the phone navigation and moves keyboa
     .toBe(true);
 });
 
-test('recent Library lists survive an in-app tab switch and refresh after a browser return', async ({
-  page,
-  pilot,
-}) => {
+test('Library lists refresh at 30 seconds or after a browser return', async ({ page, pilot }) => {
   await register(page, pilot.signupUrl);
   const reads: string[] = [];
   page.on('request', (request) => {
@@ -359,23 +356,35 @@ test('recent Library lists survive an in-app tab switch and refresh after a brow
   const tabs = page.getByRole('navigation', { name: 'Your workspace' });
   const library = tabs.getByRole('link', { name: 'Library' });
   const account = tabs.getByRole('link', { name: 'Account' });
+  const loadedAt = (await page.evaluate(() => Date.now())) + 1_000;
+  await page.clock.setFixedTime(new Date(loadedAt));
   const savedSets = page.waitForResponse('**/api/v1/me/saved-sets');
   await library.click();
   await (await savedSets).finished();
   await expect(page.getByRole('link', { name: 'Create a deck' })).toBeVisible();
   await account.click();
+  await page.clock.setFixedTime(new Date(loadedAt + 29_999));
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
   await library.click();
   await expect(page.getByRole('link', { name: 'Create a deck' })).toBeVisible();
   expect(reads.sort()).toEqual(['/api/v1/decks', '/api/v1/me/saved-sets']);
+  await account.click();
+  await page.clock.setFixedTime(new Date(loadedAt + 30_000));
+  const [decksAtExpiry, setsAtExpiry] = await Promise.all([
+    page.waitForResponse('**/api/v1/decks'),
+    page.waitForResponse('**/api/v1/me/saved-sets'),
+    library.click(),
+  ]);
+  await Promise.all([decksAtExpiry.finished(), setsAtExpiry.finished()]);
+  expect(reads).toHaveLength(4);
   await account.click();
   await page.evaluate(() => {
     window.dispatchEvent(new Event('blur'));
     window.dispatchEvent(new Event('focus'));
   });
   await library.click();
-  await expect.poll(() => reads.length).toBe(4);
-  expect(reads.sort()).toEqual(['/api/v1/decks', '/api/v1/decks', '/api/v1/me/saved-sets', '/api/v1/me/saved-sets']);
+  await expect.poll(() => reads.filter((path) => path === '/api/v1/decks').length).toBe(3);
+  await expect.poll(() => reads.filter((path) => path === '/api/v1/me/saved-sets').length).toBe(3);
 });
 
 test('Library preserves its page through a preview and offers Previous after a failed read', async ({
