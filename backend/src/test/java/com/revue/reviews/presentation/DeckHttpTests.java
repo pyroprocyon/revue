@@ -140,6 +140,33 @@ class DeckHttpTests {
     }
 
     @Test
+    void anotherLearnerCannotReadEditOrRateAnOwnersScheduledCard() throws Exception {
+        var owner = new Browser();
+        String deck = owner.createDeck("Owner only");
+        final long cardId = owner.addRatedCard(deck, PRIVATE_TEXT);
+        now.set(Instant.parse("2027-01-01T00:00:00Z"));
+        var ownerRead = owner.send(get(deck + "/cards"));
+        assertThat(ownerRead.getResponse().getStatus()).isEqualTo(200);
+        final var original = body(ownerRead);
+        assertThat(original.at("/items/0/question").asString()).isEqualTo(PRIVATE_TEXT);
+        final var schedule = jdbc.queryForMap("select * from schedules where card_id = ?", cardId);
+        final var history = jdbc.queryForList("select * from review_logs where card_id = ?", cardId);
+
+        var other = new Browser();
+        var read = other.send(get(deck + "/cards"));
+        assertPrivateCardHidden(read);
+        var edit = other
+            .send(patch("/api/v1/cards/" + cardId).header("X-Content-Version", 1), card("Changed", "Changed"));
+        assertPrivateCardHidden(edit);
+        var rating = other.rate(cardId, 1);
+        assertPrivateCardHidden(rating);
+
+        assertThat(body(owner.send(get(deck + "/cards")))).isEqualTo(original);
+        assertThat(jdbc.queryForMap("select * from schedules where card_id = ?", cardId)).isEqualTo(schedule);
+        assertThat(jdbc.queryForList("select * from review_logs where card_id = ?", cardId)).isEqualTo(history);
+    }
+
+    @Test
     void listsOnlyOwnedDecksWithExactCountsIncludingEmptyDecks() throws Exception {
         var owner = new Browser();
         var other = new Browser();
@@ -354,15 +381,15 @@ class DeckHttpTests {
         var cardIds = jdbc.queryForList("""
             select c.id from cards c join decks d on d.id = c.deck_id where d.owner_id = ? order by c.id
             """, Long.class, owner.id);
-        assertThat(other.rate(cardIds.getFirst(), "GOOD").getResponse().getStatus()).isEqualTo(404);
-        var rated = owner.rate(cardIds.getFirst(), "GOOD");
+        assertThat(other.rate(cardIds.getFirst(), 0).getResponse().getStatus()).isEqualTo(404);
+        var rated = owner.rate(cardIds.getFirst(), 0);
         assertThat(rated.getResponse().getStatus()).isEqualTo(200);
         LocalDate nextReview = LocalDate.parse(body(rated).get("nextReviewDate").asString());
         assertThat(nextReview).isAfter(LocalDate.of(2026, 11, 16));
         for (long cardId : cardIds.subList(1, 10)) {
-            assertThat(owner.rate(cardId, "GOOD").getResponse().getStatus()).isEqualTo(200);
+            assertThat(owner.rate(cardId, 0).getResponse().getStatus()).isEqualTo(200);
         }
-        var overAllowance = owner.rate(cardIds.getLast(), "GOOD");
+        var overAllowance = owner.rate(cardIds.getLast(), 0);
         assertThat(overAllowance.getResponse().getStatus()).isEqualTo(409);
         assertThat(body(overAllowance).get("reason").asString()).isEqualTo("DAILY_LIMIT");
         var afterStudy = body(owner.send(get("/api/v1/cards/due")));
@@ -432,7 +459,7 @@ class DeckHttpTests {
         String topic = "deck-" + path.substring(path.lastIndexOf('/') + 1);
         var scoped = body(owner.send(get("/api/v1/cards/due").param("topic", topic).param("includeNew", "true")));
         assertThat(scoped.get("availableCards").asInt()).isZero();
-        assertThat(owner.rate(cardId, "GOOD").getResponse().getStatus()).isEqualTo(404);
+        assertThat(owner.rate(cardId, 0).getResponse().getStatus()).isEqualTo(404);
         var archived = body(owner.send(get(path + "/cards")));
         assertThat(archived.at("/deck/archived").asBoolean()).isTrue();
         assertThat(archived.get("items").size()).isEqualTo(2);
@@ -507,7 +534,7 @@ class DeckHttpTests {
         assertThat(rowsFor("review_logs", firstCard)).isZero();
         assertThat(rowsFor("schedules", firstCard)).isZero();
         assertThat(rowsFor("review_logs", secondCard)).isEqualTo(1);
-        assertThat(owner.rate(firstCard, "GOOD").getResponse().getStatus()).isEqualTo(404);
+        assertThat(owner.rate(firstCard, 0).getResponse().getStatus()).isEqualTo(404);
         assertThat(body(owner.send(get(deckPath + "/cards"))).get("deck").get("cardCount").asLong()).isEqualTo(1);
 
         assertThat(owner.send(delete(deckPath)).getResponse().getStatus()).isEqualTo(204);
@@ -626,6 +653,12 @@ class DeckHttpTests {
         return Map.of("question", question, "answer", answer);
     }
 
+    private void assertPrivateCardHidden(MvcResult result) throws Exception {
+        assertThat(result.getResponse().getStatus()).isEqualTo(404);
+        assertThat(result.getResponse().getContentAsString()).doesNotContain(PRIVATE_TEXT);
+        assertThat(body(result).has("card")).isFalse();
+    }
+
     private JsonNode body(MvcResult result) throws Exception {
         return json.readTree(result.getResponse().getContentAsString());
     }
@@ -656,22 +689,22 @@ class DeckHttpTests {
         long addRatedCard(String deckPath, String question) throws Exception {
             long cardId = body(send(post(deckPath + "/cards"), card(question, "Answer"))).get("id").asLong();
             send(get("/api/v1/cards/due"));
-            assertThat(rate(cardId, "GOOD").getResponse().getStatus()).isEqualTo(200);
+            assertThat(rate(cardId, 0).getResponse().getStatus()).isEqualTo(200);
             return cardId;
         }
 
-        MvcResult rate(long cardId, String rating) throws Exception {
+        MvcResult rate(long cardId, int expectedVersion) throws Exception {
             return send(
                 post("/api/v1/reviews/" + cardId),
                 Map.of(
                     "rating",
-                    rating,
+                    "GOOD",
                     "attemptMode",
                     "ANSWERED",
                     "requestId",
                     UUID.randomUUID().toString(),
                     "expectedVersion",
-                    0,
+                    expectedVersion,
                     "contentVersion",
                     1));
         }
