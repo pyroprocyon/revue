@@ -15,6 +15,8 @@ COPY frontend/ ./
 # Type-checks, builds into dist/ and writes .br and .gz copies of the text files.
 RUN npm run build
 
+FROM ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f AS secret-scanner
+
 # ---- Build stage: package the Spring Boot jar with the Maven Wrapper.
 FROM eclipse-temurin:25.0.5_8-jdk-alpine AS build
 
@@ -33,6 +35,11 @@ RUN --mount=type=cache,target=/root/.m2 \
     sh ./mvnw --batch-mode --no-transfer-progress -DskipTests package \
  && cp target/revue-*.jar /build/app.jar \
  && java -Djarmode=tools -jar /build/app.jar extract --destination /build/extracted
+
+RUN --network=none --mount=from=frontend,source=/frontend,target=/release-frontend \
+    --mount=from=secret-scanner,source=/usr/bin/gitleaks,target=/usr/local/bin/gitleaks \
+    java config/release/com/revue/tools/VerifyPublicArtifact.java /release-frontend/dist /build/extracted \
+ && gitleaks dir --no-banner --redact=100 --ignore-gitleaks-allow /release-frontend/dist
 
 # ---- Runtime stage: only the Java runtime and the app.
 FROM eclipse-temurin:25.0.5_8-jre-alpine

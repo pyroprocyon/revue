@@ -4,7 +4,8 @@
 //
 // Plain Node and its zlib module, so the build needs no compression plugin and the app's
 // type checking needs no Node types.
-import { readdir, readFile, writeFile } from 'node:fs/promises';
+import { readdir, readFile, unlink, writeFile } from 'node:fs/promises';
+import { verifyDist } from './verify-dist.mjs';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { brotliCompress, constants, gzip } from 'node:zlib';
@@ -18,6 +19,10 @@ if (!buildDir) {
   console.error('Usage: node scripts/precompress.mjs <build folder>');
   process.exit(1);
 }
+
+const manifestPath = join(buildDir, '.vite', 'manifest.json');
+const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+await unlink(manifestPath);
 
 const entries = await readdir(buildDir, { recursive: true, withFileTypes: true });
 const files = entries
@@ -48,4 +53,5 @@ await Promise.all(
     }
   }),
 );
+await verifyDist(buildDir, 'public', manifest);
 console.log(`Wrote ${copies} compressed copies of ${files.length} files in ${buildDir}.`);

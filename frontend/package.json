@@ -10,7 +10,7 @@
     "predev": "node scripts/generate-launcher-icons.mjs",
     "dev": "vite",
     "prebuild": "node scripts/generate-launcher-icons.mjs",
-    "build": "npm run typecheck && vite build && node scripts/precompress.mjs dist",
+    "build": "npm run typecheck && vite build --manifest && node scripts/precompress.mjs dist",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.domain.json && tsc --noEmit -p tsconfig.e2e.json",
     "test": "vitest run",
     "preview": "vite preview",
