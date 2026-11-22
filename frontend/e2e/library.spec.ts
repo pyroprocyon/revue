@@ -150,6 +150,7 @@ test('retired-set removal warns, supports keyboard cancellation and fits narrow 
       json: { ...body, items: body.items.map((set: object) => ({ ...set, retired: true })) },
     });
   });
+  await page.route('**/api/v1/decks', (route) => route.fulfill({ status: 503 }), { times: 1 });
   await page.getByRole('link', { name: 'Open Library', exact: true }).click();
   const remove = page.getByRole('button', { name: 'Remove from Library: Published test set' });
   let writes = 0;
@@ -161,6 +162,19 @@ test('retired-set removal warns, supports keyboard cancellation and fits narrow 
   const keep = page.getByRole('button', { name: 'Keep set', exact: true });
   await expect(keep).toBeFocused();
   await expect(page.getByText(/you won’t be able to save it again/)).toBeVisible();
+  const releaseDecks = await holdNextRead(page, '**/api/v1/decks');
+  const retry = page.waitForRequest('**/api/v1/decks');
+  const recovered = page.waitForResponse('**/api/v1/decks');
+  try {
+    await page.getByRole('button', { name: 'Retry decks' }).click();
+    await retry;
+    await expect(keep).toBeVisible();
+  } finally {
+    releaseDecks();
+  }
+  expect((await recovered).ok()).toBe(true);
+  await expect(page.getByRole('link', { name: 'Create a deck' })).toBeVisible();
+  await expect(keep).toBeVisible();
   for (const [label, width, height, scale] of [
     ['phone', 360, 800, 100],
     ['tablet', 640, 900, 100],
