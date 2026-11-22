@@ -36,7 +36,7 @@ export function LibraryPage() {
   const nextCursor = library.data?.nextCursor;
   const hasSavedSets = (library.data?.items.length ?? 0) > 0;
   const createInHeading = firstPage && decks.isSuccess && decks.data.length > 0;
-  const loadingDeckSection = firstPage && !decks.isError && (decks.isPending || library.isPending);
+  const waitingForFirstLists = firstPage && !decks.isError && (!decks.isFetched || !library.isFetched);
   const nothingFollowsDecks = library.isSuccess && !hasSavedSets && !removed;
   return (
     <WorkspacePage
@@ -53,7 +53,7 @@ export function LibraryPage() {
       {firstPage && (
         <MyDecks
           decks={decks}
-          loading={loadingDeckSection}
+          loading={decks.isPending || waitingForFirstLists}
           showHeading={hasSavedSets}
           fillsScreen={nothingFollowsDecks}
           deletedDeckTitle={deletion?.title}
@@ -87,7 +87,7 @@ export function LibraryPage() {
           Removed “{removed.title}” from your Library. Your progress is kept.
         </output>
       )}
-      {library.isPending && !loadingDeckSection && (
+      {library.isPending && !waitingForFirstLists && (
         <WhenSlow>
           <output className="block">Loading saved sets…</output>
         </WhenSlow>
@@ -114,7 +114,7 @@ export function LibraryPage() {
           </div>
         </div>
       )}
-      {library.isSuccess && !loadingDeckSection && (hasSavedSets || !firstPage) && (
+      {library.isSuccess && !waitingForFirstLists && (hasSavedSets || !firstPage) && (
         <>
           <h2 id="saved-sets" ref={savedSetsHeading} tabIndex={-1} className="mb-4 scroll-mt-4 text-section font-bold">
             Saved sets

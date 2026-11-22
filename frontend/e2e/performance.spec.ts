@@ -53,36 +53,52 @@ test('typing prepares one form token and signup rotates it before deck creation'
   expect(requests).toBe(3);
 });
 
-test('signup loads Today in parallel but reveals private results only after verification', async ({ page, pilot }) => {
-  await page.goto(pilot.signupUrl);
-  await page.getByLabel('Username', { exact: true }).fill('nav_' + crypto.randomUUID().slice(0, 12));
-  const password = crypto.randomUUID();
-  await page.getByLabel('Password', { exact: true }).fill(password);
-  await page.getByLabel('Confirm password', { exact: true }).fill(password);
+for (const verification of ['succeeds', 'fails'] as const) {
+  test(`signup keeps Today private while verification is pending and handles it when it ${verification}`, async ({
+    page,
+    pilot,
+  }) => {
+    const duePath = '/api/v1/cards/due';
+    let dueRequests = 0;
+    page.on('request', (request) => {
+      if (new URL(request.url()).pathname === duePath) dueRequests++;
+    });
+    await page.goto(pilot.signupUrl);
+    await page.getByLabel('Username', { exact: true }).fill('nav_' + crypto.randomUUID().slice(0, 12));
+    const password = crypto.randomUUID();
+    await page.getByLabel('Password', { exact: true }).fill(password);
+    await page.getByLabel('Confirm password', { exact: true }).fill(password);
 
-  let release!: () => void;
-  const pending = new Promise<void>((resolve) => {
-    release = resolve;
+    let release!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route(
+      '**/api/v1/me',
+      async (route) => {
+        await pending;
+        if (verification === 'succeeds') await route.continue();
+        else await route.fulfill({ status: 503 });
+      },
+      { times: 1 },
+    );
+    try {
+      const due = page.waitForResponse((response) => new URL(response.url()).pathname === duePath);
+      await page.getByRole('button', { name: 'Create account' }).click();
+      const response = await due;
+      expect(response.status()).toBe(200);
+      await response.finished();
+      await expect(page.locator('a[href="/library/decks/new"]')).toHaveCount(0);
+    } finally {
+      release();
+    }
+    if (verification === 'fails') {
+      await expect(page.getByRole('heading', { name: 'Your account couldn’t load' })).toBeVisible();
+      await expect(page.locator('a[href="/library/decks/new"]')).toHaveCount(0);
+      await page.getByRole('button', { name: 'Try again' }).click();
+    }
+    await page.getByRole('link', { name: 'Create a deck' }).click();
+    await expect(page.getByRole('textbox', { name: 'Name' })).toBeVisible();
+    if (verification === 'succeeds') expect(dueRequests).toBe(1);
   });
-  await page.route(
-    '**/api/v1/me',
-    async (route) => {
-      await pending;
-      await route.fulfill({ status: 503 });
-    },
-    { times: 1 },
-  );
-  try {
-    const due = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/v1/cards/due');
-    await page.getByRole('button', { name: 'Create account' }).click();
-    expect((await due).status()).toBe(200);
-    await expect(page.locator('a[href="/library/decks/new"]')).toHaveCount(0);
-  } finally {
-    release();
-  }
-  await expect(page.getByRole('heading', { name: 'Your account couldn’t load' })).toBeVisible();
-  await expect(page.locator('a[href="/library/decks/new"]')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Try again' }).click();
-  await page.getByRole('link', { name: 'Create a deck' }).click();
-  await expect(page.getByRole('textbox', { name: 'Name' })).toBeVisible();
-});
+}
