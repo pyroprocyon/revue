@@ -1,5 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query';
 import type { AccountProfile } from '../application/account';
+import { pendingLoginKey } from '../../../shared/cache/queryKeys';
 
 const confirmedProfileKey = ['account', 'confirmed-profile'] as const;
 
@@ -18,5 +19,6 @@ export function lastConfirmedProfile(queryClient: QueryClient) {
 }
 
 export function forgetConfirmedProfile(queryClient: QueryClient) {
+  queryClient.removeQueries({ queryKey: pendingLoginKey, exact: true });
   queryClient.removeQueries({ queryKey: confirmedProfileKey, exact: true });
 }

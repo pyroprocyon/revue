@@ -22,6 +22,7 @@ import { StudyLayout } from '../../../shared/ui/StudyLayout';
 import { WhenSlow } from '../../../shared/ui/WhenSlow';
 import { WorkspaceLayout } from '../../../shared/ui/WorkspaceLayout';
 import { FocusRequestContext, InteractionPausedContext } from '../../../shared/ui/FocusRequestContext';
+import { pendingLoginKey } from '../../../shared/cache/queryKeys';
 
 type Session = { status: 'loading' | 'signed-out' } | { status: 'ready'; profile: AccountProfile };
 
@@ -40,7 +41,10 @@ const OUTDATED_PAGE_MESSAGE =
  * Private routes mount only for an account the server confirmed. A short tab switch can reuse that confirmation. Account changes in other
  * tabs and rejected sessions always require a fresh server response before private controls become active again.
  */
-export function AccountLayout({ focused = false }: Readonly<{ focused?: boolean }>) {
+export function AccountLayout({
+  focused = false,
+  pendingReads: PendingReads,
+}: Readonly<{ focused?: boolean; pendingReads?: React.ComponentType<{ username: string }> }>) {
   const location = useLocation();
   const navigate = useNavigate();
   const pendingTab = useRef<{ from: string; to: string; learner: string | null } | null>(null);
@@ -58,7 +62,8 @@ export function AccountLayout({ focused = false }: Readonly<{ focused?: boolean 
   const [outdated, setOutdated] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const learner = session.status === 'ready' ? session.profile.username : null;
-  const lastUsername = useRef(learner ?? undefined);
+  const pendingLogin = queryClient.getQueryData<string>(pendingLoginKey);
+  const lastUsername = useRef(learner ?? pendingLogin);
   const privateContent = useRef<HTMLDivElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
   const pendingFocus = useRef<HTMLElement | null>(null);
@@ -66,6 +71,10 @@ export function AccountLayout({ focused = false }: Readonly<{ focused?: boolean 
     if (privateContent.current?.inert) pendingFocus.current = target;
     else target?.focus();
   }, []);
+
+  useEffect(() => {
+    if (learner) queryClient.removeQueries({ queryKey: pendingLoginKey, exact: true });
+  }, [learner, queryClient]);
 
   useEffect(() => {
     bindWritesTo(learner);
@@ -147,7 +156,10 @@ export function AccountLayout({ focused = false }: Readonly<{ focused?: boolean 
         if (profile !== null) rememberConfirmedProfile(queryClient, profile);
         setSession(profile === null ? { status: 'signed-out' } : { status: 'ready', profile });
       } catch {
-        if (pendingRequest === request) setVerificationError(true);
+        if (pendingRequest === request) {
+          discardPendingLoginReads();
+          setVerificationError(true);
+        }
       } finally {
         if (pendingRequest === request) {
           pendingRequest = undefined;
@@ -177,7 +189,13 @@ export function AccountLayout({ focused = false }: Readonly<{ focused?: boolean 
         void checkSession();
       }
     }
+    function discardPendingLoginReads() {
+      if (!queryClient.getQueryData(pendingLoginKey)) return;
+      queryClient.clear();
+      lastUsername.current = undefined;
+    }
     function recheckAfterSessionMismatch() {
+      discardPendingLoginReads();
       revision = sessionRevision();
       pendingTab.current = null;
       forgetCsrfToken();
@@ -223,6 +241,9 @@ export function AccountLayout({ focused = false }: Readonly<{ focused?: boolean 
   const noticeLevel = session.status === 'ready' ? 'h2' : 'h1';
   const content = (
     <>
+      {session.status === 'loading' && pendingLogin && !verificationError && PendingReads && (
+        <PendingReads username={pendingLogin} />
+      )}
       {checking && (
         <WhenSlow>
           <output

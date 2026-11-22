@@ -1,5 +1,13 @@
 import { useListRefetchOnMount } from './LibraryProvider';
-import { useInfiniteQuery, useQuery, useQueryClient, type InfiniteData, type QueryClient } from '@tanstack/react-query';
+import {
+  infiniteQueryOptions,
+  useInfiniteQuery,
+  usePrefetchInfiniteQuery,
+  useQuery,
+  useQueryClient,
+  type InfiniteData,
+  type QueryClient,
+} from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import {
   DeckFailure,
@@ -9,7 +17,7 @@ import {
   type DeckFailureReason,
 } from '../application/decks';
 import { useDeckGateway } from './DeckProvider';
-import { deckKeys, reviewKeys } from '../../../shared/cache/queryKeys';
+import { deckKeys, pendingLoginKey, reviewKeys } from '../../../shared/cache/queryKeys';
 
 export function useDecks(username: string, enabled: boolean) {
   const gateway = useDeckGateway();
@@ -23,9 +31,9 @@ export function useDecks(username: string, enabled: boolean) {
   });
 }
 
-export function useDeckCards(username: string, deckId: string, query: DeckCardQuery) {
+function useDeckCardOptions(username: string, deckId: string, query: DeckCardQuery) {
   const gateway = useDeckGateway();
-  return useInfiniteQuery({
+  return infiniteQueryOptions({
     queryKey: deckKeys.cardPage(username, deckId, query),
     initialPageParam: query.after,
     queryFn: async ({ pageParam, signal }) => ({
@@ -35,6 +43,16 @@ export function useDeckCards(username: string, deckId: string, query: DeckCardQu
     getNextPageParam: (last) => last.nextCursor ?? undefined,
     retry: false,
   });
+}
+
+export function useDeckCards(username: string, deckId: string, query: DeckCardQuery) {
+  const options = useDeckCardOptions(username, deckId, query);
+  const client = useQueryClient();
+  return useInfiniteQuery({ ...options, refetchOnMount: client.getQueryData(pendingLoginKey) !== username });
+}
+
+export function usePrefetchDeckCards(username: string, deckId: string) {
+  usePrefetchInfiniteQuery(useDeckCardOptions(username, deckId, { dueOnly: false, search: '' }));
 }
 
 type CachedCardPage = DeckCardPage & { search: string };

@@ -39,7 +39,9 @@ async function post(path: string, values?: Record<string, string>): Promise<Resp
 async function postForProfile(path: string, values: Record<string, string>): Promise<AccountProfile> {
   const response = await post(path, values);
   try {
-    return (await response.json()) as AccountProfile;
+    const profile = (await response.json()) as Partial<AccountProfile> | null;
+    if (!profile || typeof profile.username !== 'string' || !profile.username) throw new Error(REQUEST_UNCONFIRMED);
+    return { username: profile.username };
   } catch {
     throw new Error(REQUEST_UNCONFIRMED);
   }

@@ -100,8 +100,11 @@ export function DeckPage() {
       />
     );
   }
+  const summary = cards.isPending
+    ? client.getQueryData<Deck[]>(deckKeys.list(profile.username))?.find((item) => item.id === deckId)
+    : undefined;
   return (
-    <WorkspacePage title={deckIsGone ? 'Deck' : (deck?.title ?? 'Deck')}>
+    <WorkspacePage title={summary?.title ?? 'Deck'}>
       {feedback}
       <NavigationLink to={LIBRARY_PATH} back>
         Back to Library

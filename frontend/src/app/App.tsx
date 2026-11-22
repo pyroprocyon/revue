@@ -1,4 +1,5 @@
 import { UnsavedDeckChanges } from '../features/catalog/presentation/UnsavedDeckChanges';
+import { PendingLoginReads } from './PendingLoginReads';
 import { ReviewProvider } from '../features/study/presentation/ReviewProvider';
 import { TodayPage } from '../features/study/presentation/TodayPage';
 import { ReviewPage } from '../features/study/presentation/ReviewPage';
@@ -83,7 +84,7 @@ export function App() {
                   <Route path={TERMS_PATH} element={<TermsPage />} />
                   <Route path="*" element={<NotFoundPage />} />
                 </Route>
-                <Route element={<AccountLayout />}>
+                <Route element={<AccountLayout pendingReads={PendingLoginReads} />}>
                   <Route path={TODAY_PATH} element={<TodayPage />} />
                   <Route element={<LibraryBrowsingLayout />}>
                     <Route path={LIBRARY_PATH} element={<LibraryPage />} />

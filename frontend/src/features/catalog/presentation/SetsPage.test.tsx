@@ -54,6 +54,7 @@ describe('Set list', () => {
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Shared sets' })).toBeDefined();
     expect(screen.getByText('Try a five-card practice session.')).toBeDefined();
+    await screen.findByText(historySet.title);
     const links = screen.getAllByRole('link').filter((link) => link.getAttribute('href')?.startsWith('/sets/'));
     expect(links.map((link) => link.getAttribute('href'))).toEqual([
       '/sets/philippine-history',

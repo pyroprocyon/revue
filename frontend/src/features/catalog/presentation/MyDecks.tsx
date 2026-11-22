@@ -23,6 +23,7 @@ export function CreateDeckLink() {
 
 export function MyDecks({
   decks,
+  loading,
   showHeading,
   fillsScreen,
   deletedDeckTitle,
@@ -30,6 +31,7 @@ export function MyDecks({
   headingAction,
 }: Readonly<{
   decks: ReturnType<typeof useDecks>;
+  loading: boolean;
   showHeading: boolean;
   fillsScreen: boolean;
   deletedDeckTitle?: string;
@@ -41,7 +43,7 @@ export function MyDecks({
   }
   return (
     <section aria-labelledby="my-decks-heading" className={fillsScreen ? undefined : 'mb-10'}>
-      <div className={showHeading ? 'mb-4 flex flex-wrap items-center justify-between gap-3' : 'sr-only'}>
+      <div className={showHeading ? 'mb-4 flex min-h-12 flex-wrap items-center justify-between gap-3' : 'sr-only'}>
         <h2 id="my-decks-heading" className="text-section font-bold">
           My decks
         </h2>
@@ -72,12 +74,18 @@ export function MyDecks({
           </div>
         </div>
       )}
-      {decks.isPending && (
-        <WhenSlow>
-          <output className="block text-muted">Loading your decks…</output>
-        </WhenSlow>
+      {loading && (
+        <div
+          aria-busy="true"
+          className="min-h-40 rounded-card @min-[38rem]:min-h-34 @min-[64rem]/workspace:min-h-24 bg-surface p-compact-gutter shadow-card"
+        >
+          <WhenSlow>
+            <output className="block text-muted">Loading your Library…</output>
+          </WhenSlow>
+        </div>
       )}
-      {decks.isSuccess &&
+      {!loading &&
+        decks.isSuccess &&
         (decks.data.length === 0 ? (
           <div className="flex flex-wrap items-center justify-between gap-4 rounded-card border border-line bg-surface p-compact-gutter sm:p-6">
             <p className="text-body text-muted">Make private flashcards for a class or exam.</p>

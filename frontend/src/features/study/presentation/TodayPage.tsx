@@ -51,7 +51,11 @@ export function TodayPage() {
   }
   let content: ReactNode;
   if (loading) {
-    content = <output>Loading your review…</output>;
+    content = (
+      <WhenSlow>
+        <output>Loading your review…</output>
+      </WhenSlow>
+    );
   } else {
     content = (
       <div>
@@ -67,8 +71,12 @@ export function TodayPage() {
       </div>
     );
   }
-  const panel = <div className={statusPanel}>{content}</div>;
-  return <WorkspacePage title="Your review">{loading ? <WhenSlow>{panel}</WhenSlow> : panel}</WorkspacePage>;
+  const panel = (
+    <div aria-busy={loading} className={loading ? `${statusPanel} min-h-32` : statusPanel}>
+      {content}
+    </div>
+  );
+  return <WorkspacePage title="Your review">{panel}</WorkspacePage>;
 }
 
 function TodayTopics({ queue }: Readonly<{ queue: StudyQueue }>) {

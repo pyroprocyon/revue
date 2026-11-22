@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useOutletContext } from 'react-router';
 import { ReviewFailure, type RatingRequest, type ReviewGateway, type ReviewSelection } from '../application/reviews';
 import { REVIEW_TIME_ZONE, REVIEW_TIME_ZONE_OFFSET } from '../../../shared/product/studyRules';
-import { reviewKeys } from '../../../shared/cache/queryKeys';
+import { pendingLoginKey, reviewKeys } from '../../../shared/cache/queryKeys';
 
 const ReviewContext = createContext<ReviewGateway | null>(null);
 export function ReviewProvider({ gateway, children }: Readonly<{ gateway: ReviewGateway; children: ReactNode }>) {
@@ -37,15 +37,20 @@ function todayKey(username: string, selection?: ReviewSelection, pausedTopic?: s
 
 /** Today's summary stays cached per learner. A return visit shows it at once and refreshes it. */
 export function useTodayQueue(selection?: ReviewSelection, enabled = true, pausedTopic?: string) {
-  const gateway = useReviewGateway();
   const { username } = useOutletContext<{ username: string }>();
+  return useTodayQueueFor(username, selection, enabled, pausedTopic);
+}
+
+export function useTodayQueueFor(username: string, selection?: ReviewSelection, enabled = true, pausedTopic?: string) {
+  const gateway = useReviewGateway();
+  const client = useQueryClient();
   return useQuery({
     queryKey: todayKey(username, selection, pausedTopic),
     queryFn: () => gateway.queue(selection, true, pausedTopic),
     enabled,
     retry: false,
     networkMode: 'always',
-    refetchOnMount: 'always',
+    refetchOnMount: client.getQueryData(pendingLoginKey) === username ? false : 'always',
     refetchInterval: untilNextStudyDay,
   });
 }
