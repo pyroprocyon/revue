@@ -1,3 +1,5 @@
+export const pendingLoginKey = ['account', 'pending-login'] as const;
+
 export const libraryKeys = {
   all: ['library'] as const,
   lists: ['library', 'list'] as const,

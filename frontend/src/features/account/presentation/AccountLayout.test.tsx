@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AccountGateway, AccountProfile } from '../application/account';
 import { announceSessionChange } from '../../../shared/navigation/sessionChanges';
 import { sameOriginWrite } from '../../../shared/http/sameOriginRequest';
+import { pendingLoginKey } from '../../../shared/cache/queryKeys';
 import { AccountProvider } from './AccountProvider';
 import { AccountLayout } from './AccountLayout';
 import { AccountPage } from './AccountPage';
@@ -362,6 +363,22 @@ describe('signed-in layout', () => {
     });
     expect(screen.queryByRole('heading', { name: 'Your account' })).toBeNull();
     expect(client.getQueryData(['private-library'])).toBeUndefined();
+  });
+
+  it.each([
+    { answer: { username: 'second_student' }, lands: 'second_student' },
+    { answer: null, lands: 'Sign in again' },
+  ])('discards pending login reads when verification answers $lands', async ({ answer, lands }) => {
+    const client = new QueryClient();
+    client.setQueryData(pendingLoginKey, 'first_student');
+    client.setQueryData(['private-library'], ['first account data']);
+    const pending = deferredProfile();
+    setup(true, vi.fn().mockReturnValue(pending.promise), client);
+    expect(screen.queryByRole('textbox', { name: 'Draft' })).toBeNull();
+    await act(async () => pending.resolve(answer));
+    await screen.findByRole('heading', { name: lands });
+    expect(client.getQueryData(['private-library'])).toBeUndefined();
+    expect(client.getQueryData(pendingLoginKey)).toBeUndefined();
   });
 
   it('reopens from the last confirmed account at once, keeps its cache and rechecks with controls paused', async () => {

@@ -6,7 +6,8 @@ import type { PublicSet } from '../application/publicContent';
 import { usePublicContentQueries } from './PublicContentProvider';
 import { AccountHeaderLink, HomeLink } from '../../../shared/ui/HeaderLinks';
 import { LoadFailed } from '../../../shared/ui/LoadFailed';
-import { LoadingScreen, MessageScreen } from '../../../shared/ui/MessageScreen';
+import { MessageScreen } from '../../../shared/ui/MessageScreen';
+import { WhenSlow } from '../../../shared/ui/WhenSlow';
 import { PageLayout } from '../../../shared/ui/PageLayout';
 import { PageControls } from '../../../shared/ui/PageControls';
 import { usePageCursor } from '../../../shared/navigation/usePageCursor';
@@ -18,9 +19,6 @@ export function SetsPage() {
   const { cursor, previousPage, nextPage } = usePageCursor();
   const publicSets = useQuery(publicSetsPageQuery(cursor));
 
-  if (publicSets.isPending) {
-    return <LoadingScreen text="Loading the sets…" />;
-  }
   if (publicSets.isError) {
     return (
       <LoadFailed
@@ -36,14 +34,14 @@ export function SetsPage() {
       />
     );
   }
-  if (publicSets.data.items.length === 0 && cursor === undefined) {
+  if (publicSets.data?.items.length === 0 && cursor === undefined) {
     return (
       <MessageScreen title="No sets are available right now.">
         <p>Check back later.</p>
       </MessageScreen>
     );
   }
-  const { items, nextCursor } = publicSets.data;
+  const { items, nextCursor } = publicSets.data ?? { items: [], nextCursor: null };
   return (
     <PageLayout
       top={
@@ -56,15 +54,22 @@ export function SetsPage() {
       <section className="pt-2">
         <h1 className="text-title font-extrabold tracking-tight">Shared sets</h1>
         <p className="mt-2 text-body text-muted">Try a five-card practice session.</p>
-        <ul className="mt-6 grid gap-3">
+        {publicSets.isPending && (
+          <WhenSlow>
+            <output>Loading the sets…</output>
+          </WhenSlow>
+        )}
+        <ul aria-busy={publicSets.isPending} className="mt-6 grid gap-3">
           {items.map((publicSet) => (
             <li key={publicSet.setKey} className="min-w-0">
               <SetChoice publicSet={publicSet} />
             </li>
           ))}
         </ul>
-        {items.length === 0 && <p className="mt-6 text-body text-muted">No more sets are available.</p>}
-        {(cursor !== undefined || nextCursor !== null) && (
+        {!publicSets.isPending && items.length === 0 && (
+          <p className="mt-6 text-body text-muted">No more sets are available.</p>
+        )}
+        {!publicSets.isPending && (cursor !== undefined || nextCursor !== null) && (
           <PageControls
             label="Set pages"
             onPrevious={cursor === undefined ? undefined : previousPage}

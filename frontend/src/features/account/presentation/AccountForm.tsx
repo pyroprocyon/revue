@@ -1,6 +1,6 @@
 import { useFirstInput } from '../../../shared/ui/useFirstInput';
 import { useQueryClient } from '@tanstack/react-query';
-import { libraryKeys, reviewKeys } from '../../../shared/cache/queryKeys';
+import { deckKeys, libraryKeys, pendingLoginKey, reviewKeys } from '../../../shared/cache/queryKeys';
 import { publicSessionKey } from '../../../shared/navigation/publicSession';
 import { saveSignedInHint } from '../../../shared/navigation/signedInHint';
 import { Eye, EyeOff } from 'lucide-react';
@@ -53,14 +53,17 @@ export function AccountForm({ register = false }: Readonly<{ register?: boolean 
     setBusy(true);
     setError('');
     try {
-      if (register) await gateway.register({ username, password });
-      else await gateway.signIn(username, password);
+      const profile = register
+        ? await gateway.register({ username, password })
+        : await gateway.signIn(username, password);
       setPassword('');
       setPasswordConfirmation('');
       await queryClient.cancelQueries({ queryKey: publicSessionKey, exact: true });
       queryClient.removeQueries({ queryKey: libraryKeys.all });
       queryClient.removeQueries({ queryKey: reviewKeys.all });
+      queryClient.removeQueries({ queryKey: deckKeys.all });
       forgetConfirmedProfile(queryClient);
+      queryClient.setQueryData(pendingLoginKey, profile.username);
       queryClient.setQueryData(publicSessionKey, true);
       // Leaving this page can skip the public layout's own update, so save the hint here too.
       saveSignedInHint(true);

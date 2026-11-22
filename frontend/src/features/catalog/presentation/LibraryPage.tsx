@@ -21,28 +21,8 @@ export function LibraryPage() {
   const { cursor: after, previousPage, nextPage } = usePageCursor();
   const library = useSavedSets(profile.username, after);
   const firstPage = after === undefined;
-  const location = useLocation();
-  const navigationType = useNavigationType();
-  const navigate = useNavigate();
-  const arrivedFromDeletion = firstPage ? routeState(location).deletedDeckTitle : undefined;
-  const [deletion, setDeletion] = useState(
-    () =>
-      arrivedFromDeletion && {
-        title: arrivedFromDeletion,
-        focus: navigationType === 'REPLACE',
-        search: profile.search,
-        deckGroup: profile.deckGroup,
-      },
-  );
-  if (deletion && (profile.search !== deletion.search || profile.deckGroup !== deletion.deckGroup))
-    setDeletion(undefined);
-  // Browsers keep history state across reloads and Back, so the deletion is confirmed only on arrival.
-  useEffect(() => {
-    if (routeState(location).deletedDeckTitle === undefined) return;
-    void navigate(location, { replace: true, state: { ...routeState(location), deletedDeckTitle: undefined } });
-  }, [location, navigate]);
-  const deletedDeckTitle = deletion ? deletion.title : undefined;
-  const focusDeletedDeckNotice = deletion ? deletion.focus : false;
+  const deletion = useDeckDeletionNotice(profile, firstPage);
+  const focusDeletedDeckNotice = deletion?.focus ?? false;
   const decks = useDecks(profile.username, firstPage);
   const [removed, setRemoved] = useState<{ title: string; restoreFocus: boolean } | null>(null);
   const notice = useRef<HTMLOutputElement>(null);
@@ -56,19 +36,27 @@ export function LibraryPage() {
   const nextCursor = library.data?.nextCursor;
   const hasSavedSets = (library.data?.items.length ?? 0) > 0;
   const createInHeading = firstPage && decks.isSuccess && decks.data.length > 0;
+  const loadingDeckSection = firstPage && !decks.isError && (decks.isPending || library.isPending);
   const nothingFollowsDecks = library.isSuccess && !hasSavedSets && !removed;
   return (
     <WorkspacePage
       title="Library"
-      headingAction={createInHeading && <CreateDeckLink />}
+      headingAction={
+        createInHeading ? (
+          <CreateDeckLink />
+        ) : (
+          firstPage && decks.isPending && <span aria-hidden="true" className="min-h-12" />
+        )
+      }
       focusHeading={!focusDeletedDeckNotice}
     >
       {firstPage && (
         <MyDecks
           decks={decks}
+          loading={loadingDeckSection}
           showHeading={hasSavedSets}
           fillsScreen={nothingFollowsDecks}
-          deletedDeckTitle={deletedDeckTitle}
+          deletedDeckTitle={deletion?.title}
           focusDeletedDeckNotice={focusDeletedDeckNotice}
           headingAction={
             hasSavedSets &&
@@ -99,7 +87,7 @@ export function LibraryPage() {
           Removed “{removed.title}” from your Library. Your progress is kept.
         </output>
       )}
-      {library.isPending && (
+      {library.isPending && !loadingDeckSection && (
         <WhenSlow>
           <output className="block">Loading saved sets…</output>
         </WhenSlow>
@@ -126,7 +114,7 @@ export function LibraryPage() {
           </div>
         </div>
       )}
-      {library.isSuccess && (hasSavedSets || after !== undefined) && (
+      {library.isSuccess && !loadingDeckSection && (hasSavedSets || !firstPage) && (
         <>
           <h2 id="saved-sets" ref={savedSetsHeading} tabIndex={-1} className="mb-4 scroll-mt-4 text-section font-bold">
             Saved sets
@@ -180,4 +168,28 @@ export function LibraryPage() {
       )}
     </WorkspacePage>
   );
+}
+
+function useDeckDeletionNotice(profile: LibraryBrowsing, firstPage: boolean) {
+  const location = useLocation();
+  const navigationType = useNavigationType();
+  const navigate = useNavigate();
+  const arrivedFromDeletion = firstPage ? routeState(location).deletedDeckTitle : undefined;
+  const [deletion, setDeletion] = useState(() => {
+    if (!arrivedFromDeletion) return undefined;
+    return {
+      title: arrivedFromDeletion,
+      focus: navigationType === 'REPLACE',
+      search: profile.search,
+      deckGroup: profile.deckGroup,
+    };
+  });
+  if (deletion && (profile.search !== deletion.search || profile.deckGroup !== deletion.deckGroup))
+    setDeletion(undefined);
+  // Browsers keep history state across reloads and Back, so the deletion is confirmed only on arrival.
+  useEffect(() => {
+    if (routeState(location).deletedDeckTitle === undefined) return;
+    void navigate(location, { replace: true, state: { ...routeState(location), deletedDeckTitle: undefined } });
+  }, [location, navigate]);
+  return deletion;
 }

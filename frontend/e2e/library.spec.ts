@@ -2,6 +2,22 @@ import type { Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { test, expect, signOut } from './fixtures';
 
+async function holdNextRead(page: Page, path: string) {
+  let release!: () => void;
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route(
+    path,
+    async (route) => {
+      await pending;
+      await route.continue();
+    },
+    { times: 1 },
+  );
+  return release;
+}
+
 async function register(page: Page, signupUrl: string) {
   const username = `library_${randomUUID().replaceAll('-', '').slice(0, 20)}`;
   await page.goto(signupUrl);
@@ -314,7 +330,10 @@ test('Library read failures retain an explicit retry instead of showing an empty
   await expect(page.getByRole('heading', { name: 'Saved sets', exact: true })).toHaveCount(0);
 });
 
-test('the shortcut brings Saved sets above the phone navigation and moves keyboard focus', async ({ page, pilot }) => {
+test('Library keeps results in place in either response order and focuses Saved sets from the shortcut', async ({
+  page,
+  pilot,
+}) => {
   await page.setViewportSize({ width: 375, height: 667 });
   pilot.addSaveableSet();
   await register(page, pilot.signupUrl);
@@ -331,7 +350,28 @@ test('the shortcut brings Saved sets above the phone navigation and moves keyboa
   }
   await page.goto('/sets/published-test-set');
   await page.getByRole('button', { name: 'Save to Library' }).click();
+  const releaseDecks = await holdNextRead(page, '**/api/v1/decks');
+  const saved = page.waitForResponse('**/api/v1/me/saved-sets');
   await page.getByRole('link', { name: 'Open Library' }).click();
+  try {
+    await (await saved).finished();
+    await expect(page.getByRole('heading', { name: 'My decks' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Saved sets', exact: true })).toHaveCount(0);
+  } finally {
+    releaseDecks();
+  }
+  await expect(page.getByRole('heading', { name: 'Saved sets', exact: true })).toBeVisible();
+
+  const releaseSets = await holdNextRead(page, '**/api/v1/me/saved-sets');
+  const decks = page.waitForResponse('**/api/v1/decks');
+  await page.reload();
+  try {
+    await (await decks).finished();
+    await expect(page.getByRole('link', { name: 'Create a deck' })).toBeVisible();
+    await expect(page.locator('a[data-library-deck]')).toHaveCount(0);
+  } finally {
+    releaseSets();
+  }
   const shortcut = page.getByRole('link', { name: 'Jump to saved sets' });
   await shortcut.focus();
   await page.keyboard.press('Enter');
