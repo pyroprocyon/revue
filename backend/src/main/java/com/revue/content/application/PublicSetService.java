@@ -1,5 +1,6 @@
 package com.revue.content.application;
 
+import java.util.List;
 import java.util.Optional;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
@@ -10,18 +11,28 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class PublicSetService {
     private static final int TRIAL_CARD_COUNT = 5;
+    private static final List<String> ONBOARDING_KEYS = List
+        .of("philippine-history", "philippine-nature", "weather-and-disasters");
     private final PublicSetQueries queries;
 
     public PublicSetService(PublicSetQueries queries) {
         this.queries = queries;
     }
 
-    public CatalogPage list(@Nullable String after, int limit) {
+    public CatalogPage list(
+        @Nullable String after,
+        int limit,
+        boolean publishedOnly,
+        @Nullable String subject,
+        String search) {
         if (limit < 1 || limit > 100) {
             throw new IllegalArgumentException("Page size must be between 1 and 100");
         }
         var cursor = CatalogCursor.parse(after);
-        var rows = queries.list(cursor.title(), cursor.id(), limit + 1);
+        if (search.indexOf('\0') >= 0) {
+            throw new IllegalArgumentException("Invalid catalog search");
+        }
+        var rows = queries.list(cursor.title(), cursor.id(), limit + 1, publishedOnly, subject, search);
         var visible = rows.stream().limit(limit).toList();
         String next = null;
         if (rows.size() > limit) {
@@ -29,6 +40,14 @@ public class PublicSetService {
             next = new CatalogCursor(last.title(), last.id()).encode();
         }
         return new CatalogPage(visible.stream().map(PublicSetService::summaryOf).toList(), next);
+    }
+
+    public List<PublicSetQueries.Subject> subjects() {
+        return queries.subjects();
+    }
+
+    public List<PublicSetSummary> onboarding() {
+        return queries.onboarding(ONBOARDING_KEYS).stream().map(PublicSetService::summaryOf).toList();
     }
 
     public Optional<PublicSetSummary> summary(String setKey) {
@@ -62,6 +81,7 @@ public class PublicSetService {
             set.title(),
             set.description(),
             set.publisherName(),
+            set.subject(),
             set.cardCount(),
             set.cardCount() >= TRIAL_CARD_COUNT,
             Long.toString(set.id(), 36),

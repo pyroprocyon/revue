@@ -50,6 +50,8 @@ public class SecurityConfig {
             paths.matcher("/actuator/health"),
             paths.matcher("/actuator/health/liveness"),
             paths.matcher(HttpMethod.GET, "/api/v1/public-sets"),
+            paths.matcher(HttpMethod.GET, "/api/v1/public-sets/catalog/subjects"),
+            paths.matcher(HttpMethod.GET, "/api/v1/public-sets/catalog/onboarding"),
             paths.matcher(HttpMethod.GET, "/api/v1/public-sets/*"),
             paths.matcher(HttpMethod.GET, "/api/v1/public-sets/*/demo-cards"),
             paths.matcher(HttpMethod.GET, "/api/v1/public-sets/share/*/summary"),

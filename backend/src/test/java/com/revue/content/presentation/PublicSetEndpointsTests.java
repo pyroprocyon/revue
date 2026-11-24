@@ -57,6 +57,85 @@ class PublicSetEndpointsTests {
     }
 
     @Test
+    void publishedCatalogIncludesSubjectsAndLeavesPracticeSetsInThePublicList() throws Exception {
+        loader.load(
+            List.of(set("demo", "Demo", cards("demo-card")), set("published", "Published", cards("published-card"))));
+        jdbc.update("update sets set save_allowed = true where set_key = 'published'");
+
+        mvc.perform(get(PUBLIC_SETS).param("published", "true"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[*].setKey", contains("published")))
+            .andExpect(jsonPath("$[0].subject").value("Science"));
+        mvc.perform(get(PUBLIC_SETS + "/catalog/subjects"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[*].subject", contains("Science")))
+            .andExpect(jsonPath("$[0].topicCount").value(1));
+        mvc.perform(get(PUBLIC_SETS).param("published", "true").param("subject", "Science"))
+            .andExpect(jsonPath("$[*].setKey", contains("published")));
+        mvc.perform(get(PUBLIC_SETS).param("published", "true").param("subject", "History"))
+            .andExpect(jsonPath("$").isEmpty());
+        mvc.perform(get(PUBLIC_SETS)).andExpect(jsonPath("$[*].setKey", contains("demo", "published")));
+    }
+
+    @Test
+    void topicSearchFiltersBeforePagingAndPreservesItsScopeInTheNextLink() throws Exception {
+        loader.load(
+            List.of(
+                set("search-a", "Alpha", cards("search-card-a")),
+                set("search-b", "B% & C", cards("search-card-b")),
+                set("search-c", "D% & E", cards("search-card-c")),
+                set("search-d", "F% & G", cards("search-card-d")),
+                set("search-e", "H% & I", cards("search-card-e"))));
+        jdbc.update("""
+            update sets set save_allowed = true where set_key in ('search-a', 'search-b', 'search-c', 'search-d')
+            """);
+        jdbc.update("update sets set subject = 'Math' where set_key = 'search-d'");
+
+        var first = mvc
+            .perform(
+                get(PUBLIC_SETS).param("published", "true")
+                    .param("subject", "Science")
+                    .param("q", " % & ")
+                    .param("limit", "1"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[*].setKey", contains("search-b")))
+            .andReturn()
+            .getResponse();
+        String cursor = first.getHeader("X-Next-Cursor");
+        assertThat(cursor).isNotBlank();
+        assertThat(first.getHeader("Link")).contains("&published=true&subject=Science&q=%25+%26>");
+        mvc.perform(
+            get(PUBLIC_SETS).param("published", "true")
+                .param("subject", "Science")
+                .param("q", "% &")
+                .param("limit", "1")
+                .param("after", cursor))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[*].setKey", contains("search-c")))
+            .andExpect(header().doesNotExist("X-Next-Cursor"));
+        mvc.perform(get(PUBLIC_SETS).param("published", "true").param("subject", "Science").param("q", "b%"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[*].setKey", contains("search-b")));
+    }
+
+    @Test
+    void theOnboardingListReturnsOnlyTheThreePracticeReviewers() throws Exception {
+        loader.load(
+            List.of(
+                set("philippine-history", "Philippine History", cards("history-card")),
+                set("philippine-nature", "Philippine Nature", cards("nature-card")),
+                set("weather-and-disasters", "Weather & Disasters", cards("weather-card")),
+                set("extra-practice", "Extra practice", cards("extra-card")),
+                set("published-topic", "Published topic", cards("onboarding-excluded-card"))));
+        jdbc.update("update sets set save_allowed = true where set_key = 'published-topic'");
+
+        mvc.perform(get(PUBLIC_SETS + "/catalog/onboarding"))
+            .andExpect(status().isOk())
+            .andExpect(
+                jsonPath("$[*].setKey", contains("philippine-history", "philippine-nature", "weather-and-disasters")));
+    }
+
+    @Test
     void pagesUseStableTitleAndIdOrderingAndBoundedCounts() throws Exception {
         loader.load(
             List.of(
@@ -126,7 +205,8 @@ class PublicSetEndpointsTests {
             .andExpect(jsonPath("$[*].cardCount").value(contains(2, 6, 5)))
             .andExpect(jsonPath("$[*].trialAvailable").value(contains(false, true, true)))
             .andExpect(jsonPath("$[*].saveAllowed").value(contains(false, false, false)))
-            .andExpect(jsonPath("$[0].*", hasSize(8)))
+            .andExpect(jsonPath("$[0].subject").value("Science"))
+            .andExpect(jsonPath("$[0].*", hasSize(9)))
             .andExpect(jsonPath("$[1].title").value("History"))
             .andExpect(jsonPath("$[1].description").value("A set for tests."))
             .andExpect(jsonPath("$[1].publisherName").value("Revue"));
@@ -164,7 +244,8 @@ class PublicSetEndpointsTests {
         mvc.perform(get(PUBLIC_SETS + "/history"))
             .andExpect(status().isOk())
             .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"))
-            .andExpect(jsonPath("$.*", hasSize(8)))
+            .andExpect(jsonPath("$.subject").value("Science"))
+            .andExpect(jsonPath("$.*", hasSize(9)))
             .andExpect(jsonPath("$.setKey").value("history"))
             .andExpect(jsonPath("$.title").value("History"))
             .andExpect(jsonPath("$.cardCount").value(6))
