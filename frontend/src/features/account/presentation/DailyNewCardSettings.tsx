@@ -41,7 +41,7 @@ export function DailyNewCardSettings({ username }: Readonly<{ username: string }
       void client.invalidateQueries({ queryKey: libraryKeys.cardPagesOf(username) });
     },
   });
-  const hasChanges = limit !== undefined && limit !== confirmedLimit;
+  const canSave = limit !== undefined && (limit !== confirmedLimit || save.isError);
 
   useEffect(() => {
     if (!save.isSuccess || !restoreOptionFocus.current) return;
@@ -84,7 +84,7 @@ export function DailyNewCardSettings({ username }: Readonly<{ username: string }
           aria-busy={save.isPending}
           onSubmit={(event) => {
             event.preventDefault();
-            if (!hasChanges || save.isPending) return;
+            if (!canSave || save.isPending) return;
             restoreOptionFocus.current = saveButton.current === document.activeElement;
             save.mutate(limit);
           }}
@@ -109,8 +109,8 @@ export function DailyNewCardSettings({ username }: Readonly<{ username: string }
                     className="sr-only"
                     checked={limit === option}
                     onChange={() => {
-                      setDraft(option === confirmedLimit ? undefined : option);
-                      save.reset();
+                      setDraft(option === confirmedLimit && !save.isError ? undefined : option);
+                      if (save.isSuccess) save.reset();
                     }}
                   />
                   {limit === option && <Check aria-hidden="true" className="size-4 shrink-0" />}
@@ -118,7 +118,7 @@ export function DailyNewCardSettings({ username }: Readonly<{ username: string }
                 </label>
               ))}
             </fieldset>
-            {(hasChanges || save.isPending) && (
+            {(canSave || save.isPending) && (
               <button
                 ref={saveButton}
                 type="submit"

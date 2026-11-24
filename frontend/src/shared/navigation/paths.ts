@@ -55,6 +55,10 @@ export function reviewTopicPath(topic: string, includeNew = false): string {
   return `${REVIEW_PATH}/${topic}${includeNew ? '/start' : ''}`;
 }
 
+export function isPositiveLongId(id: string): boolean {
+  return /^[1-9]\d{0,18}$/.test(id) && BigInt(id) <= 9_223_372_036_854_775_807n;
+}
+
 export function savedSetListParams(params: URLSearchParams) {
   const updated = new URLSearchParams(params);
   updated.delete('set');

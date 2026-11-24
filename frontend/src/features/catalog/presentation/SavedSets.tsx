@@ -15,7 +15,7 @@ import { WhenSlow } from '../../../shared/ui/WhenSlow';
 import { LoadingStatus } from '../../../shared/ui/LoadingFeedback';
 
 type Props = Readonly<{
-  sets: SavedSet[];
+  sets?: SavedSet[];
   detail?: SavedSet;
   linkedId?: string;
   detailFeedback?: ReactNode;
@@ -47,9 +47,9 @@ export function SavedSets({
   const [opened, setOpened] = useState<string | null>(params.get('set'));
   const list = useRef<HTMLDivElement>(null);
   const term = params.get('q') ?? '';
-  const groupSets = sets.filter((set) => Boolean(set.reviewsPaused) === (group === 'paused'));
+  const groupSets = (sets ?? []).filter((set) => Boolean(set.reviewsPaused) === (group === 'paused'));
   const matches = loading ? [] : groupSets.filter((set) => set.title.toLowerCase().includes(term.trim().toLowerCase()));
-  const showStatus = Boolean(counts && (counts.paused > 0 || group === 'paused'));
+  const showStatus = group === 'paused' || (counts?.paused ?? 0) > 0;
   const selected = params.get('set');
   const showing = detail?.id ?? null;
   useEffect(() => {
@@ -105,7 +105,7 @@ export function SavedSets({
     return { ...set, archived: set.reviewsPaused, savedSetPath: `${LIBRARY_PATH}?${next}` };
   });
   const searchLabel = paginated ? 'Search reviewers on this page' : 'Search reviewers';
-  const search = (sets.length > 1 || term || paginated || showStatus) && (
+  const search = ((sets?.length ?? 0) > 1 || term || paginated || showStatus) && (
     <CollectionSearch
       label={searchLabel}
       placeholder={searchLabel}
@@ -150,7 +150,7 @@ export function SavedSets({
       </h2>
       {detailFeedback || (
         <div ref={list}>
-          {showStatus && counts ? (
+          {showStatus ? (
             <CollectionStatusMenu saved group={group} counts={counts} onChoose={chooseGroup}>
               {search}
             </CollectionStatusMenu>
@@ -162,7 +162,7 @@ export function SavedSets({
               <LoadingStatus className="mt-3">Loading saved reviewers…</LoadingStatus>
             </WhenSlow>
           ) : (
-            results
+            sets && results
           )}
         </div>
       )}

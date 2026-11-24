@@ -511,3 +511,27 @@ describe('signed-in layout', () => {
     expect(gateway.signOut).not.toHaveBeenCalled();
   });
 });
+
+it('can save the original pace after an unconfirmed write changed it on the server', async () => {
+  const { gateway } = setup();
+  let storedLimit = 10;
+  vi.mocked(gateway.saveStudySettings).mockImplementation(async ({ dailyNewCardLimit }) => {
+    storedLimit = dailyNewCardLimit;
+    if (dailyNewCardLimit === 20) throw new Error('Response lost');
+    return { dailyNewCardLimit };
+  });
+  const original = await screen.findByRole('radio', { name: '10 per day' });
+  fireEvent.click(screen.getByRole('radio', { name: '20 per day' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  await screen.findByText('Couldn’t confirm your daily limit. Try saving again.');
+  expect(storedLimit).toBe(20);
+  fireEvent.click(original);
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  await screen.findByText('Daily limit saved.');
+  expect(storedLimit).toBe(10);
+  expect(vi.mocked(gateway.saveStudySettings).mock.calls).toEqual([
+    [{ dailyNewCardLimit: 20 }],
+    [{ dailyNewCardLimit: 10 }],
+  ]);
+  expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
+});

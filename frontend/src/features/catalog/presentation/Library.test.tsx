@@ -316,6 +316,66 @@ describe('saved shared sets', () => {
     );
   });
 
+  it('updates saved membership without leaving the current tab after a background removal', async () => {
+    let finish!: (response: Response) => void;
+    const fetcher = api({
+      saved: true,
+      remove: () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    });
+    const { queryClient, router } = renderApp('/library?shelf=saved&set=1');
+    await screen.findByRole('heading', { name: historySet.title });
+    queryClient.setQueryData(libraryKeys.savedKeys('learner'), [savedSet.setKey]);
+    fireEvent.click(screen.getByRole('button', { name: 'Reviewer settings' }));
+    fireEvent.click(await screen.findByRole('button', { name: `Remove from Library: ${historySet.title}` }));
+    fireEvent.click(screen.getByRole('button', { name: /^Remove$/ }));
+    await waitFor(() => expect(finish).toBeDefined());
+
+    fireEvent.click(screen.getByRole('link', { name: 'Account' }));
+    await screen.findByRole('heading', { name: 'Your account' });
+    await act(async () => {
+      finish(jsonResponse(204));
+    });
+    await waitFor(() => expect(queryClient.getQueryData(libraryKeys.savedKeys('learner'))).toEqual([]));
+    expect(router.state.location.pathname).toBe('/account');
+    expect(screen.getByRole('heading', { name: 'Your account' })).toBeDefined();
+    expect(fetcher.mock.calls.filter(([, init]) => init?.method === 'DELETE')).toHaveLength(1);
+  });
+
+  it('keeps the Saved shelf and status menu available after a Paused read fails', async () => {
+    const fetcher = api({ saved: true });
+    const respond = fetcher.getMockImplementation()!;
+    const active = '/api/v1/me/saved-sets?limit=50&paused=false';
+    const paused = '/api/v1/me/saved-sets?limit=50&paused=true';
+    const pausedSet = { ...savedSet, id: '2', title: 'Paused reviewer', reviewsPaused: true };
+    const counts = { active: 1, paused: 1 };
+    let attempts = 0;
+    fetcher.mockImplementation(async (path, init) => {
+      if (path === active) return jsonResponse(200, { items: [savedSet], nextCursor: null, counts });
+      if (path === paused)
+        return ++attempts < 3 ? jsonResponse(503) : jsonResponse(200, { items: [pausedSet], nextCursor: null, counts });
+      return respond(path, init);
+    });
+    const { router } = renderApp('/library?shelf=saved');
+    expect(await screen.findByRole('link', { name: `Open ${savedSet.title}` })).toBeDefined();
+    fireEvent.click(screen.getByRole('button', { name: 'Review status: Active' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Paused/ }));
+    await screen.findByRole('alert');
+    expect(router.state.location.search).toBe('?shelf=saved&setStatus=paused');
+    expect(screen.getByRole('button', { name: /^Saved/, pressed: true })).toBeDefined();
+    expect(screen.queryByText('No paused saved reviewers.')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Review status: Paused' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Active/ }));
+    await screen.findByRole('link', { name: `Open ${savedSet.title}` });
+    fireEvent.click(screen.getByRole('button', { name: 'Review status: Active' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Paused/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Retry saved reviewers' }));
+    expect(await screen.findByRole('link', { name: 'Open Paused reviewer' })).toBeDefined();
+  });
+
   it('warns before removing a retired set and supports cancelling', async () => {
     const fetcher = api({ saved: true, retired: true });
     renderApp('/library?shelf=saved&set=1');
@@ -363,6 +423,7 @@ describe('saved shared sets', () => {
     ).toBeDefined();
     expect(screen.queryByRole('heading', { name: historySet.title })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Removing…' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Saved/, pressed: true })).toBeNull();
   });
 
   it('does not claim removal after a lost response and offers retry', async () => {

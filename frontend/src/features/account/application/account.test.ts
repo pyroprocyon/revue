@@ -51,3 +51,21 @@ describe('account return destination', () => {
     }
   });
 });
+
+it.each(['/library?shelf=saved&set=42&cardDue=1', '/published?subject=Earth+Science&q=weather&view=stack'])(
+  'accepts the scoped workspace destination %s',
+  (path) => {
+    expect(safeAccountReturnPath(path)).toBe(path);
+  },
+);
+
+it.each([
+  '/library?shelf=saved&set=42&set=43',
+  '/library?shelf=mine&set=42',
+  '/library?shelf=saved&set=9223372036854775808',
+  '/published?view=list',
+  '/published?subject=Biology&next=%2F%2Fexample.com',
+  '/published?subject=Biology#fragment',
+])('rejects unsupported workspace query values in %s', (path) => {
+  expect(safeAccountReturnPath(path)).toBeNull();
+});

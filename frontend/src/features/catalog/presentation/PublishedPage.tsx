@@ -25,7 +25,7 @@ const SUBJECT_HEADING_ID = 'published-subject-heading';
 const TOPIC_SEARCH_DELAY_MS = 200;
 const positionKey = ['published-position'] as const;
 
-type CatalogPosition = { locationKey: string; scrollY: number; setKey: string };
+type CatalogPosition = { locationKey: string; scrollY: number; setKey: string; pageCount: number };
 
 export function PublishedPage() {
   const { publishedSubjectsQuery } = usePublicContentQueries();
@@ -65,7 +65,8 @@ export function PublishedPage() {
     (link: HTMLAnchorElement) => {
       if (!catalogPosition || restoredPosition.current === catalogPosition) return;
       restoredPosition.current = catalogPosition;
-      window.scrollTo({ top: catalogPosition.scrollY, behavior: 'instant' });
+      const top = link.dataset.libraryDeck === catalogPosition.setKey ? catalogPosition.scrollY : 0;
+      window.scrollTo({ top, behavior: 'instant' });
       if (interactionsPaused) requestFocus(link);
       else link.focus({ preventScroll: true });
     },
@@ -114,6 +115,7 @@ export function PublishedPage() {
       locationKey: location.key,
       scrollY: window.scrollY,
       setKey,
+      pageCount: topics.data?.pages.length ?? 1,
     });
   }
 
@@ -227,7 +229,7 @@ export function PublishedPage() {
           search={topicSearch}
           searchPending={searchTerm !== topicSearch}
           stack={stack}
-          returnTo={returning ? catalogPosition?.setKey : undefined}
+          returnTo={returning ? catalogPosition : undefined}
           onOpen={rememberTopic}
           onRestoreFocus={restoreTopic}
         />
@@ -269,7 +271,7 @@ function SubjectTopics({
   search: string;
   searchPending: boolean;
   stack: boolean;
-  returnTo?: string;
+  returnTo?: CatalogPosition;
   onOpen: (event: MouseEvent<HTMLAnchorElement>) => void;
   onRestoreFocus: (link: HTMLAnchorElement) => void;
 }>) {
@@ -297,8 +299,9 @@ function SubjectTopics({
   const loadMore = useCallback(() => {
     void fetchNextPage({ cancelRefetch: false });
   }, [fetchNextPage]);
-  const restoredIndex = items.findIndex(({ id }) => id === returnTo);
-  const restoringTopic = Boolean(returnTo) && restoredIndex < 0 && hasNextPage && !isError;
+  const restoredIndex = items.findIndex(({ id }) => id === returnTo?.setKey);
+  const pageCount = topics.data?.pages.length ?? 0;
+  const restoringTopic = returnTo && restoredIndex < 0 && pageCount < returnTo.pageCount && hasNextPage && !isError;
   useEffect(() => {
     if (restoringTopic && canLoadMore) loadMore();
   }, [restoringTopic, canLoadMore, loadMore]);
@@ -312,6 +315,7 @@ function SubjectTopics({
     );
   }
 
+  const focusId = returnTo ? items[Math.max(0, restoredIndex)]?.id : undefined;
   return (
     <CollectionStackContext value={stack}>
       <div className="reviewer-collections" data-stack={stack || undefined}>
@@ -323,7 +327,7 @@ function SubjectTopics({
               fillsScreen
               items={items}
               initialIndex={Math.max(0, restoredIndex)}
-              restoreFocus={restoredIndex >= 0}
+              restoreFocus={focusId !== undefined}
               onRestoreFocus={onRestoreFocus}
               onOpen={onOpen}
               onNearEnd={canLoadMore ? loadMore : undefined}
@@ -331,7 +335,7 @@ function SubjectTopics({
             <CollectionTiles
               kind="topics"
               items={items}
-              focusId={returnTo}
+              focusId={focusId}
               onRestoreFocus={onRestoreFocus}
               onOpen={onOpen}
               onNearEnd={canLoadMore ? loadMore : undefined}
