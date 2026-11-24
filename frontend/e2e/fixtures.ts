@@ -12,6 +12,8 @@ export const test = base.extend<object, { pilot: PilotApp }>({
   pilot: [
     async ({ browserName }, provide, worker) => {
       const project = `revue-e2e-${browserName}-${randomUUID().slice(0, 12)}`;
+      const image = process.env.REVUE_APP_IMAGE;
+      if (!image) throw new Error('Playwright did not prepare the browser test image.');
       const environment = { ...process.env, REVUE_E2E_DB_PASSWORD: randomBytes(32).toString('base64url') };
       mkdirSync(worker.project.outputDir, { recursive: true });
       const log = join(worker.project.outputDir, `${project}.log`);
@@ -37,7 +39,7 @@ export const test = base.extend<object, { pilot: PilotApp }>({
       }
 
       try {
-        appendFileSync(log, compose(['up', '--build', '--detach', '--wait', '--wait-timeout', '120']));
+        appendFileSync(log, compose(['up', '--no-build', '--detach', '--wait', '--wait-timeout', '120']));
         const address = compose(['port', 'app', '8080']).trim();
         if (!/^127\.0\.0\.1:\d+$/.test(address)) throw new Error('E2E app must bind only to loopback');
         const origin = `http://${address}`;
@@ -82,7 +84,7 @@ export const test = base.extend<object, { pilot: PilotApp }>({
         try {
           appendFileSync(log, compose(['logs', '--no-color', '--tail', '150']));
         } finally {
-          compose(['down', '--volumes', '--remove-orphans', '--rmi', 'local']);
+          compose(['down', '--volumes', '--remove-orphans']);
         }
       }
     },

@@ -16,6 +16,7 @@ services:
       start_interval: 1s
       start_period: 30s
   publisher:
+    image: ${REVUE_APP_IMAGE:-}
     build:
       context: ../..
       dockerfile: Dockerfile
@@ -29,6 +30,7 @@ services:
       SPRING_DATASOURCE_USERNAME: e2e
       SPRING_DATASOURCE_PASSWORD: ${REVUE_E2E_DB_PASSWORD}
   app:
+    image: ${REVUE_APP_IMAGE:-}
     build:
       context: ../..
       dockerfile: Dockerfile

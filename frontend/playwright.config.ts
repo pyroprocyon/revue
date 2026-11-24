@@ -1,6 +1,7 @@
 import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
+  globalSetup: './e2e/build-test-image.ts',
   testDir: './e2e',
   testMatch: '**/*.spec.ts',
   fullyParallel: false,
