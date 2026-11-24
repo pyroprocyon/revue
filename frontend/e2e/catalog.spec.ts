@@ -100,44 +100,48 @@ for (const layout of ['grid', 'stack'] as const) {
   });
 }
 
-for (const moveFocus of [false, true]) {
-  test(`retiring a restored topic keeps focus usable (focus moved: ${moveFocus})`, async ({ page }) => {
-    const retired = { ...natureSet, setKey: 'retired-topic', title: 'Retired topic', subject: 'Biology' };
-    const remaining = { ...natureSet, setKey: 'remaining-topic', title: 'Remaining topic', subject: 'Biology' };
-    let finishRefresh!: () => void;
-    const refreshing = new Promise<void>((resolve) => {
-      finishRefresh = resolve;
-    });
-    let requests = 0;
-    await page.setViewportSize({ width: 1280, height: 800 });
-    await page.route('**/api/v1/auth/session', (route) => route.fulfill({ json: { signedIn: true } }));
-    await page.route('**/api/v1/me', (route) => route.fulfill({ json: { username: 'catalog_learner' } }));
-    await mockReviewers(page, [retired, remaining]);
-    await page.route('**/api/v1/public-sets?published=true*', async (route) => {
-      if (++requests === 1) return route.fulfill({ json: [retired, remaining] });
-      await refreshing;
-      return route.fulfill({ json: [remaining] });
-    });
-    await page.route('**/api/v1/public-sets/retired-topic', (route) => route.fulfill({ json: retired }));
-    const start = Date.now();
-    await page.clock.setFixedTime(start);
-    await page.goto('/published?subject=Biology');
-    const retiredLink = page.getByRole('link', { name: 'Open Retired topic' });
-    await retiredLink.click();
-    await expect(page.getByRole('heading', { name: 'Retired topic', exact: true })).toBeVisible();
-    await page.clock.setFixedTime(start + 61_000);
-    await page.getByRole('button', { name: 'Back', exact: true }).click();
+for (const layout of ['desktop grid', 'desktop stack', 'phone stack'] as const) {
+  for (const moveFocus of [false, true]) {
+    test(`retiring a restored topic in ${layout} keeps focus usable (focus moved: ${moveFocus})`, async ({ page }) => {
+      const retired = { ...natureSet, setKey: 'retired-topic', title: 'Retired topic', subject: 'Biology' };
+      const remaining = { ...natureSet, setKey: 'remaining-topic', title: 'Remaining topic', subject: 'Biology' };
+      let finishRefresh!: () => void;
+      const refreshing = new Promise<void>((resolve) => {
+        finishRefresh = resolve;
+      });
+      let requests = 0;
+      await page.setViewportSize({ width: layout === 'phone stack' ? 390 : 1280, height: 844 });
+      await page.route('**/api/v1/auth/session', (route) => route.fulfill({ json: { signedIn: true } }));
+      await page.route('**/api/v1/me', (route) => route.fulfill({ json: { username: 'catalog_learner' } }));
+      await mockReviewers(page, [retired, remaining]);
+      await page.route('**/api/v1/public-sets?published=true*', async (route) => {
+        if (++requests === 1) return route.fulfill({ json: [retired, remaining] });
+        await refreshing;
+        return route.fulfill({ json: [remaining] });
+      });
+      await page.route('**/api/v1/public-sets/retired-topic', (route) => route.fulfill({ json: retired }));
+      const start = Date.now();
+      await page.clock.setFixedTime(start);
+      const view = layout === 'desktop stack' ? '&view=stack' : '';
+      await page.goto(`/published?subject=Biology${view}`);
+      const topics = page.getByRole(layout === 'desktop grid' ? 'list' : 'region', { name: 'Topics' });
+      const retiredLink = topics.getByRole('link', { name: 'Open Retired topic' });
+      await retiredLink.click();
+      await expect(page.getByRole('heading', { name: 'Retired topic', exact: true })).toBeVisible();
+      await page.clock.setFixedTime(start + 61_000);
+      await page.getByRole('button', { name: 'Back', exact: true }).click();
 
-    const search = page.getByRole('searchbox', { name: 'Search topics' });
-    try {
-      await expect(retiredLink).toBeFocused();
-      if (moveFocus) await search.focus();
-    } finally {
-      finishRefresh();
-    }
-    await expect(retiredLink).toHaveCount(0);
-    await expect(moveFocus ? search : page.getByRole('link', { name: 'Open Remaining topic' })).toBeFocused();
-  });
+      const search = page.getByRole('searchbox', { name: 'Search topics' });
+      try {
+        await expect(retiredLink).toBeFocused();
+        if (moveFocus) await search.focus();
+      } finally {
+        finishRefresh();
+      }
+      await expect(retiredLink).toHaveCount(0);
+      await expect(moveFocus ? search : topics.getByRole('link', { name: 'Open Remaining topic' })).toBeFocused();
+    });
+  }
 }
 
 test('the subject stack reaches every subject and counts topics only on the front card', async ({ page }) => {
