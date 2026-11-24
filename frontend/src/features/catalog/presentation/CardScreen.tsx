@@ -84,7 +84,8 @@ export function CardScreen({
       onCancel={(event) => {
         // React passes a nested dialog's cancel up to this one; a delete confirmation handles its own Escape.
         event.preventDefault();
-        if (event.target === event.currentTarget) onBack();
+        const formIsSaving = event.currentTarget.querySelector('form[aria-busy="true"]') !== null;
+        if (event.target === event.currentTarget && !formIsSaving) onBack();
       }}
       className="m-0 h-dvh max-h-none w-full max-w-none bg-page p-0 text-ink backdrop:bg-transparent open:flex open:flex-col"
     >

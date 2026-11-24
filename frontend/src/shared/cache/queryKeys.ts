@@ -8,11 +8,13 @@ export const libraryKeys = {
   membership: (setId: string) => ['library', 'membership', setId] as const,
 };
 
-const deckCardPages = (username: string, deckId: string) => ['decks', username, 'cards', deckId] as const;
+const allDeckCardPages = (username: string) => ['decks', username, 'cards'] as const;
+const deckCardPages = (username: string, deckId: string) => [...allDeckCardPages(username), deckId] as const;
 
 export const deckKeys = {
   all: ['decks'] as const,
   list: (username: string) => ['decks', username, 'list'] as const,
+  allCardPages: allDeckCardPages,
   cardPages: deckCardPages,
   cardPage: (username: string, deckId: string, query: { after?: string; search?: string; dueOnly?: boolean }) =>
     [...deckCardPages(username, deckId), query.search, query.dueOnly ?? false, query.after] as const,

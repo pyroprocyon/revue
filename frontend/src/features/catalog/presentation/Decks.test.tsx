@@ -40,8 +40,11 @@ function api({
   caughtUpUntil = null as string | null,
   initialTitle = 'Biology quiz',
   oldCardPages = false,
+  newCardsLeftToday = 10,
+  allowanceUnknown = false,
 } = {}) {
   let deckTitle: string | null = initialTitle;
+  let leftToday = newCardsLeftToday;
   let archived = paused;
   let stored = [...cards];
   const writes: Write[] = [];
@@ -67,6 +70,7 @@ function api({
         const progress = {
           dueCards: dueIds.length,
           newCards: archived || caughtUpUntil ? 0 : stored.length - dueIds.length,
+          newCardsLeftToday: allowanceUnknown ? undefined : leftToday,
           nextReviewDate: caughtUpUntil,
         };
         const items = dueOnly ? stored.filter((card) => dueIds.includes(card.id)) : stored;
@@ -122,6 +126,9 @@ function api({
     removeDeck() {
       deckTitle = null;
     },
+    setNewCardsLeftToday(left: number) {
+      leftToday = left;
+    },
   };
 }
 
@@ -143,8 +150,57 @@ function wideLayout() {
   );
 }
 
+/** fireEvent would also change a locked field, which a learner can't type into. */
+/** jsdom has no layout. The list starts phone-sized and widen() reports a tablet-or-wider list, like a turned phone. */
+function resizableLayout() {
+  const watched = new Map<object, { report: ResizeObserverCallback; target: Element }>();
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      readonly report: ResizeObserverCallback;
+      constructor(report: ResizeObserverCallback) {
+        this.report = report;
+      }
+      observe(target: Element) {
+        watched.set(this, { report: this.report, target });
+      }
+      unobserve() {}
+      disconnect() {
+        watched.delete(this);
+      }
+    },
+  );
+  return {
+    widen: () =>
+      act(() => {
+        for (const { report, target } of watched.values()) {
+          report([{ target, contentRect: { width: 1000 } } as unknown as ResizeObserverEntry], {} as never);
+        }
+      }),
+  };
+}
+
+function firstWriteHeld(answer: () => Response, later: () => Response = answer) {
+  const held: { release?: () => void } = {};
+  let writes = 0;
+  const failWrite = () => {
+    writes += 1;
+    if (writes > 1) return Promise.resolve(later());
+    return new Promise<Response>((resolve) => {
+      held.release = () => resolve(answer());
+    });
+  };
+  return { held, failWrite };
+}
+
+function isLocked(label: string) {
+  return screen.getByLabelText(label).matches(':disabled');
+}
+
 function type(label: string, text: string) {
-  fireEvent.change(screen.getByLabelText(label), { target: { value: text } });
+  const field = screen.getByLabelText(label);
+  expect(field.matches(':disabled'), `${label} is locked`).toBe(false);
+  fireEvent.change(field, { target: { value: text } });
 }
 
 /** The older server's token names no learner and it has no deck routes. An unverifiable one can't answer for its token. */
@@ -165,6 +221,11 @@ function serverThatRollsBack(fetcher: ReturnType<typeof api>['fetcher']) {
 
 function editorRecovery() {
   return screen.getByText(/^Revue changed while this page was open, so this wasn’t sent/).parentElement!;
+}
+
+async function openNewCard() {
+  fireEvent.click(await screen.findByRole('button', { name: 'Add card' }));
+  await screen.findByRole('heading', { name: 'New card' });
 }
 
 function steps() {
@@ -260,6 +321,56 @@ describe('personal decks', () => {
     expect(screen.queryByRole('group', { name: 'Show cards' })).toBeNull();
   });
 
+  it('shows how many of today’s 10 new cards are left in a pill beside the card count', async () => {
+    api({ cards: [osmosis], newCardsLeftToday: 3 });
+    renderApp(deckPage);
+
+    expect(await screen.findByText('3 of 10 new left today')).toBeDefined();
+    expect(screen.getByRole('link', { name: 'Start review' })).toBeDefined();
+  });
+
+  it('replaces Start with Add card once today’s new cards are used', async () => {
+    api({ cards: [osmosis], newCardsLeftToday: 0 });
+    renderApp(deckPage);
+
+    expect(await screen.findByText('New cards tomorrow')).toBeDefined();
+    expect(screen.queryByRole('link', { name: /Review|Start/ })).toBeNull();
+    expect(screen.getAllByRole('button', { name: 'Add card' })).toHaveLength(1);
+  });
+
+  it('keeps Start and hides the count when an older server leaves the allowance out', async () => {
+    api({ cards: [osmosis], allowanceUnknown: true });
+    renderApp(deckPage);
+
+    expect(await screen.findByRole('link', { name: 'Start review' })).toBeDefined();
+    expect(screen.queryByText(/new left today|New cards tomorrow/)).toBeNull();
+  });
+
+  it('refreshes an open deck when the study day changes at Manila midnight', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true, now: new Date('2026-11-20T15:59:50Z') });
+    try {
+      const server = api({ cards: [osmosis], newCardsLeftToday: 0 });
+      renderApp(deckPage);
+      expect(await screen.findByText('New cards tomorrow')).toBeDefined();
+      server.setNewCardsLeftToday(10);
+      await act(() => vi.advanceTimersByTimeAsync(11_000));
+      expect(await screen.findByText('10 of 10 new left today')).toBeDefined();
+      expect(screen.getByRole('link', { name: 'Start review' })).toBeDefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('offers a way back to Library from the top of a deck page', async () => {
+    api({ cards: [osmosis] });
+    renderApp(deckPage);
+    await screen.findByRole('heading', { name: 'Biology quiz', level: 1 });
+
+    fireEvent.click(within(screen.getByRole('banner')).getByRole('link', { name: 'Back to Library' }));
+    expect(await screen.findByRole('heading', { name: 'Library', level: 1 })).toBeDefined();
+    expect(within(screen.getByRole('banner')).queryByRole('link', { name: 'Back to Library' })).toBeNull();
+  });
+
   it('keeps an unsaved editor when a background refresh removes its card from the results', async () => {
     wideLayout();
     const { replaceCards, writes } = api({ cards: [osmosis] });
@@ -300,7 +411,7 @@ describe('personal decks', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     fireEvent.click(screen.getByRole('button', { name: 'Discard changes' }));
     await waitFor(() => expect(screen.queryByLabelText('Answer')).toBeNull());
-    expect(screen.getByRole('link', { name: 'Back to Library' })).toBeDefined();
+    expect(within(screen.getByRole('main')).getByRole('link', { name: 'Back to Library' })).toBeDefined();
   });
 
   it('keeps one draft at a time and asks before switching to another card', async () => {
@@ -470,6 +581,9 @@ describe('personal decks', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Create' }));
     expect(await screen.findByRole('heading', { name: 'Chemistry finals', level: 1 })).toBeDefined();
     expect(await screen.findByRole('heading', { name: 'New card' })).toBeDefined();
+    expect(
+      within(screen.getByRole('dialog', { name: 'New card' })).getByRole('button', { name: 'Save card' }),
+    ).toBeDefined();
     expect(steps()).toEqual([
       ['Deck, done', null],
       ['Cards', 'step'],
@@ -554,15 +668,250 @@ describe('personal decks', () => {
     expect(router.state.location.pathname).toBe('/today');
   });
 
+  it('shows an empty deck’s page with Add card on later visits instead of opening the form', async () => {
+    api();
+    renderApp(deckPage);
+
+    expect(await screen.findByRole('heading', { name: 'Biology quiz', level: 1 })).toBeDefined();
+    expect(screen.queryByRole('heading', { name: 'New card' })).toBeNull();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Add card' })).toBeDefined();
+  });
+
+  it('opens the first card only once after Create, not again when the learner comes back', async () => {
+    api();
+    const { router } = renderApp('/library/decks/new');
+    await screen.findByLabelText('Name');
+    type('Name', 'Chemistry finals');
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+    const editor = await screen.findByRole('dialog', { name: 'New card' });
+    await waitFor(() => expect(router.state.location.state).not.toMatchObject({ createdDeck: true }));
+    fireEvent.click(within(editor).getByRole('button', { name: 'Done' }));
+    await act(() => router.navigate('/library'));
+    await act(() => router.navigate(-1));
+
+    expect(await screen.findByRole('heading', { name: 'Chemistry finals', level: 1 })).toBeDefined();
+    expect(screen.queryByRole('dialog', { name: 'New card' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Add card' })).toBeDefined();
+  });
+
+  it('leaves the first card closed when a search is cleared after Done', async () => {
+    api();
+    const { router } = renderApp('/library/decks/new');
+    await screen.findByLabelText('Name');
+    type('Name', 'Chemistry finals');
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+    fireEvent.click(
+      within(await screen.findByRole('dialog', { name: 'New card' })).getByRole('button', { name: 'Done' }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Search cards' }));
+    fireEvent.change(await screen.findByRole('searchbox', { name: 'Search cards' }), { target: { value: 'osmosis' } });
+    await waitFor(() => expect(router.state.location.search).toBe('?q=osmosis'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Clear card search' }));
+
+    await waitFor(() => expect(router.state.location.search).toBe(''));
+    expect(screen.getByRole('heading', { name: 'Chemistry finals', level: 1 })).toBeDefined();
+    expect(screen.queryByRole('dialog', { name: 'New card' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'New card' })).toBeNull();
+  });
+
+  it('keeps the phone card editor open when Escape arrives during a save', async () => {
+    let release!: () => void;
+    api({
+      failWrite: () =>
+        new Promise<Response>((resolve) => {
+          release = () => resolve(jsonResponse(201, { ...osmosis, id: '40' }));
+        }),
+    });
+    renderApp(deckPage);
+    await openNewCard();
+    type('Question', 'What is osmosis?');
+    type('Answer', 'Water crossing a membrane.');
+    fireEvent.click(screen.getByRole('button', { name: 'Save card' }));
+    const editor = screen.getByRole('dialog', { name: 'New card' });
+    await waitFor(() => expect(release).toBeDefined());
+    fireEvent(editor, new Event('cancel', { cancelable: true }));
+
+    expect(screen.queryByRole('dialog', { name: 'Discard your changes?' })).toBeNull();
+    expect(editor).toHaveProperty('open', true);
+    await act(async () => release());
+    expect(await screen.findByText('Card added.')).toBeDefined();
+  });
+
+  it('locks a card form opened during an earlier save, then leaves it empty for the next card', async () => {
+    wideLayout();
+    const { held, failWrite } = firstWriteHeld(() =>
+      jsonResponse(201, { ...osmosis, id: '40', question: 'First question' }),
+    );
+    api({ cards: [osmosis], failWrite });
+    renderApp(deckPage);
+    fireEvent.click(await screen.findByRole('button', { name: 'Add card' }));
+    type('Question', 'First question');
+    type('Answer', 'First answer');
+    fireEvent.click(screen.getByRole('button', { name: 'Save card' }));
+    await waitFor(() => expect(held.release).toBeDefined());
+    fireEvent.click(screen.getByRole('button', { name: /What is osmosis\?/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Discard changes' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add card' }));
+    expect(screen.getByRole('button', { name: 'Saving…' })).toBeDefined();
+    expect(isLocked('Question')).toBe(true);
+
+    await act(async () => held.release!());
+    await waitFor(() => expect(isLocked('Question')).toBe(false));
+    expect(screen.queryByText('Card added.')).toBeNull();
+    type('Question', 'Second question');
+    expect(screen.getByLabelText('Question')).toHaveProperty('value', 'Second question');
+  });
+
+  it('keeps an edit locked through its save when the phone screen widens into the side pane', async () => {
+    const layout = resizableLayout();
+    const { held, failWrite } = firstWriteHeld(() =>
+      jsonResponse(200, { ...osmosis, answer: 'First correction', contentVersion: 2 }),
+    );
+    api({ cards: [osmosis], failWrite });
+    renderApp(deckPage);
+    fireEvent.click(await screen.findByRole('button', { name: /What is osmosis\?/ }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Edit card' }));
+    type('Answer', 'First correction');
+    fireEvent.click(screen.getByRole('button', { name: 'Save card' }));
+    await waitFor(() => expect(held.release).toBeDefined());
+    await layout.widen();
+
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByRole('heading', { name: 'Edit card' })).toBeDefined();
+    expect(isLocked('Answer')).toBe(true);
+    await act(async () => held.release!());
+    expect(await screen.findByText('Card saved.')).toBeDefined();
+    expect(screen.queryByRole('heading', { name: 'Edit card' })).toBeNull();
+  });
+
+  it('keeps an editor reopened during an earlier save of the same card and shows it the saved version', async () => {
+    wideLayout();
+    const saved = { ...osmosis, answer: 'First correction', contentVersion: 2 };
+    const { held, failWrite } = firstWriteHeld(
+      () => jsonResponse(200, saved),
+      () => jsonResponse(200, { ...saved, answer: 'Second correction', contentVersion: 3 }),
+    );
+    const { fetcher } = api({
+      cards: [osmosis, { ...osmosis, id: '32', question: 'Second question' }],
+      failWrite,
+      failRefresh: true,
+    });
+    renderApp(deckPage);
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit card' }));
+    type('Answer', 'First correction');
+    fireEvent.click(screen.getByRole('button', { name: 'Save card' }));
+    await waitFor(() => expect(held.release).toBeDefined());
+    fireEvent.click(screen.getByRole('button', { name: /Second question/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Discard changes' }));
+    fireEvent.click(screen.getByRole('button', { name: /What is osmosis\?/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Edit card' }));
+    expect(isLocked('Answer')).toBe(true);
+
+    await act(async () => held.release!());
+    await waitFor(() => expect(isLocked('Answer')).toBe(false));
+    expect(screen.getByLabelText('Answer')).toHaveProperty('value', 'First correction');
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('dialog', { name: 'Discard your changes?' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Edit card' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit card' }));
+    type('Answer', 'Second correction');
+    fireEvent.click(screen.getByRole('button', { name: 'Save card' }));
+    expect(await screen.findByText('Card saved.')).toBeDefined();
+    const versions = fetcher.mock.calls
+      .filter(([, init]) => init?.method === 'PATCH')
+      .map(([, init]) => new Headers(init?.headers).get('X-Content-Version'));
+    expect(versions).toEqual(['1', '2']);
+  });
+
+  it('keeps a newer card loaded before an earlier save responds', async () => {
+    wideLayout();
+    const saved = { ...osmosis, answer: 'First correction', contentVersion: 2 };
+    const newer = { ...osmosis, answer: 'Correction from another tab', contentVersion: 3 };
+    const { held, failWrite } = firstWriteHeld(
+      () => jsonResponse(200, saved),
+      () => jsonResponse(200, { ...newer, answer: 'Final correction', contentVersion: 4 }),
+    );
+    const { replaceCards, fetcher } = api({ cards: [osmosis], failWrite });
+    const { router } = renderApp(deckPage);
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit card' }));
+    type('Answer', saved.answer);
+    fireEvent.click(screen.getByRole('button', { name: 'Save card' }));
+    await waitFor(() => expect(held.release).toBeDefined());
+    fireEvent.click(screen.getByRole('button', { name: 'Deck settings' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Discard changes' }));
+
+    replaceCards([newer]);
+    await act(() => router.navigate(deckPage + '?q=osmosis'));
+    await screen.findByText(newer.answer);
+    fireEvent.click(screen.getByRole('button', { name: 'Edit card' }));
+    expect(screen.getByLabelText('Answer')).toHaveProperty('value', newer.answer);
+    await act(async () => held.release!());
+    await waitFor(() => expect(isLocked('Answer')).toBe(false));
+    expect(screen.getByLabelText('Answer')).toHaveProperty('value', newer.answer);
+    type('Answer', 'Final correction');
+    fireEvent.click(screen.getByRole('button', { name: 'Save card' }));
+    await waitFor(() => expect(screen.queryByLabelText('Answer')).toBeNull());
+    const lastPatch = fetcher.mock.calls.filter(([, init]) => init?.method === 'PATCH').at(-1);
+    expect(new Headers(lastPatch?.[1]?.headers).get('X-Content-Version')).toBe('3');
+  });
+
+  it('shows a failed card save only in the form that sent it', async () => {
+    wideLayout();
+    const { held, failWrite } = firstWriteHeld(() => jsonResponse(409, { reason: 'STALE_CARD' }));
+    api({ cards: [osmosis, { ...osmosis, id: '32', question: 'Second question' }], failWrite });
+    renderApp(deckPage);
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit card' }));
+    type('Answer', 'A correction');
+    fireEvent.click(screen.getByRole('button', { name: 'Save card' }));
+    await waitFor(() => expect(held.release).toBeDefined());
+    fireEvent.click(screen.getByRole('button', { name: /Second question/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Discard changes' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Edit card' }));
+
+    await act(async () => held.release!());
+    await waitFor(() => expect(isLocked('Question')).toBe(false));
+    expect(screen.getByLabelText('Question')).toHaveProperty('value', 'Second question');
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('shows a failed new card save only in the form that sent it', async () => {
+    wideLayout();
+    const { held, failWrite } = firstWriteHeld(() => jsonResponse(409, { reason: 'CARD_LIMIT' }));
+    api({ cards: [osmosis], failWrite });
+    renderApp(deckPage);
+    fireEvent.click(await screen.findByRole('button', { name: 'Add card' }));
+    type('Question', 'First question');
+    type('Answer', 'First answer');
+    fireEvent.click(screen.getByRole('button', { name: 'Save card' }));
+    await waitFor(() => expect(held.release).toBeDefined());
+    fireEvent.click(screen.getByRole('button', { name: /What is osmosis\?/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Discard changes' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add card' }));
+
+    await act(async () => held.release!());
+    await waitFor(() => expect(isLocked('Question')).toBe(false));
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('writes the first card of a wide deck page inline, without the phone screen', async () => {
+    wideLayout();
+    api();
+    renderApp(deckPage);
+    await openNewCard();
+
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Save card' }).textContent).toBe('Save card');
+  });
+
   it('sends exactly the typed card, confirms it and clears the form for the next card', async () => {
     const { writes } = api();
     renderApp(deckPage);
-    await screen.findByRole('heading', { name: 'New card' });
+    await openNewCard();
     expect(screen.queryByRole('list', { name: 'Steps' })).toBeNull();
     expect(screen.getByText('0 cards')).toBeDefined();
     type('Question', 'What is diffusion?');
     type('Answer', 'Particles spreading out.');
-    fireEvent.click(screen.getByText('Optional details'));
     type('Source', 'Handout 3');
     fireEvent.click(screen.getByRole('button', { name: 'Save card' }));
     expect(await screen.findByText('Card added.')).toBeDefined();
@@ -586,7 +935,7 @@ describe('personal decks', () => {
   it('guides answers toward one idea and points long ones to Explanation near the 500-character limit', async () => {
     api();
     renderApp(deckPage);
-    await screen.findByRole('heading', { name: 'New card' });
+    await openNewCard();
     const answer = screen.getByLabelText('Answer');
     const description = () =>
       (answer.getAttribute('aria-describedby') ?? '')
@@ -604,7 +953,7 @@ describe('personal decks', () => {
   it('keeps the typed card and does not claim a save when the result is unknown', async () => {
     api({ failWrite: () => Promise.reject(new TypeError('connection lost')) });
     renderApp(deckPage);
-    await screen.findByRole('heading', { name: 'New card' });
+    await openNewCard();
     type('Question', 'What is diffusion?');
     type('Answer', 'Particles spreading out.');
     fireEvent.click(screen.getByRole('button', { name: 'Save card' }));
@@ -625,7 +974,7 @@ describe('personal decks', () => {
         : respond(path, init),
     );
     renderApp(deckPage);
-    await screen.findByRole('heading', { name: 'New card' });
+    await openNewCard();
     type('Question', 'What is diffusion?');
     type('Answer', 'Particles spreading out.');
     fireEvent.click(screen.getByRole('button', { name: 'Save card' }));
@@ -645,7 +994,7 @@ describe('personal decks', () => {
     const server = serverThatRollsBack(fetcher);
     const cardsSent = () => fetcher.mock.calls.filter(([, init]) => init?.method === 'POST').length;
     renderApp(deckPage);
-    await screen.findByRole('heading', { name: 'New card' });
+    await openNewCard();
     type('Question', 'What is diffusion?');
     type('Answer', 'Particles spreading out.');
     fireEvent.input(screen.getByLabelText('Answer'));
@@ -669,7 +1018,7 @@ describe('personal decks', () => {
     const { fetcher } = api();
     const server = serverThatRollsBack(fetcher);
     renderApp(deckPage);
-    await screen.findByRole('heading', { name: 'New card' });
+    await openNewCard();
     type('Question', 'What is diffusion?');
     type('Answer', 'Particles spreading out.');
     fireEvent.input(screen.getByLabelText('Answer'));
@@ -712,7 +1061,7 @@ describe('personal decks', () => {
     const server = serverThatRollsBack(fetcher);
     const cardsSent = () => fetcher.mock.calls.filter(([, init]) => init?.method === 'POST').length;
     renderApp(deckPage);
-    await screen.findByRole('heading', { name: 'New card' });
+    await openNewCard();
     server.state = 'older';
     type('Question', 'What is diffusion?');
     type('Answer', 'Particles spreading out.');
@@ -731,7 +1080,7 @@ describe('personal decks', () => {
   it('explains the account card limit', async () => {
     api({ failWrite: async () => jsonResponse(409, { reason: 'CARD_LIMIT' }) });
     renderApp(deckPage);
-    await screen.findByRole('heading', { name: 'New card' });
+    await openNewCard();
     type('Question', 'Question');
     type('Answer', 'Answer');
     fireEvent.click(screen.getByRole('button', { name: 'Save card' }));
@@ -889,6 +1238,7 @@ describe('personal decks', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Deck settings' }));
     expect(screen.getByText(/Removes 1\scard and their review progress/)).toBeDefined();
+    expect(screen.getByText('This can’t be undone.')).toBeDefined();
     fireEvent.click(screen.getByRole('button', { name: 'Delete deck' }));
     const dialog = screen.getByRole('dialog', { name: 'Delete deck?' });
     expect(within(dialog).getByText(/permanently removes 1\scard and their review progress/)).toBeDefined();

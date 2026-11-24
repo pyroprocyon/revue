@@ -17,6 +17,7 @@ import com.revue.reviews.domain.CardText;
 import com.revue.reviews.domain.DeckTitle;
 import jakarta.servlet.http.Cookie;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.HashMap;
@@ -401,6 +402,39 @@ class DeckHttpTests {
         var onNextDate = body(owner.send(get("/api/v1/cards/due")));
         assertThat(onNextDate.get("dueCards").asInt()).isPositive();
         assertThat(onNextDate.get("newCards").asInt()).isEqualTo(1);
+    }
+
+    @Test
+    void deckPagesReportTheDailyNewCardAllowanceSharedByAllDecks() throws Exception {
+        var owner = new Browser();
+        String studiedDeck = owner.createDeck("Studied deck") + "/cards";
+        String otherDeck = owner.createDeck("Other deck") + "/cards";
+        for (int number = 1; number <= 10; number++) {
+            owner.send(post(studiedDeck), card("Question " + number, "Answer " + number));
+        }
+        owner.send(post(otherDeck), card("Untouched question", "Answer"));
+        assertThat(newCardsLeftToday(owner, otherDeck)).isEqualTo(10);
+        owner.send(get("/api/v1/cards/due"));
+
+        var studied = jdbc.queryForList("""
+            select c.id from cards c join decks d on d.id = c.deck_id
+            where d.owner_id = ? and d.title = 'Studied deck' order by c.id
+            """, Long.class, owner.id);
+        assertThat(owner.rate(studied.getFirst(), "GOOD").getResponse().getStatus()).isEqualTo(200);
+        assertThat(newCardsLeftToday(owner, otherDeck)).isEqualTo(9);
+        for (long cardId : studied.subList(1, 10)) {
+            assertThat(owner.rate(cardId, "GOOD").getResponse().getStatus()).isEqualTo(200);
+        }
+        var atLimit = body(owner.send(get(otherDeck))).get("progress");
+        assertThat(atLimit.get("newCardsLeftToday").asInt()).isZero();
+        assertThat(atLimit.get("newCards").asInt()).isEqualTo(1);
+
+        now.set(now.get().plus(Duration.ofDays(1)));
+        assertThat(newCardsLeftToday(owner, otherDeck)).isEqualTo(10);
+    }
+
+    private int newCardsLeftToday(Browser learner, String cardsPath) throws Exception {
+        return body(learner.send(get(cardsPath))).get("progress").get("newCardsLeftToday").asInt();
     }
 
     @Test

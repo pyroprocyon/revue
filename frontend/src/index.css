@@ -119,6 +119,8 @@
   grid-row: 1;
 }
 
+.workspace-back { display: none; }
+
 .workspace-content {
   min-width: 0;
   padding: 1.5rem max(var(--spacing-compact-gutter), env(safe-area-inset-right)) max(2rem, env(safe-area-inset-bottom)) max(var(--spacing-compact-gutter), env(safe-area-inset-left));
@@ -138,11 +140,22 @@
   .workspace-chrome { display: contents; }
 
   .workspace-brand,
+  .workspace-back,
   .workspace-help {
     grid-row: 1;
     align-self: center;
     margin-top: max(0.75rem, env(safe-area-inset-top));
     margin-bottom: 1rem;
+  }
+
+  .workspace-brand-replaced-by-back,
+  .workspace-page-back { display: none; }
+
+  .workspace-back {
+    display: inline-flex;
+    grid-column: 1;
+    justify-self: start;
+    margin-left: calc(max(var(--spacing-compact-gutter), env(safe-area-inset-left)) - 0.5rem);
   }
 
   .workspace-brand {

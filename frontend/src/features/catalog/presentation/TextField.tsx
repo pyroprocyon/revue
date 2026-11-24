@@ -62,7 +62,7 @@ export function TextField({
           {growWithText && (
             <span
               aria-hidden="true"
-              data-text={value + '\u200b'}
+              data-text={(value || placeholder || '') + '\u200b'}
               className={`${controlStyle} invisible col-start-1 row-start-1 whitespace-pre-wrap wrap-anywhere after:content-[attr(data-text)]`}
             />
           )}

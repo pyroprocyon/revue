@@ -16,7 +16,13 @@ export type CardDraft = {
   source: string;
 };
 /** The learner's review state for a deck. A paused deck has nothing due or new and no next date. */
-export type DeckProgress = { dueCards: number; newCards: number; nextReviewDate: string | null };
+export type DeckProgress = {
+  dueCards: number;
+  newCards: number;
+  /** Missing while an older server answers, for example during a rollback, so the allowance is unknown. */
+  newCardsLeftToday?: number;
+  nextReviewDate: string | null;
+};
 export type DeckCardPage = {
   deck: Deck;
   progress: DeckProgress;

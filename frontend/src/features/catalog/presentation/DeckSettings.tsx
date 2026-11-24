@@ -1,4 +1,4 @@
-import { Pause, Play, Trash2, X } from 'lucide-react';
+import { Pause, Play, Trash2, TriangleAlert, X } from 'lucide-react';
 import type { Ref } from 'react';
 import { useNavigate } from 'react-router';
 import type { Deck } from '../application/decks';
@@ -118,7 +118,11 @@ export function DeckSettings({
       </div>
       <div className="mt-7 border-t border-line pt-5">
         <h3 className="text-label font-bold">Delete deck</h3>
-        <p className="mt-1 text-support text-muted">Removes {removes}. This can’t be undone.</p>
+        <p className="mt-1 text-support text-muted">Removes {removes}.</p>
+        <p className="mt-2 flex items-center gap-1.5 text-support font-bold text-missed">
+          <TriangleAlert aria-hidden="true" className="size-[1.125em] shrink-0" />
+          This can’t be undone.
+        </p>
         <div className="mt-3">
           <ConfirmDelete
             triggerLabel="Delete deck"

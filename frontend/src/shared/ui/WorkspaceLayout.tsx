@@ -1,10 +1,11 @@
-import type { ReactNode } from 'react';
+import type { MouseEvent, ReactNode } from 'react';
 import { CircleHelp, House, LibraryBig, UserRound } from 'lucide-react';
 import { NavLink, useMatch } from 'react-router';
 import { ACCOUNT_PATH, DECK_ROUTE, HELP_PATH, LIBRARY_PATH, NEW_DECK_PATH, TODAY_PATH } from '../navigation/paths';
 import { OPENED_FROM_WORKSPACE } from '../navigation/routeState';
 import { HomeLink } from './HeaderLinks';
 import { SkipToContent } from './LayoutParts';
+import { NavigationLink } from './NavigationLink';
 
 type WorkspaceLayoutProps = {
   children: ReactNode;
@@ -31,35 +32,37 @@ export function WorkspaceLayout({
   const today = useMatch(TODAY_PATH);
   const deck = useMatch(DECK_ROUTE);
   const newDeck = useMatch(NEW_DECK_PATH);
-  const desktopWidth = today || (deck && !newDeck) ? '@min-[64rem]/workspace:max-w-wide' : '';
+  const onDeckPage = deck !== null && newDeck === null;
+  const desktopWidth = today || onDeckPage ? '@min-[64rem]/workspace:max-w-wide' : '';
+  const openAfterCheck = (to: string) => (event: MouseEvent<HTMLAnchorElement>) => {
+    if (!onTabWhileChecking || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
+      return;
+    event.preventDefault();
+    onTabWhileChecking(to);
+  };
   return (
     <div className="workspace-container">
       <SkipToContent />
       <div className="workspace-layout">
         <header className="workspace-chrome workspace-header-gutters">
-          <div className="workspace-brand">
+          <div className={onDeckPage ? 'workspace-brand workspace-brand-replaced-by-back' : 'workspace-brand'}>
             <HomeLink to={TODAY_PATH} compact />
           </div>
+          {onDeckPage && (
+            <NavigationLink
+              to={LIBRARY_PATH}
+              back
+              aria-label="Back to Library"
+              className="workspace-back text-label"
+              inert={navigationDisabled}
+              onClick={openAfterCheck(LIBRARY_PATH)}
+            >
+              Library
+            </NavigationLink>
+          )}
           <nav aria-label="Your workspace" className="workspace-navigation" inert={navigationDisabled}>
             {destinations.map(({ to, label, icon: Icon }) => (
-              <NavLink
-                key={to}
-                to={to}
-                className={navigationLink}
-                onClick={(event) => {
-                  if (
-                    !onTabWhileChecking ||
-                    event.button !== 0 ||
-                    event.metaKey ||
-                    event.ctrlKey ||
-                    event.shiftKey ||
-                    event.altKey
-                  )
-                    return;
-                  event.preventDefault();
-                  onTabWhileChecking(to);
-                }}
-              >
+              <NavLink key={to} to={to} className={navigationLink} onClick={openAfterCheck(to)}>
                 <Icon aria-hidden="true" className="size-5 shrink-0" />
                 <span>{label}</span>
               </NavLink>

@@ -4,6 +4,7 @@ import { jsonResponse, renderApp } from '../../../test/renderApp';
 import type { RatingRequest, StudyQueue } from '../application/reviews';
 import { lastConfirmedProfile } from '../../account/presentation/confirmedProfile';
 import { focusManager } from '@tanstack/react-query';
+import { deckKeys } from '../../../shared/cache/queryKeys';
 
 const card = {
   id: '23',
@@ -282,6 +283,16 @@ describe('saved daily study', () => {
       expect(screen.queryByRole('region', { name: 'Up next' })).toBeNull();
     },
   );
+
+  it('marks deck pages stale when a rating settles, so a deck read before it refreshes', async () => {
+    api(ready);
+    const { queryClient } = renderApp('/review/set-1/start');
+    await screen.findByRole('button', { name: 'Show answer' });
+    const deckPage = deckKeys.cardPage('learner', '7', {});
+    queryClient.setQueryData(deckPage, { pages: [], pageParams: [] });
+    await rateTheOnlyCard();
+    await waitFor(() => expect(queryClient.getQueryState(deckPage)?.isInvalidated).toBe(true));
+  });
 
   it('replaces an unfinished Today read when the rating settles and ignores its late response', async () => {
     let finish: (() => void) | undefined;

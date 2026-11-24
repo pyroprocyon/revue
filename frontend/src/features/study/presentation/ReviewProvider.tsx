@@ -2,8 +2,8 @@ import { createContext, useContext, useId, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useOutletContext } from 'react-router';
 import { ReviewFailure, type RatingRequest, type ReviewGateway, type ReviewSelection } from '../application/reviews';
-import { REVIEW_TIME_ZONE, REVIEW_TIME_ZONE_OFFSET } from '../../../shared/product/studyRules';
-import { pendingLoginKey, reviewKeys } from '../../../shared/cache/queryKeys';
+import { untilNextStudyDay } from '../../../shared/product/studyRules';
+import { deckKeys, pendingLoginKey, reviewKeys } from '../../../shared/cache/queryKeys';
 
 const ReviewContext = createContext<ReviewGateway | null>(null);
 export function ReviewProvider({ gateway, children }: Readonly<{ gateway: ReviewGateway; children: ReactNode }>) {
@@ -13,20 +13,6 @@ export function useReviewGateway() {
   const gateway = useContext(ReviewContext);
   if (!gateway) throw new Error('ReviewProvider is missing');
   return gateway;
-}
-
-const manilaDate = new Intl.DateTimeFormat('en-CA', {
-  timeZone: REVIEW_TIME_ZONE,
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-});
-
-function untilNextStudyDay() {
-  const now = new Date();
-  const midnight = new Date(`${manilaDate.format(now)}T00:00:00${REVIEW_TIME_ZONE_OFFSET}`);
-  midnight.setUTCDate(midnight.getUTCDate() + 1);
-  return midnight.getTime() - now.getTime();
 }
 
 function todayKey(username: string, selection?: ReviewSelection, pausedTopic?: string) {
@@ -71,20 +57,22 @@ export function useTodayOverview(pausedTopic: string | null) {
   };
 }
 
-/** Refreshes Today after a sent rating settles, including when the learner already left the batch. */
+/** Refreshes Today and deck progress after a sent rating settles, including when the learner already left the batch. */
 export function useSubmitRating() {
   const gateway = useReviewGateway();
   const queryClient = useQueryClient();
   const { username } = useOutletContext<{ username: string }>();
   return async (cardId: string, input: RatingRequest) => {
     const today = { queryKey: reviewKeys.today(username) };
+    const deckPages = { queryKey: deckKeys.allCardPages(username) };
     queryClient.removeQueries(today);
     try {
       return await gateway.rate(cardId, input);
     } finally {
-      // A visit to Today may have started a read before this rating committed.
-      await queryClient.cancelQueries(today);
+      // A visit to Today or a deck may have started a read before this rating committed.
+      await Promise.all([queryClient.cancelQueries(today), queryClient.cancelQueries(deckPages)]);
       void queryClient.invalidateQueries(today);
+      void queryClient.invalidateQueries(deckPages);
     }
   };
 }

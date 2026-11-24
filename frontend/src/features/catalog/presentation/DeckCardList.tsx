@@ -31,7 +31,8 @@ function moveSelection(event: KeyboardEvent<HTMLButtonElement>) {
   const current = rows.indexOf(event.currentTarget);
   event.preventDefault();
   const next = rows[move(current, rows.length - 1)];
-  next.focus();
+  next.focus({ preventScroll: true });
+  next.scrollIntoView({ block: 'nearest' });
   next.click();
 }
 
@@ -107,7 +108,7 @@ function CardRow({ card, due, dotColumn, wide, selected, tabStop, keysHintId, on
       aria-haspopup={wide ? undefined : 'dialog'}
       onClick={() => onOpen(card)}
       onKeyDown={wide ? moveSelection : undefined}
-      className={`group pressable relative my-0.5 grid min-h-[48px] w-full items-center gap-3 rounded-[calc(var(--radius-card)-0.25rem)] py-3 pr-2 pl-3.5 text-left aria-pressed:bg-accent-soft aria-pressed:before:absolute aria-pressed:before:inset-y-3 aria-pressed:before:left-0 aria-pressed:before:w-[3px] aria-pressed:before:rounded-full aria-pressed:before:bg-accent @max-[20rem]/cards:grid-cols-1 @max-[20rem]/cards:pr-3.5 ${wide ? 'grid-cols-1' : 'grid-cols-[minmax(0,1fr)_auto]'}`}
+      className={`group pressable relative my-0.5 grid min-h-[48px] w-full scroll-mt-[calc(var(--deck-toolbar-bottom,0px)_+_0.5rem)] items-center gap-3 rounded-[calc(var(--radius-card)-0.25rem)] py-3 pr-2 pl-3.5 text-left aria-pressed:bg-accent-soft aria-pressed:before:absolute aria-pressed:before:inset-y-3 aria-pressed:before:left-0 aria-pressed:before:w-[3px] aria-pressed:before:rounded-full aria-pressed:before:bg-accent @max-[20rem]/cards:grid-cols-1 @max-[20rem]/cards:pr-3.5 ${wide ? 'grid-cols-1' : 'grid-cols-[minmax(0,1fr)_auto]'}`}
     >
       <span className={`grid min-w-0 gap-x-2 ${dotColumn ? 'grid-cols-[0.5rem_minmax(0,1fr)]' : 'grid-cols-1'}`}>
         {dotColumn && (

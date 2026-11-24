@@ -107,17 +107,20 @@ test('a learner creates a private deck, starts its first review from the deck an
   await page.getByRole('link', { name: 'Create a deck', exact: true }).click();
   await page.getByLabel('Name', { exact: true }).fill('Biology quiz');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Biology quiz', level: 1 })).toBeVisible();
+  const editor = page.getByRole('dialog', { name: 'New card' });
+  await expect(editor).toBeVisible();
   await expect(page.getByRole('heading', { name: 'New card', exact: true })).toBeFocused();
   const save = page.getByRole('button', { name: 'Save card', exact: true });
   const tabs = page.getByRole('navigation', { name: 'Your workspace' });
+  await expect(save).toBeInViewport({ ratio: 1 });
   const saveBox = (await save.boundingBox())!;
-  expect(saveBox.y + saveBox.height).toBeLessThanOrEqual((await tabs.boundingBox())!.y);
-  await expect(page.getByLabel('Tip to remember', { exact: true })).toBeHidden();
-  await page.getByText('Optional details', { exact: true }).click();
+  const doneBox = (await editor.getByRole('button', { name: 'Done', exact: true }).boundingBox())!;
+  expect(Math.abs(saveBox.width - doneBox.width)).toBeLessThanOrEqual(1);
+  expect(saveBox.y).toBe(doneBox.y);
   await page.getByLabel('Tip to remember', { exact: true }).fill('Think of water crossing a membrane.');
   await page.getByText('Optional details', { exact: true }).click();
   await expect(page.getByLabel('Tip to remember', { exact: true })).toBeHidden();
+  await expect(page.getByLabel('Source', { exact: true })).toBeVisible();
   await page.setViewportSize({ width: 375, height: 360 });
   await expect(tabs).toHaveCSS('position', 'static');
   await page.setViewportSize({ width: 375, height: 667 });
@@ -138,11 +141,9 @@ test('a learner creates a private deck, starts its first review from the deck an
   expect(sheetEdit.y + sheetEdit.height).toBeLessThanOrEqual(667);
   await sheet.getByRole('button', { name: 'Edit card', exact: true }).click();
   await expect(sheet).toBeHidden();
-  await expect(page.getByLabel('Tip to remember', { exact: true })).toBeHidden();
+  await expect(page.getByLabel('Tip to remember', { exact: true })).toHaveValue('Think of water crossing a membrane.');
   const editSave = (await save.boundingBox())!;
   expect(editSave.y + editSave.height).toBeLessThanOrEqual((await tabs.boundingBox())!.y);
-  await page.getByText('Optional details', { exact: true }).click();
-  await expect(page.getByLabel('Tip to remember', { exact: true })).toHaveValue('Think of water crossing a membrane.');
   await page.getByRole('button', { name: 'Cancel', exact: true }).click();
   await page.getByRole('button', { name: 'Back to cards', exact: true }).click();
   const deckUrl = page.url();
@@ -176,9 +177,24 @@ test('a learner creates a private deck, starts its first review from the deck an
   await otherPage.goto(deckUrl);
   await expect(otherPage.getByRole('alert')).toHaveText('This deck isn’t in your Library.');
   await expect(otherPage.getByText('What is osmosis?')).toHaveCount(0);
-  await otherPage.getByRole('link', { name: 'Back to Library', exact: true }).click();
+  await otherPage.getByRole('main').getByRole('link', { name: 'Back to Library', exact: true }).click();
   await expect(otherPage.getByRole('link', { name: 'Open Biology quiz', exact: true })).toHaveCount(0);
   await otherLearner.close();
+});
+
+test('the desktop first-card step keeps the steps and the way back in view', async ({ page, pilot }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await signup(page, pilot.signupUrl);
+  await page.getByRole('link', { name: 'Create a deck', exact: true }).click();
+  await page.getByLabel('Name', { exact: true }).fill('Desktop deck');
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'New card', exact: true })).toBeFocused();
+  await expect(page.getByRole('dialog', { name: 'New card' })).toHaveCount(0);
+  await expect(page.getByRole('list', { name: 'Steps' })).toBeInViewport({ ratio: 1 });
+  await expect(page.getByRole('main').getByRole('link', { name: 'Back to Library', exact: true })).toBeInViewport({
+    ratio: 1,
+  });
+  await expect(page.getByRole('heading', { name: 'Desktop deck', level: 1 })).toBeInViewport({ ratio: 1 });
 });
 
 test('cards can be corrected and deleted by keyboard, and deleting a deck empties Today', async ({ page, pilot }) => {
@@ -504,7 +520,6 @@ test('phone card fields fit the draft while writing and when reopening a card', 
   const emptyHeight = await answer.evaluate((field) => field.clientHeight);
   await answer.fill(longAnswer);
   expect(await answer.evaluate((field) => field.clientHeight)).toBeGreaterThan(emptyHeight);
-  await page.getByText('Optional details', { exact: true }).click();
   await explanation.fill('One collection cycle.\n'.repeat(12));
   for (const field of [answer, explanation]) {
     expect(await field.evaluate((element) => element.scrollHeight - element.clientHeight)).toBeLessThanOrEqual(1);
@@ -587,18 +602,22 @@ test('unsaved card text survives cancelled navigation, Back, reload and closing 
   await dialog.getByRole('button', { name: 'Keep editing' }).click();
   await expect(page.getByLabel('Name', { exact: true })).toHaveValue('Draft checks');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'New card', exact: true })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'New card' })).toBeVisible();
   await expect(dialog).toHaveCount(0);
   const deckUrl = page.url();
   await page.getByLabel('Question', { exact: true }).fill('Keep this draft');
   await page.getByLabel('Answer', { exact: true }).fill('Until I save it');
+  await page.screenshot({ path: info.outputPath('unsaved-phone.png'), fullPage: true });
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await expect(page.getByRole('dialog', { name: 'New card' })).toHaveCount(0);
   await page.getByRole('link', { name: 'Today', exact: true }).click();
   await expect(dialog).toBeVisible();
-  await page.screenshot({ path: info.outputPath('unsaved-phone.png'), fullPage: true });
   await dialog.getByRole('button', { name: 'Keep editing' }).click();
   await expect(page.getByRole('link', { name: 'Today', exact: true })).toBeFocused();
   await expect(page).toHaveURL(deckUrl);
   await expect(page.getByLabel('Question', { exact: true })).toHaveValue('Keep this draft');
+  await page.setViewportSize({ width: 360, height: 800 });
+  await expect(page.getByRole('dialog', { name: 'New card' })).toBeVisible();
   await page.goBack();
   await expect(dialog).toBeVisible();
   await dialog.getByRole('button', { name: 'Keep editing' }).click();
@@ -696,6 +715,7 @@ test('sign-in returns to the requested private deck or new-deck form', async ({ 
   await page.getByLabel('Name', { exact: true }).fill('Return to my deck');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'New card', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
   const deckPath = new URL(page.url()).pathname;
   for (const path of [deckPath, '/library/decks/new']) {
     await page.getByRole('link', { name: 'Account', exact: true }).click();
@@ -964,6 +984,24 @@ test('adjacent deck strips remain tappable when the phone text size changes', as
   }
 });
 
+/** The page scrolls smoothly unless reduced motion is on, so positions are read once it has been still for a while. */
+async function scrollingStopped(page: Page) {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        let last = window.scrollY;
+        let stillFrames = 0;
+        const check = () => {
+          stillFrames = window.scrollY === last ? stillFrames + 1 : 0;
+          last = window.scrollY;
+          if (stillFrames >= 10) resolve();
+          else requestAnimationFrame(check);
+        };
+        requestAnimationFrame(check);
+      }),
+  );
+}
+
 test('deck lists append cards on phones and page by keyboard on wide screens', async ({ page, pilot }) => {
   await signup(page, pilot.signupUrl);
   const csrf = await (await page.request.get('/api/v1/auth/csrf')).json();
@@ -993,6 +1031,47 @@ test('deck lists append cards on phones and page by keyboard on wide screens', a
   const settings = page.getByRole('button', { name: 'Deck settings', exact: true });
   await expect(cards.getByRole('listitem')).toHaveCount(20);
   const more = page.getByRole('button', { name: 'Show more cards' });
+  const backInHeader = page.getByRole('banner').getByRole('link', { name: 'Back to Library', exact: true });
+  const backInPage = page.getByRole('main').getByRole('link', { name: 'Back to Library', exact: true });
+  const title = page.getByRole('heading', { name: 'Pagination checks', level: 1 });
+  for (const [width, height] of [
+    [375, 667],
+    [1440, 900],
+  ] as const) {
+    await page.setViewportSize({ width, height });
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await expect(width < 640 ? backInHeader : backInPage).toBeInViewport({ ratio: 1 });
+    await expect(width < 640 ? backInPage : backInHeader).toHaveCount(0);
+    await page.evaluate(() => window.scrollTo(0, 900));
+    await expect(title).not.toBeInViewport();
+    const backAboveToolbar = backInPage.last();
+    await expect(backAboveToolbar).toBeInViewport({ ratio: 1 });
+    expect((await backAboveToolbar.boundingBox())!.y).toBeLessThan((await settings.boundingBox())!.y);
+  }
+  for (const [width, height] of [
+    [1440, 900],
+    [704, 800],
+  ] as const) {
+    await page.setViewportSize({ width, height });
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await cards.getByRole('button').first().focus();
+    await page.keyboard.press('End');
+    await scrollingStopped(page);
+    const toolbar = () => settings.evaluate((button) => button.parentElement!.getBoundingClientRect().toJSON());
+    const heldToolbar = await toolbar();
+    expect(await settings.evaluate((button) => button.parentElement!.hasAttribute('data-stuck'))).toBe(true);
+    if (width === 704) expect(heldToolbar.height, 'the toolbar wraps onto two rows').toBeGreaterThan(2 * 48);
+    const pane = (await page.getByRole('region', { name: 'Selected card' }).boundingBox())!;
+    expect(pane.y, `selected card pane at ${width}px`).toBeGreaterThanOrEqual(heldToolbar.bottom);
+    for (let row = 19; row >= 1; row -= 1) {
+      await page.keyboard.press('ArrowUp');
+      await scrollingStopped(page);
+      const focusedTop = await page.evaluate(() => document.activeElement!.getBoundingClientRect().top);
+      expect(focusedTop, `card ${row} at ${width}px`).toBeGreaterThanOrEqual((await toolbar()).bottom);
+    }
+    await page.keyboard.press('Home');
+  }
+  await page.evaluate(() => window.scrollTo(0, 0));
 
   for (const [width, height, scale] of [
     [1440, 900, 100],
@@ -1085,6 +1164,15 @@ test('deck lists append cards on phones and page by keyboard on wide screens', a
   await expect(page).toHaveURL(new RegExp(`/library/decks/${id}$`));
   await expect(cards.getByRole('listitem')).toHaveCount(20);
   await expect(cards.getByText('Question 1', { exact: true })).toBeVisible();
+
+  await page.setViewportSize({ width: 704, height: 320 });
+  await page.getByRole('button', { name: 'Edit card', exact: true }).click();
+  await page.getByLabel('Answer', { exact: true }).fill('Answer saved from a short window');
+  await page.setViewportSize({ width: 704, height: 180 });
+  await page.getByRole('button', { name: 'Save card', exact: true }).click();
+  await expect(
+    page.getByRole('region', { name: 'Selected card' }).getByText('Answer saved from a short window'),
+  ).toBeVisible();
 });
 
 test('search finds cards beyond the current page and keeps result pages scoped to the term', async ({
