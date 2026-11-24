@@ -49,7 +49,7 @@ export function SavedSets({
   const term = params.get('q') ?? '';
   const groupSets = (sets ?? []).filter((set) => Boolean(set.reviewsPaused) === (group === 'paused'));
   const matches = loading ? [] : groupSets.filter((set) => set.title.toLowerCase().includes(term.trim().toLowerCase()));
-  const showStatus = group === 'paused' || (counts?.paused ?? 0) > 0;
+  const showStatus = group === 'paused' || sets === undefined || (counts?.paused ?? 0) > 0;
   const selected = params.get('set');
   const showing = detail?.id ?? null;
   useEffect(() => {

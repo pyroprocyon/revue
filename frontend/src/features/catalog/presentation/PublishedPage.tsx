@@ -42,7 +42,7 @@ export function PublishedPage() {
   const requestedSubject = params.get('subject') ?? '';
   const stack = params.get('view') === 'stack';
   const [lastOpenedSubject, setLastOpenedSubject] = useState(requestedSubject);
-  const restoredPosition = useRef<CatalogPosition | null>(null);
+  const restoredTopic = useRef<{ position: CatalogPosition; link: HTMLAnchorElement } | null>(null);
   const searchInput = useRef<HTMLInputElement>(null);
   const catalogPosition = queryClient.getQueryData<CatalogPosition>(positionKey);
   const returning = navigationType === 'POP' && catalogPosition?.locationKey === location.key;
@@ -63,8 +63,15 @@ export function PublishedPage() {
 
   const restoreTopic = useCallback(
     (link: HTMLAnchorElement) => {
-      if (!catalogPosition || restoredPosition.current === catalogPosition) return;
-      restoredPosition.current = catalogPosition;
+      if (!catalogPosition) return;
+      const previous = restoredTopic.current;
+      if (
+        previous?.position === catalogPosition &&
+        (previous.link.isConnected || document.activeElement !== document.body)
+      ) {
+        return;
+      }
+      restoredTopic.current = { position: catalogPosition, link };
       const top = link.dataset.libraryDeck === catalogPosition.setKey ? catalogPosition.scrollY : 0;
       window.scrollTo({ top, behavior: 'instant' });
       if (interactionsPaused) requestFocus(link);

@@ -674,6 +674,34 @@ test('Saved reviewers status starts a new page and preserves search', async ({ p
   await expect(page.getByRole('button', { name: 'Previous', exact: true })).toHaveCount(0);
 });
 
+test('a failed Active shelf keeps the Saved status switch available', async ({ page, pilot }) => {
+  await register(page, pilot.signupUrl);
+  await page.route(savedSetsPath, (route) => {
+    if (new URL(route.request().url()).searchParams.get('paused') !== 'true') {
+      return route.fulfill({ status: 503 });
+    }
+    return route.fulfill({
+      json: {
+        items: [{ id: '1', title: 'Paused reviewer', setKey: 'philippine-history', cardCount: 5, reviewsPaused: true }],
+        nextCursor: null,
+        counts: { active: 1, paused: 1 },
+      },
+    });
+  });
+
+  await page.goto('/library?shelf=saved&setStatus=paused');
+  const pausedReviewer = page.getByRole('link', { name: 'Open Paused reviewer' });
+  await expect(pausedReviewer).toBeVisible();
+  await page.getByRole('button', { name: 'Review status: Paused' }).click();
+  await page.getByRole('button', { name: 'Active 1', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Retry saved reviewers' })).toBeVisible();
+  const activeStatus = page.getByRole('button', { name: 'Review status: Active' });
+  await expect(activeStatus).toBeFocused();
+  await activeStatus.press('Enter');
+  await page.getByRole('button', { name: 'Paused', exact: true }).press('Enter');
+  await expect(pausedReviewer).toBeVisible();
+});
+
 test('Library preserves its page through a preview and offers Previous after a failed read', async ({
   page,
   pilot,
