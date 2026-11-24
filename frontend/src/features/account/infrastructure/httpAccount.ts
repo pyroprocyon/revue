@@ -49,8 +49,8 @@ async function postForProfile(path: string, values: Record<string, string>): Pro
 
 export const httpAccount: AccountGateway = {
   prepareWrite: prepareCsrfToken,
-  async signedIn() {
-    const response = await sameOriginRequest('/api/v1/auth/session');
+  async signedIn(signal) {
+    const response = await sameOriginRequest('/api/v1/auth/session', { signal });
     if (!response.ok) throw new Error(SESSION_CHECK_FAILED);
     const status = (await response.json()) as { signedIn?: unknown } | null;
     if (typeof status?.signedIn !== 'boolean') throw new Error(SESSION_CHECK_FAILED);

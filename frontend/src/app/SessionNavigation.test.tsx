@@ -36,6 +36,35 @@ function pendingSession() {
 }
 
 describe('session-dependent navigation', () => {
+  it('aborts an in-flight public session check when another tab changes the session', async () => {
+    let firstSignal: AbortSignal | null | undefined;
+    let requests = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (path: string, init?: RequestInit) => {
+        if (path !== '/api/v1/auth/session') return jsonResponse(404);
+        requests++;
+        if (requests > 1) return jsonResponse(200, { signedIn: true });
+        firstSignal = init?.signal;
+        return new Promise<Response>((_, reject) => {
+          firstSignal?.addEventListener('abort', () => reject(firstSignal?.reason), { once: true });
+        });
+      }),
+    );
+    renderApp('/privacy');
+    await waitFor(() => expect(requests).toBe(1));
+    expect(firstSignal?.aborted).toBe(false);
+
+    await act(async () => {
+      localStorage.setItem('revue.session-revision', 'other-tab-signed-in');
+      window.dispatchEvent(new StorageEvent('storage', { key: 'revue.session-revision' }));
+    });
+
+    expect(await screen.findByRole('link', { name: 'Back to Today' })).toBeDefined();
+    expect(requests).toBe(2);
+    expect(firstSignal?.aborted).toBe(true);
+  });
+
   it('opens sign-in after one account check and rechecks after another tab signs in', async () => {
     let signedIn = false;
     const fetcher = vi.fn(async (path: string) => {
