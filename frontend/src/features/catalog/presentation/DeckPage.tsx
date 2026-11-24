@@ -8,11 +8,12 @@ import {
   useId,
   useRef,
   useState,
+  type CSSProperties,
   type ReactNode,
   type Ref,
   type RefObject,
 } from 'react';
-import { Navigate, useLocation, useOutletContext, useParams, useSearchParams } from 'react-router';
+import { Navigate, useLocation, useNavigate, useOutletContext, useParams, useSearchParams } from 'react-router';
 import type { AccountProfile } from '../../account/application/account';
 import { DeckFailure, type CardDraft, type Deck, type DeckCard, type DeckProgress } from '../application/decks';
 import { CardForm, draftOf } from './CardForm';
@@ -182,16 +183,28 @@ function DeckLoadFeedback({
   );
 }
 
-/** At most one card form is open: a new card or one card's edit. Its text lives here, so it survives moving. */
+/**
+ * At most one card form is open: a new card or one card's edit. Its text and save live here, so they survive moving
+ * between the phone screen and the side pane. A save can answer after its form closed and another opened, so each
+ * opening has its own id and a save finishes only the form that sent it.
+ */
 type CardFormState =
-  { kind: 'add'; draft: CardDraft; requestId: string } | { kind: 'edit'; card: DeckCard; draft: CardDraft } | null;
+  | { kind: 'add'; draft: CardDraft; requestId: string }
+  | { kind: 'edit'; card: DeckCard; draft: CardDraft; openingId: string }
+  | null;
+type EditForm = Extract<CardFormState, { kind: 'edit' }>;
 type FocusTarget = 'add' | 'edit' | 'results' | 'settings' | 'settingsHeading' | 'study' | { row: string };
-type CardChangeHandler = (cardId: string, edited?: DeckCard) => Promise<void>;
 
 const newCardForm = () => ({ kind: 'add' as const, draft: draftOf(), requestId: crypto.randomUUID() });
+const editCardForm = (card: DeckCard): EditForm => ({
+  kind: 'edit',
+  card,
+  draft: draftOf(card),
+  openingId: crypto.randomUUID(),
+});
 
-const firstCardForm = (deck: Deck, term: string): CardFormState =>
-  deck.cardCount === 0 && !deck.archived && !term ? newCardForm() : null;
+const firstCardForm = (deck: Deck, term: string, justCreated: boolean): CardFormState =>
+  justCreated && deck.cardCount === 0 && !deck.archived && !term ? newCardForm() : null;
 
 function emptyMessage(items: DeckCard[] | undefined, term: string, paginated: boolean, dueOnly: boolean) {
   if (items?.length !== 0 || !(term || paginated || dueOnly)) return null;
@@ -238,21 +251,26 @@ function DeckContent({
   moreCards,
 }: Readonly<DeckContentProps>) {
   const addWrite = useDeckWrite();
+  const editWrite = useDeckWrite();
   const archiveWrite = useDeckWrite();
   const gateway = useDeckGateway();
   const client = useQueryClient();
   const guard = useDeckDraftGuard();
   const requestFocus = useContext(FocusRequestContext);
-  const [panes, wide] = useTwoPanes();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [panes, wide, panesMeasured] = useTwoPanes();
+  const [openedRightAfterCreate] = useState(justCreated);
   const [notice, setNotice] = useState<string | null>(null);
-  const [form, setForm] = useState<CardFormState>(() => firstCardForm(deck, term));
+  const [form, setForm] = useState<CardFormState>(() => firstCardForm(deck, term, openedRightAfterCreate));
   const [cardsAdded, setCardsAdded] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [titleDraft, setTitleDraft] = useState(deck.title);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sheetCard, setSheetCard] = useState<DeckCard | null>(null);
   const [lastView, setLastView] = useState(view);
-  const [firstCardFormOpensOnEntry] = useState(() => firstCardForm(deck, term) !== null);
+  const [toolbarBottom, setToolbarBottom] = useState<number | null>(null);
+  const [firstCardFormOpensOnEntry] = useState(() => firstCardForm(deck, term, openedRightAfterCreate) !== null);
   const settingsId = useId();
   const addButton = useRef<HTMLButtonElement>(null);
   const startLink = useRef<HTMLAnchorElement>(null);
@@ -261,6 +279,7 @@ function DeckContent({
   const settingsButton = useRef<HTMLButtonElement>(null);
   const settingsHeading = useRef<HTMLHeadingElement>(null);
   const pendingFocus = useRef<FocusTarget | null>(null);
+  const openForm = useRef<CardFormState>(form);
   const { listed, editing, cards, selected, firstCard, showDeckTools } = deckView({
     deck,
     unavailable,
@@ -269,9 +288,20 @@ function DeckContent({
     selectedId,
   });
 
+  useEffect(() => {
+    openForm.current = form;
+  });
+
+  // Back, Forward and reload must not open the first card again, so the page keeps the flag and the entry drops it.
+  useEffect(() => {
+    if (routeState(location).createdDeck) {
+      void navigate(location, { replace: true, state: { ...routeState(location), createdDeck: undefined } });
+    }
+  }, [location, navigate]);
+
   if (lastView !== view) {
     setLastView(view);
-    setForm(firstCardForm(deck, term));
+    setForm(null);
     setCardsAdded(0);
     setSettingsOpen(false);
     setNotice(null);
@@ -303,6 +333,11 @@ function DeckContent({
   });
 
   const updateDraft = useCallback((draft: CardDraft) => setForm((current) => current && { ...current, draft }), []);
+
+  function stillOpen(opening: string) {
+    const current = openForm.current;
+    return (current?.kind === 'add' ? current.requestId : current?.openingId) === opening;
+  }
 
   /**
    * Replaces what the side pane or phone screen shows (a card form or Deck settings), asking first when it
@@ -382,7 +417,8 @@ function DeckContent({
     replaceForm(() => {
       setNotice(null);
       setSelectedId(card.id);
-      setForm({ kind: 'edit', card, draft: draftOf(card) });
+      editWrite.clearProblem();
+      setForm(editCardForm(card));
     });
   }
 
@@ -391,7 +427,27 @@ function DeckContent({
     setForm(null);
   }
 
-  function finishEdit(card: DeckCard, saved?: DeckCard) {
+  function saveEdit({ card, openingId }: EditForm, draft: CardDraft) {
+    void editWrite.run(
+      () => gateway.editCard(card.id, draft, card.contentVersion),
+      async (edited) => {
+        await applyCardChange(card.id, edited);
+        finishEdit(openingId, edited);
+      },
+      () => stillOpen(openingId),
+    );
+  }
+
+  function finishEdit(openingId: string, saved?: DeckCard) {
+    const current = openForm.current;
+    if (current?.kind !== 'edit') return;
+    if (current.openingId !== openingId) {
+      if (saved?.id === current.card.id && saved.contentVersion > current.card.contentVersion) {
+        setForm(editCardForm(saved));
+      }
+      return;
+    }
+    const { card } = current;
     if (saved && !matchesCardSearch(saved, term)) {
       const neighbor = cardAfterDeletion(listed, card.id);
       setSelectedId(neighbor);
@@ -443,15 +499,18 @@ function DeckContent({
       draft={form.draft}
       writeState={addWrite.state}
       onDraftChange={updateDraft}
-      onSave={(draft) =>
+      onSave={(draft) => {
+        const { requestId } = form;
         void addWrite.run(
-          () => gateway.addCard(deck.id, draft, form.requestId),
+          () => gateway.addCard(deck.id, draft, requestId),
           () => {
+            if (!stillOpen(requestId)) return;
             setCardsAdded((count) => count + 1);
             setForm(newCardForm());
           },
-        )
-      }
+          () => stillOpen(requestId),
+        );
+      }}
       onCancel={() => {
         setCardsAdded(0);
         closeForm('add');
@@ -459,13 +518,16 @@ function DeckContent({
     />
   );
   const editForm = form?.kind === 'edit' && (
-    <EditCard
-      key={form.card.id}
+    <CardForm
+      prepareWrite={gateway.prepareWrite}
+      key={form.openingId}
+      heading="Edit card"
       card={form.card}
       draft={form.draft}
+      writeState={editWrite.state}
       onDraftChange={updateDraft}
-      onChanged={applyCardChange}
-      onClose={(saved) => finishEdit(form.card, saved)}
+      onSave={(draft) => saveEdit(form, draft)}
+      onCancel={() => finishEdit(form.openingId)}
     />
   );
   const settings = settingsOpen && (
@@ -504,7 +566,7 @@ function DeckContent({
     <WorkspacePage
       title={unavailable ? 'Deck' : deck.title}
       focusHeading={!firstCardFormOpensOnEntry}
-      {...deckHeading(justCreated && firstCard, deck, progress)}
+      {...deckHeading(openedRightAfterCreate && firstCard, deck, progress)}
     >
       {showDeckTools && (
         <DeckToolbar
@@ -526,13 +588,15 @@ function DeckContent({
           }}
           settingsButton={settingsButton}
           pagination={wide && pagination}
+          stickyBottom={toolbarBottom}
+          onHeldBottomChange={setToolbarBottom}
         />
       )}
       <DeckNotice notice={notice} />
       {!settingsOpen && <DeckWriteProblem state={archiveWrite.state} />}
       {feedback}
       <DeckCards
-        layout={{ wide, firstCard, panes }}
+        layout={{ wide, firstCard, panes, measured: panesMeasured, toolbarBottom }}
         addForm={addForm}
         editForm={editForm}
         formLabel={form?.kind === 'add' ? 'New card' : 'Edit card'}
@@ -560,9 +624,29 @@ function DeckContent({
   );
 }
 
+const backToLibrary = (
+  <NavigationLink
+    to={LIBRARY_PATH}
+    back
+    aria-label="Back to Library"
+    className="workspace-page-back -mt-2 -ml-2 mb-1 text-label"
+  >
+    Library
+  </NavigationLink>
+);
+
 function deckHeading(firstCardAfterCreate: boolean, deck: Deck, progress: DeckProgress) {
-  if (firstCardAfterCreate) return { aboveTitle: <CreateDeckSteps current={2} /> };
-  return { subtitle: <DeckStatus deck={deck} progress={progress} /> };
+  if (firstCardAfterCreate) {
+    return {
+      aboveTitle: (
+        <>
+          {backToLibrary}
+          <CreateDeckSteps current={2} />
+        </>
+      ),
+    };
+  }
+  return { aboveTitle: backToLibrary, subtitle: <DeckStatus deck={deck} progress={progress} /> };
 }
 
 type DeckViewInput = {
@@ -619,7 +703,13 @@ function DeckNotice({ notice }: Readonly<{ notice: string | null }>) {
 
 type DeckCardsProps = {
   moreCards: ReactNode;
-  layout: { wide: boolean; firstCard: boolean; panes: (element: HTMLElement | null) => void };
+  layout: {
+    wide: boolean;
+    firstCard: boolean;
+    measured: boolean;
+    panes: (element: HTMLElement | null) => void;
+    toolbarBottom: number | null;
+  };
   addForm: ReactNode;
   editForm: ReactNode;
   formLabel: string;
@@ -642,7 +732,7 @@ type DeckCardsProps = {
 };
 
 function DeckCards({
-  layout: { wide, firstCard, panes },
+  layout: { wide, firstCard, measured, panes, toolbarBottom },
   moreCards,
   addForm,
   editForm,
@@ -657,11 +747,19 @@ function DeckCards({
   notice,
   back,
 }: Readonly<DeckCardsProps>) {
-  if (firstCard) return <div className="max-w-3xl">{addForm}</div>;
+  // The first card waits for the width check, so a desktop never opens the phone editor before switching.
+  if (firstCard && !measured) return <div ref={panes} />;
+  if (firstCard && wide) {
+    return (
+      <div ref={panes} className="max-w-3xl">
+        {addForm}
+      </div>
+    );
+  }
   const form = addForm || editForm;
   return (
     <>
-      <div ref={panes} className={wide ? twoPanes : onePane}>
+      <div ref={panes} className={wide ? twoPanes : onePane} style={belowToolbar(toolbarBottom)}>
         <DeckCardList
           cards={list.cards}
           dueIds={list.dueIds}
@@ -674,7 +772,14 @@ function DeckCards({
         />
         {moreCards}
         {wide && (
-          <CardPane form={form} settings={settings} settingsId={settingsId} card={selected} controls={controls} />
+          <CardPane
+            sticky={toolbarBottom !== null}
+            form={form}
+            settings={settings}
+            settingsId={settingsId}
+            card={selected}
+            controls={controls}
+          />
         )}
       </div>
       {!wide && (
@@ -778,6 +883,7 @@ function PhoneCardScreen({
 }
 
 type CardPaneProps = {
+  sticky: boolean;
   form: ReactNode;
   settings: ReactNode;
   settingsId: string;
@@ -785,17 +891,22 @@ type CardPaneProps = {
   controls: (card: DeckCard, questionId: string, place: ControlPlace) => CardControls;
 };
 
-const paneBelowStickyToolbar = 'sticky top-[4.5rem] max-h-[calc(100dvh-5.5rem)] min-w-0 overflow-y-auto';
+const belowToolbar = (toolbarBottom: number | null) =>
+  toolbarBottom === null ? undefined : ({ '--deck-toolbar-bottom': `${toolbarBottom}px` } as CSSProperties);
 
-function CardPane({ form, settings, settingsId, card, controls }: Readonly<CardPaneProps>) {
+const paneBelowStickyToolbar =
+  'sticky top-[calc(var(--deck-toolbar-bottom)_+_0.5rem)] max-h-[calc(100dvh_-_var(--deck-toolbar-bottom)_-_1.5rem)] min-w-0 overflow-y-auto';
+
+function CardPane({ sticky, form, settings, settingsId, card, controls }: Readonly<CardPaneProps>) {
+  const paneStyle = sticky ? paneBelowStickyToolbar : 'min-w-0';
   const questionId = useId();
-  if (form) return <div className={`${paneBelowStickyToolbar} -m-1 p-1`}>{form}</div>;
+  if (form) return <div className={`${paneStyle} -m-1 p-1`}>{form}</div>;
   if (settings) {
     return (
       <section
         id={settingsId}
         aria-label="Deck settings"
-        className={`${paneBelowStickyToolbar} rounded-card bg-surface p-5 shadow-card @min-[60rem]:px-8`}
+        className={`${paneStyle} rounded-card bg-surface p-5 shadow-card @min-[60rem]:px-8`}
       >
         {settings}
       </section>
@@ -804,7 +915,7 @@ function CardPane({ form, settings, settingsId, card, controls }: Readonly<CardP
   if (!card) return null;
   const { edit, remove } = controls(card, questionId, 'pane');
   return (
-    <section aria-label="Selected card" className={`${paneBelowStickyToolbar} rounded-card bg-surface shadow-card`}>
+    <section aria-label="Selected card" className={`${paneStyle} rounded-card bg-surface shadow-card`}>
       {/* Edit and Delete lead the pane, so they are on screen even when a long card runs past the fold. */}
       <div className="flex flex-wrap items-center gap-2 border-b border-line px-5 py-3 @min-[60rem]:px-8">
         {edit}
@@ -877,39 +988,6 @@ function DeleteCard({ card, questionId, place, onDeleted }: Readonly<DeleteCardP
           },
         )
       }
-    />
-  );
-}
-
-type EditCardProps = {
-  card: DeckCard;
-  draft: CardDraft;
-  onDraftChange: (draft: CardDraft) => void;
-  onChanged: CardChangeHandler;
-  onClose: (saved?: DeckCard) => void;
-};
-
-function EditCard({ card, draft, onDraftChange, onChanged, onClose }: Readonly<EditCardProps>) {
-  const gateway = useDeckGateway();
-  const write = useDeckWrite();
-  return (
-    <CardForm
-      prepareWrite={gateway.prepareWrite}
-      heading="Edit card"
-      card={card}
-      writeState={write.state}
-      draft={draft}
-      onDraftChange={onDraftChange}
-      onSave={(saved) =>
-        void write.run(
-          () => gateway.editCard(card.id, saved, card.contentVersion),
-          async (edited) => {
-            await onChanged(card.id, edited);
-            onClose(edited);
-          },
-        )
-      }
-      onCancel={() => onClose()}
     />
   );
 }

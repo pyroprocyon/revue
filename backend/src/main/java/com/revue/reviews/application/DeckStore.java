@@ -30,8 +30,11 @@ public interface DeckStore {
     record CardQuery(long afterCardId, int limit, String search, boolean dueOnly, LocalDate today) {
     }
 
-    /** The owner's review state for the deck. A paused deck has no due or new cards and no next date. */
-    record Progress(long dueCards, long newCards, @Nullable LocalDate nextReviewDate) {
+    /**
+     * The owner's review state for the deck. A paused deck has no due or new cards and no next date. New cards left
+     * today is the owner's daily allowance, shared by all their decks and sets.
+     */
+    record Progress(long dueCards, long newCards, long newCardsLeftToday, @Nullable LocalDate nextReviewDate) {
     }
 
     /** Deck metadata, review state and a bounded batch from the same read, with the batch's due cards. */

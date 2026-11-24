@@ -3,6 +3,7 @@ package com.revue.reviews.infrastructure.persistence;
 import com.revue.AfterCommit;
 import com.revue.reviews.application.DeckProblem;
 import com.revue.reviews.application.DeckStore;
+import com.revue.reviews.application.ReviewStore;
 import com.revue.reviews.domain.CardText;
 import com.revue.reviews.domain.DeckTitle;
 import java.sql.ResultSet;
@@ -210,7 +211,8 @@ public class JdbcDeckStore implements DeckStore {
             .addValue("after", query.afterCardId())
             .addValue("limit", query.limit())
             .addValue("dueOnly", query.dueOnly())
-            .addValue("today", query.today());
+            .addValue("today", query.today())
+            .addValue("newCardLimit", ReviewStore.DAILY_NEW_CARD_LIMIT);
         return named.query("""
             with owned_deck as materialized (
                 select d.id as deck_id, d.title, d.archived, lower(cast(:search as text)) as search_term,
@@ -229,13 +231,17 @@ public class JdbcDeckStore implements DeckStore {
                     min(next_review_date) filter (where version > 0 and next_review_date > cast(:today as date))
                         as next_review_date
                 from studied
+            ), allowance as (
+                select greatest(0, :newCardLimit - count(*)) as new_cards_left_today from review_logs
+                where user_id = :owner and local_review_date = cast(:today as date) and expected_schedule_version = 0
             )
             select d.deck_id, d.title, d.archived, d.card_count, p.due_cards,
-                case when d.archived then 0 else p.new_cards end as new_cards,
+                case when d.archived then 0 else p.new_cards end as new_cards, a.new_cards_left_today,
                 case when d.archived then null else p.next_review_date end as next_review_date,
                 c.id, c.question, c.answer, c.explanation, c.memory_hook, c.source, c.content_version, c.due
             from owned_deck d
             cross join progress p
+            cross join allowance a
             left join lateral (
                 select c.id, c.question, c.answer, c.explanation, c.memory_hook, c.source, c.content_version,
                     st.due
@@ -361,6 +367,7 @@ public class JdbcDeckStore implements DeckStore {
         Progress progress = new Progress(
             rows.getLong("due_cards"),
             rows.getLong("new_cards"),
+            rows.getLong("new_cards_left_today"),
             rows.getObject("next_review_date", LocalDate.class));
         List<Card> cards = new ArrayList<>();
         Set<String> due = new HashSet<>();

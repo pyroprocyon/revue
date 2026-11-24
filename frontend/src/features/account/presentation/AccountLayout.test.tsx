@@ -15,6 +15,7 @@ function setup(
   draft = false,
   current = vi.fn().mockResolvedValue({ username: 'first_student' }),
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+  initialPath = '/account',
 ) {
   const gateway: AccountGateway = {
     prepareWrite: vi.fn(),
@@ -27,10 +28,11 @@ function setup(
   const view = render(
     <QueryClientProvider client={client}>
       <AccountProvider gateway={gateway}>
-        <MemoryRouter initialEntries={['/account']}>
+        <MemoryRouter initialEntries={[initialPath]}>
           <Routes>
             <Route element={<AccountLayout />}>
               <Route path="/library" element={<h1>Library</h1>} />
+              <Route path="/library/decks/:deckId" element={<h1>Biology quiz</h1>} />
               <Route path="/account" element={draft ? <Draft /> : <AccountPage />} />
             </Route>
             <Route path="/sign-in" element={<h1>Sign in again</h1>} />
@@ -130,6 +132,28 @@ describe('signed-in layout', () => {
       await screen.findByRole('heading', { name: title });
     },
   );
+
+  it('opens the deck page’s way back only after a recheck confirms the same learner, like the Library tab', async () => {
+    const { gateway } = setup(false, undefined, undefined, '/library/decks/7');
+    await screen.findByRole('heading', { name: 'Biology quiz' });
+    const pending = deferredProfile();
+    vi.mocked(gateway.current).mockReturnValueOnce(pending.promise);
+    returnAfterWindowExpires();
+    fireEvent.click(within(screen.getByRole('banner')).getByRole('link', { name: 'Back to Library' }));
+    expect(screen.queryByRole('heading', { name: 'Library' })).toBeNull();
+    await act(async () => pending.resolve({ username: 'first_student' }));
+    await screen.findByRole('heading', { name: 'Library' });
+  });
+
+  it('pauses the deck page’s way back with the tabs after a failed session check', async () => {
+    const { gateway } = setup(false, undefined, undefined, '/library/decks/7');
+    await screen.findByRole('heading', { name: 'Biology quiz' });
+    vi.mocked(gateway.current).mockRejectedValueOnce(new Error('offline'));
+    returnAfterWindowExpires();
+    await screen.findByRole('alert');
+    const back = within(screen.getByRole('banner')).getByRole('link', { name: 'Back to Library' });
+    expect(back.closest('[inert]')).not.toBeNull();
+  });
 
   it('opens the tab tapped during the initial check without loading the original page', async () => {
     const pending = deferredProfile();

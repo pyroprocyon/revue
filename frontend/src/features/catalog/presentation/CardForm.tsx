@@ -11,6 +11,9 @@ import { TextField } from './TextField';
 import { primaryButton, secondaryButton } from '../../../shared/ui/buttonStyles';
 import { useFocusOnMount } from '../../../shared/ui/useFocusOnMount';
 
+const barButton =
+  'w-24 shrink-0 border @max-[21rem]/workspace:w-22 @max-[21rem]/workspace:px-2 @max-[17rem]/workspace:flex-1 @max-[17rem]/workspace:px-1';
+
 type CardFormProps = {
   heading: string;
   card?: DeckCard;
@@ -59,7 +62,11 @@ export function CardForm({
   const formId = useId();
   const form = useRef<HTMLFormElement>(null);
   useEffect(() => {
-    form.current?.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+    const element = form.current;
+    if (!element) return;
+    const { top } = element.getBoundingClientRect();
+    const topIsOnScreen = top >= 0 && top < window.innerHeight;
+    if (!topIsOnScreen) element.scrollIntoView({ block: 'nearest', behavior: 'instant' });
   }, []);
 
   function field(name: keyof CardDraft) {
@@ -109,7 +116,7 @@ export function CardForm({
                 type="button"
                 onClick={cancel}
                 disabled={saving}
-                className="pressable -ml-1 min-h-12 shrink-0 rounded-control px-2 text-label font-semibold text-accent"
+                className={`${secondaryButton} ${barButton} border-line shadow-none`}
               >
                 {card ? 'Cancel' : 'Done'}
               </button>
@@ -124,7 +131,7 @@ export function CardForm({
                 form={formId}
                 aria-label={saving ? undefined : 'Save card'}
                 disabled={saving}
-                className={`${primaryButton} ml-auto shrink-0 px-4 @max-[17rem]/workspace:px-2`}
+                className={`${primaryButton} ${barButton} border-transparent`}
               >
                 {saving ? 'Saving…' : 'Save'}
               </button>
@@ -143,17 +150,23 @@ export function CardForm({
             {...field('answer')}
           />
         </div>
-        <details className="group rounded-control bg-subtle">
-          <summary className="pressable flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 rounded-control px-3 py-2 text-label font-semibold text-accent [&::-webkit-details-marker]:hidden">
+        <TextField
+          label="Source"
+          note="Optional for your own cards"
+          placeholder="Book, page or link"
+          growWithText
+          rows={1}
+          optional
+          {...field('source')}
+        />
+        <details open className="group mt-1 border-t border-line pt-1">
+          <summary className="pressable -mx-2 flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 rounded-control px-2 text-label font-semibold text-accent [&::-webkit-details-marker]:hidden">
             Optional details
             <ChevronDown aria-hidden="true" className="size-4 shrink-0 group-open:rotate-180" />
           </summary>
-          <div className="grid min-w-0 gap-3 px-3 pb-3 sm:gap-4">
+          <div className="grid min-w-0 gap-2.5 pb-1 sm:gap-4">
             <TextField label="Explanation" growWithText rows={3} optional {...field('explanation')} />
-            <div className="grid min-w-0 gap-3 sm:gap-4 @min-[34rem]/card-form:grid-cols-2">
-              <TextField label="Tip to remember" optional {...field('memoryHook')} />
-              <TextField label="Source" optional {...field('source')} />
-            </div>
+            <TextField label="Tip to remember" optional {...field('memoryHook')} />
           </div>
         </details>
         {bar === null && <DeckWriteProblem state={writeState} />}

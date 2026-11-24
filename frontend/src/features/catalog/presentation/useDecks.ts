@@ -18,6 +18,7 @@ import {
 } from '../application/decks';
 import { useDeckGateway } from './DeckProvider';
 import { deckKeys, pendingLoginKey, reviewKeys } from '../../../shared/cache/queryKeys';
+import { untilNextStudyDay } from '../../../shared/product/studyRules';
 
 export function useDecks(username: string, enabled: boolean) {
   const gateway = useDeckGateway();
@@ -42,6 +43,7 @@ function useDeckCardOptions(username: string, deckId: string, query: DeckCardQue
     }),
     getNextPageParam: (last) => last.nextCursor ?? undefined,
     retry: false,
+    refetchInterval: untilNextStudyDay,
   });
 }
 
@@ -115,7 +117,11 @@ export function useDeckWrite() {
   const [state, setState] = useState<DeckWriteState>({ status: 'idle' });
   const busy = useRef(false);
 
-  async function run<T>(write: () => Promise<T>, onConfirmed: (result: T) => void | Promise<void>) {
+  async function run<T>(
+    write: () => Promise<T>,
+    onConfirmed: (result: T) => void | Promise<void>,
+    formStillOpen: () => boolean = () => true,
+  ) {
     if (busy.current) return;
     busy.current = true;
     setState({ status: 'saving' });
@@ -128,7 +134,9 @@ export function useDeckWrite() {
       const reason = error instanceof DeckFailure ? error.reason : 'unknown';
       if (reason === 'signed-out') client.clear();
       else refreshDecks();
-      setState({ status: 'failed', reason });
+      // Signing out still shows, because its problem sends the learner to sign in.
+      const shown = reason === 'signed-out' || formStillOpen();
+      setState(shown ? { status: 'failed', reason } : { status: 'idle' });
     } finally {
       busy.current = false;
     }
@@ -143,6 +151,6 @@ export function useDeckWrite() {
     state,
     saving: state.status === 'saving',
     run,
-    clearProblem: () => setState({ status: 'idle' }),
+    clearProblem: () => setState((current) => (current.status === 'saving' ? current : { status: 'idle' })),
   };
 }
