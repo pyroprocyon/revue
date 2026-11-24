@@ -35,7 +35,7 @@ export function ReviewDetail({ label, icon: Icon, children }: Readonly<ReviewDet
         onClick={() => dialog.current?.showModal()}
         className={detailButton}
       >
-        <Icon aria-hidden="true" className="size-4 shrink-0 short-phone:max-[23rem]:hidden" />
+        <Icon aria-hidden="true" className="size-4 shrink-0 short-phone:@max-[18.5rem]/review-details:hidden" />
         {label}
       </button>
       <dialog

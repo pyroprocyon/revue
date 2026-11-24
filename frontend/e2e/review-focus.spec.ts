@@ -50,6 +50,7 @@ test('optional review details open without moving the card and close when the se
       await page.emulateMedia({ reducedMotion: enlarged ? 'reduce' : 'no-preference' });
       await page.goto('/review/set-1');
       if (enlarged) await page.evaluate(() => (document.documentElement.style.fontSize = '200%'));
+      await page.getByText('Write an answer', { exact: false }).click();
       await page.getByRole('textbox', { name: 'Your answer (optional)' }).fill(draft);
       await expect(tip).toHaveCount(0);
       await page.getByRole('button', { name: 'Show answer' }).press('Enter');
@@ -67,6 +68,18 @@ test('optional review details open without moving the card and close when the se
           ratings.evaluate((element) => element.getBoundingClientRect().top + window.scrollY),
         ]);
       const layout = await cardLayout();
+      if (enlarged) {
+        const answer = page.getByRole('region', { name: 'Answer', exact: true });
+        await answer.evaluate((area) => {
+          window.scrollTo({ top: 0, behavior: 'instant' });
+          area.scrollTop = area.scrollHeight;
+        });
+        await answer.hover();
+        const easy = ratings.getByRole('button', { name: /^Easy:/ });
+        await expect(easy).not.toBeInViewport();
+        await page.mouse.wheel(0, height * 2);
+        await expect(easy).toBeInViewport();
+      }
       const placement = await page.evaluate(() => {
         const answerSide = document.querySelectorAll('[data-card-frame] > section')[1];
         const tipButton = [...answerSide.querySelectorAll('button')].find(
@@ -81,13 +94,13 @@ test('optional review details open without moving the card and close when the se
           tipButton,
         ].map((element) => element!.getBoundingClientRect());
         return {
-          answerOffCenter: Math.abs(answerBox.left + answerBox.width / 2 - (faceBox.left + faceBox.width / 2)),
+          answerInset: answerBox.left - faceBox.left,
           tipOffLabel: Math.abs(tipBox.left - labelBox.left),
           tipBelowAnswer: tipBox.top >= answerBox.bottom,
           tipHeight: tipBox.height,
         };
       });
-      expect(placement.answerOffCenter).toBeLessThanOrEqual(8);
+      expect(placement.answerInset).toBeGreaterThan(0);
       expect(placement.tipOffLabel).toBeLessThanOrEqual(1);
       expect(placement.tipBelowAnswer).toBe(true);
       expect(placement.tipHeight).toBeGreaterThanOrEqual(48);
@@ -251,6 +264,7 @@ test('worst-case cards keep ratings near, read as paragraphs and open at their s
   ] as const) {
     await page.setViewportSize({ width, height });
     await page.goto('/review/set-1');
+    await page.getByText('Write an answer', { exact: false }).click();
     await page.getByRole('textbox', { name: 'Your answer (optional)' }).fill(sentence.repeat(20));
     await page.getByRole('button', { name: 'Show answer' }).click();
     await expect(answerHeading).toBeFocused();
@@ -267,7 +281,7 @@ test('worst-case cards keep ratings near, read as paragraphs and open at their s
   await page.setViewportSize({ width: 320, height: 568 });
   await page.goto('/review/set-1');
   await page.evaluate(() => (document.documentElement.style.fontSize = '200%'));
-  await expect(page.locator('[data-card-frame]')).toHaveCSS('min-height', '256px');
+  await expect(page.locator('.review-card-frame')).toHaveCSS('height', '276px');
 });
 
 // Controlled API timing exercises browser focus and inert behavior in the production frontend.
@@ -362,16 +376,28 @@ for (const { cardCount, focusExit } of [
         window.dispatchEvent(new Event('focus'));
       });
       await sessionRequest;
-      await expect.poll(() => page.locator('h1').evaluate((element) => element.closest('[inert]') !== null)).toBe(true);
+      await expect
+        .poll(() =>
+          page
+            .locator('main h2')
+            .first()
+            .evaluate((element) => element.closest('[inert]') !== null),
+        )
+        .toBe(true);
       releaseRating();
       const heading = page.locator('h2').filter({ hasText: cardCount === 1 ? '1 card reviewed' : 'Second question' });
       await expect(heading).toBeVisible();
       await expect(heading).not.toBeFocused();
-      const exit = page.getByRole('link', { name: 'Revue', exact: true });
+      const exit = page.getByRole('link', { name: 'Finish for now', exact: true });
       if (focusExit) await exit.focus();
       releaseSession();
       await expect
-        .poll(() => page.locator('h1').evaluate((element) => element.closest('[inert]') !== null))
+        .poll(() =>
+          page
+            .locator('main h2')
+            .first()
+            .evaluate((element) => element.closest('[inert]') !== null),
+        )
         .toBe(false);
       await expect(focusExit ? exit : heading).toBeFocused();
       expect(queueReads).toBe(cardCount === 1 ? 3 : 1);

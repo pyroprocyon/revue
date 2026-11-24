@@ -67,6 +67,7 @@ export function AccountLayout({
   const learner = session.status === 'ready' ? session.profile.username : null;
   const pendingLogin = queryClient.getQueryData<string>(pendingLoginKey);
   const lastUsername = useRef(learner ?? pendingLogin);
+  const [reviewHeader, setReviewHeader] = useState<HTMLDivElement | null>(null);
   const privateContent = useRef<HTMLDivElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
   const pendingFocus = useRef<HTMLElement | null>(null);
@@ -290,7 +291,7 @@ export function AccountLayout({
           <InteractionPausedContext value={interactionsPaused}>
             <FocusRequestContext value={requestFocus}>
               <RouteErrorBoundary resetKey={location.pathname} fallback={<RouteErrorCard signedIn />}>
-                <Outlet key={session.profile.username} context={session.profile} />
+                <Outlet key={session.profile.username} context={{ ...session.profile, reviewHeader }} />
               </RouteErrorBoundary>
             </FocusRequestContext>
           </InteractionPausedContext>
@@ -299,7 +300,15 @@ export function AccountLayout({
     </>
   );
   return focused ? (
-    <StudyLayout top={<HomeLink to={TODAY_PATH} compact />} wide>
+    <StudyLayout
+      top={
+        <>
+          <div ref={setReviewHeader} className="active-review-header empty:hidden" />
+          <HomeLink to={TODAY_PATH} compact />
+        </>
+      }
+      wide
+    >
       <div className="pt-2 sm:pt-6">{content}</div>
     </StudyLayout>
   ) : (

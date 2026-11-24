@@ -293,6 +293,7 @@ describe('signed-in layout', () => {
   });
 
   it('preserves drafts through session checks and a failed check followed by retry', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(100_000);
     const { gateway } = setup(true);
     const input = await screen.findByRole<HTMLInputElement>('textbox', { name: 'Draft' });
     fireEvent.change(input, { target: { value: 'An unfinished question' } });
