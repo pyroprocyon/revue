@@ -1,6 +1,6 @@
 import { Lightbulb } from 'lucide-react';
 import { useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import { chip, primaryButton } from '../../../shared/ui/buttonStyles';
+import { primaryButton } from '../../../shared/ui/buttonStyles';
 import { CardSource } from '../../../shared/ui/CardSource';
 import { FocusRequestContext } from '../../../shared/ui/FocusRequestContext';
 
@@ -17,7 +17,7 @@ type FlashCardProps = {
   answerExtras?: ReactNode;
   renderRevealActions?: (reveal: () => void) => ReactNode;
   showRecallHint?: boolean;
-  appearance?: 'trial' | 'review';
+  position?: { index: number; total: number };
 };
 
 const sideSwitch =
@@ -44,6 +44,11 @@ function sideTextStyle(text: string, compactOnShortPhones: boolean) {
 
 /** Focusing a tall side can leave the screen partway down it, so bring the side's start into view. */
 function showSideStart(heading: HTMLElement | null) {
+  const reading = heading?.closest('.review-reading');
+  if (reading) {
+    reading.scrollTop = 0;
+    return;
+  }
   const top = heading?.getBoundingClientRect().top ?? 0;
   if (top < 0 || top > window.innerHeight) heading?.closest('section')?.scrollIntoView({ block: 'start' });
 }
@@ -57,7 +62,7 @@ export function FlashCard({
   answerExtras,
   renderRevealActions,
   showRecallHint = true,
-  appearance = 'trial',
+  position,
 }: Readonly<FlashCardProps>) {
   const [answerShown, setAnswerShown] = useState(false);
   const [showingBack, setShowingBack] = useState(false);
@@ -67,10 +72,12 @@ export function FlashCard({
   const hintVisible = showRecallHint && !answerShown;
   const recallHintDescription = hintVisible ? recallHintId : undefined;
   const requestFocus = useContext(FocusRequestContext);
-  const savedReview = appearance === 'review';
+  const savedReview = position !== undefined;
   const rereadingQuestion = savedReview && answerShown;
+  const layout = savedReview
+    ? { container: 'active-review-card', frame: 'review-card-frame', rotating: 'absolute inset-0' }
+    : { container: 'sm:min-h-[30rem]', frame: 'flex flex-1 flex-col perspective-[2000px]', rotating: '' };
 
-  // The side facing the student takes focus, so a screen reader reads the question, then the answer.
   useEffect(() => {
     const heading = (showingBack ? answerRef : questionRef).current;
     requestFocus(heading);
@@ -102,17 +109,16 @@ export function FlashCard({
   ) : null;
 
   return (
-    <div className={`flex flex-1 animate-fade-in flex-col ${savedReview ? '' : 'sm:min-h-[30rem]'}`}>
-      <div className="flex flex-1 flex-col perspective-[2000px]">
+    <div className={`flex flex-1 animate-fade-in flex-col ${layout.container}`}>
+      <div className={layout.frame}>
         <div
           data-card-frame
-          className={`grid flex-1 transform-3d transition-transform duration-(--card-flip) ease-[ease-in-out] ${savedReview ? 'min-h-[256px]' : ''} ${showingBack ? 'rotate-y-180' : 'rotate-y-0'}`}
+          className={`grid flex-1 transform-3d transition-transform duration-(--card-flip) ease-[ease-in-out] ${layout.rotating} ${showingBack ? 'rotate-y-180' : 'rotate-y-0'}`}
         >
           <CardSide
             label="Question"
             hidden={showingBack}
-            longText={isParagraph(card.question)}
-            appearance={appearance}
+            position={position}
             headerAction={
               rereadingQuestion && (
                 <button type="button" onClick={revealAnswer} className={sideSwitch}>
@@ -135,8 +141,7 @@ export function FlashCard({
           <CardSide
             label="Answer"
             hidden={!showingBack}
-            longText={isParagraph(card.answer)}
-            appearance={appearance}
+            position={position}
             back
             headerAction={
               <button type="button" onClick={() => setShowingBack(false)} className={sideSwitch}>
@@ -222,47 +227,60 @@ function QuestionActions({ hintId, revealed, renderRevealActions, onReveal }: Re
 type CardSideProps = {
   label: string;
   hidden: boolean;
-  longText: boolean;
-  appearance: 'trial' | 'review';
+  position: FlashCardProps['position'];
   back?: boolean;
   headerAction?: ReactNode;
   footer: ReactNode;
   children: ReactNode;
 };
 
-/**
- * One side of the card: its label, the text centered in the space left, and its buttons at the
- * bottom. The side facing away is inert, so it can't be read or focused.
- */
-function CardSide({
-  label,
-  hidden,
-  longText,
-  appearance,
-  back = false,
-  headerAction,
-  footer,
-  children,
-}: Readonly<CardSideProps>) {
-  const review = appearance === 'review';
-  // A long side facing away may not stretch a saved card past about one screen, so the ratings stay near.
-  const capHiddenSide = hidden && longText ? 'max-h-(--hidden-side-max) self-start overflow-hidden' : '';
-  const surface = review ? `shadow-control short-phone:py-3 ${capHiddenSide}` : 'shadow-card';
+function CardSide({ label, hidden, position, back = false, headerAction, footer, children }: Readonly<CardSideProps>) {
+  if (position) {
+    return (
+      <section
+        inert={hidden}
+        aria-hidden={hidden}
+        className={`review-face ${back ? 'review-back rotate-y-180' : 'review-front'}`}
+      >
+        <div className="review-strip">
+          <p>
+            {back && (
+              <>
+                <span>Answer</span> ·{' '}
+              </>
+            )}
+            Card {position.index + 1} of {position.total}
+          </p>
+          {headerAction || (
+            <span className="review-segments" aria-hidden="true">
+              {Array.from({ length: position.total }, (_, i) => (
+                <i key={i} data-reviewed={i < position.index || undefined} />
+              ))}
+            </span>
+          )}
+        </div>
+        <section className="review-reading" aria-label={label}>
+          <div className="review-copy">
+            {children}
+            {footer}
+          </div>
+        </section>
+      </section>
+    );
+  }
   const labelColor = back ? 'bg-accent-soft text-accent' : 'bg-subtle text-muted';
-  const labelStyle = review && back ? chip : `rounded-full px-3 py-1 text-left text-label font-semibold ${labelColor}`;
-  const bodyLayout = review ? 'py-3 short-phone:py-2 sm:py-6' : 'mx-auto max-w-xl py-6';
   return (
     <section
       inert={hidden}
       aria-hidden={hidden}
-      className={`col-start-1 row-start-1 flex min-w-0 flex-col wrap-anywhere rounded-card bg-surface px-compact-gutter py-4 text-center backface-hidden sm:p-6 ${surface} ${back ? 'rotate-y-180' : ''}`}
+      className={`col-start-1 row-start-1 flex min-w-0 flex-col wrap-anywhere rounded-card bg-surface px-compact-gutter py-4 text-center backface-hidden sm:p-6 shadow-card ${back ? 'rotate-y-180' : ''}`}
     >
       <div className="flex min-h-12 flex-wrap items-center justify-between gap-x-3">
-        <p className={labelStyle}>{label}</p>
+        <p className={`rounded-full px-3 py-1 text-left text-label font-semibold ${labelColor}`}>{label}</p>
         {headerAction}
       </div>
-      <div className={`flex w-full flex-1 flex-col justify-center ${bodyLayout}`}>{children}</div>
-      {footer !== null && <div className={`border-t border-line ${review ? 'pt-3' : 'pt-4'}`}>{footer}</div>}
+      <div className="mx-auto flex w-full max-w-xl flex-1 flex-col justify-center py-6">{children}</div>
+      {footer !== null && <div className="border-t border-line pt-4">{footer}</div>}
     </section>
   );
 }

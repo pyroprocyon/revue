@@ -6,10 +6,14 @@ import { ArrowRight, BookOpenText, Columns2, Lightbulb } from 'lucide-react';
 import { primaryButton, secondaryButton } from '../../../shared/ui/buttonStyles';
 import { CardSource } from '../../../shared/ui/CardSource';
 
-type Props = { card: StudyCard; renderControls: (mode: RatingRequest['attemptMode']) => ReactNode };
+type Props = {
+  card: StudyCard;
+  position: { index: number; total: number };
+  renderControls: (mode: RatingRequest['attemptMode']) => ReactNode;
+};
 
 /** A saved attempt uses the same flip as the trial; rereading never changes its original mode or draft. */
-export function SavedCard({ card, renderControls }: Readonly<Props>) {
+export function SavedCard({ card, position, renderControls }: Readonly<Props>) {
   const [mode, setMode] = useState<RatingRequest['attemptMode'] | null>(null);
   const [draft, setDraft] = useState('');
   const field = useId();
@@ -23,29 +27,35 @@ export function SavedCard({ card, renderControls }: Readonly<Props>) {
         card={card}
         publisherName={card.publisherName}
         showRecallHint={false}
-        appearance="review"
+        position={position}
         questionInput={
-          (mode === null || showDraft) && (
-            <div className="mt-3 text-left sm:mt-6">
-              <label htmlFor={field} className="block text-label font-semibold">
-                {showDraft ? 'Your answer' : 'Your answer (optional)'}
+          showDraft && (
+            <div className="mt-3 text-left">
+              <label htmlFor={field} className="text-label font-semibold">
+                Your answer
               </label>
-              {/* A new field for the read-only copy starts at the first line, not where typing ended. */}
-              <textarea
-                key={mode === null ? 'typing' : 'read-only'}
-                id={field}
-                value={draft}
-                readOnly={mode !== null}
-                maxLength={4000}
-                onChange={(event) => setDraft(event.target.value)}
-                rows={2}
-                className="mt-2 block w-full resize-y rounded-control border border-field-edge bg-field px-3 py-2 text-body read-only:border-line read-only:bg-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent sm:py-3"
-              />
+              <textarea id={field} value={draft} readOnly rows={2} className="review-draft mt-2" />
             </div>
           )
         }
         renderRevealActions={(reveal) => (
           <div className="@container">
+            <details className="mb-2 rounded-control border border-line bg-accent-soft px-3 text-left">
+              <summary className="review-draft-toggle pressable flex min-h-12 cursor-pointer list-none items-center justify-between gap-2 text-label font-semibold text-accent">
+                <span>
+                  Write an answer <span className="font-normal">(optional)</span>
+                </span>
+                <span className="draft-icon" aria-hidden="true" />
+              </summary>
+              <textarea
+                aria-label="Your answer (optional)"
+                value={draft}
+                maxLength={4000}
+                onChange={(event) => setDraft(event.target.value)}
+                rows={2}
+                className="review-draft mb-3"
+              />
+            </details>
             <div className="grid gap-2 sm:gap-3 @min-[26rem]:grid-cols-2">
               <button
                 type="button"
@@ -82,7 +92,7 @@ export function SavedCard({ card, renderControls }: Readonly<Props>) {
         }
         answerExtras={
           (card.memoryHook || longDraft || hasDetails) && (
-            <div className="mb-2 flex flex-wrap gap-2">
+            <div className="@container/review-details mb-2 flex flex-wrap gap-2">
               {card.memoryHook && (
                 <ReviewDetail label="Tip to remember" icon={Lightbulb}>
                   <p className="whitespace-pre-wrap">{card.memoryHook}</p>

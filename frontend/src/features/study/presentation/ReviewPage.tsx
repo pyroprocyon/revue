@@ -1,4 +1,5 @@
 import { useContext, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, Navigate, useLocation, useParams, useOutletContext } from 'react-router';
 import { ArrowRight, Check, Layers, LoaderCircle } from 'lucide-react';
 import {
@@ -16,7 +17,7 @@ import type { Rating } from './ratings';
 import { nextReviewText, reviewAction, statusPanel } from './TodayPage';
 import { REVIEW_BATCH_SIZE } from '../../../shared/product/studyRules';
 import { cardNoun } from '../../../shared/ui/cardCount';
-import { chip, primaryButton, secondaryButton } from '../../../shared/ui/buttonStyles';
+import { primaryButton, secondaryButton } from '../../../shared/ui/buttonStyles';
 import { TODAY_PATH, isReviewTopic, signInPath } from '../../../shared/navigation/paths';
 import { WhenSlow } from '../../../shared/ui/WhenSlow';
 import { FocusRequestContext } from '../../../shared/ui/FocusRequestContext';
@@ -33,27 +34,43 @@ function TopicReview({ selection }: Readonly<{ selection: ReviewSelection }>) {
   const reviewed = useRef(new Set<string>());
   return (
     <div className="pb-4 sm:pb-6">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 sm:mb-5">
-        <h1 className="text-title font-extrabold tracking-tight lg:text-title-lg">Review</h1>
-        {!finished && (
-          <NavigationLink to={TODAY_PATH} back className="-mr-2 text-label">
-            Finish for now
-          </NavigationLink>
-        )}
-      </div>
       {finished ? (
-        <ReviewCompletion
-          selection={selection}
-          count={finished.count}
-          note={finished.note}
-          onContinue={() => setFinished(null)}
-        />
+        <>
+          <ReviewHeading finished />
+          <ReviewCompletion
+            selection={selection}
+            count={finished.count}
+            note={finished.note}
+            onContinue={() => setFinished(null)}
+          />
+        </>
       ) : (
         <LoadBatch
           selection={selection}
           onConfirmed={(id) => reviewed.current.add(id)}
           onFinish={(note = '') => setFinished({ count: reviewed.current.size, note })}
         />
+      )}
+    </div>
+  );
+}
+
+function ReviewHeading({ title, finished = false }: Readonly<{ title?: string; finished?: boolean }>) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-x-3">
+      <h1
+        className={
+          title
+            ? 'min-w-0 flex-[1_1_8rem] text-label font-bold wrap-anywhere'
+            : 'text-title font-extrabold tracking-tight'
+        }
+      >
+        {title ?? 'Review'}
+      </h1>
+      {!finished && (
+        <NavigationLink to={TODAY_PATH} back className="text-label">
+          Finish for now
+        </NavigationLink>
       )}
     </div>
   );
@@ -69,25 +86,35 @@ function LoadBatch({ selection, onFinish, onConfirmed }: Readonly<BatchCallbacks
       rememberReview(username, selection.topic);
     }
   }, [selection.includeNew, selection.topic, query.isSuccess, query.data, username]);
-  if (query.isPending)
-    return (
+  if (query.data?.cards.length && !query.isError) {
+    return <ReviewBatch cards={query.data.cards} onFinish={onFinish} onConfirmed={onConfirmed} />;
+  }
+  let feedback;
+  if (query.isPending) {
+    feedback = (
       <WhenSlow>
         <div className={statusPanel}>
           <ReviewStatus text="Loading your cards…" />
         </div>
       </WhenSlow>
     );
-  if (query.isError)
-    return (
+  } else if (query.isError) {
+    feedback = (
       <div className={statusPanel}>
         <QueueError error={query.error} retry={() => void query.refetch()} busy={query.isFetching} />
       </div>
     );
-  if (query.data.cards.length === 0) {
-    const dailyNewCardLimitReached = selection.includeNew && (query.data.unintroducedCards ?? 0) > 0;
-    return <NoCardsReady dailyNewCardLimitReached={dailyNewCardLimitReached} />;
+  } else {
+    feedback = (
+      <NoCardsReady dailyNewCardLimitReached={selection.includeNew && (query.data.unintroducedCards ?? 0) > 0} />
+    );
   }
-  return <ReviewBatch cards={query.data.cards} onFinish={onFinish} onConfirmed={onConfirmed} />;
+  return (
+    <>
+      <ReviewHeading />
+      {feedback}
+    </>
+  );
 }
 
 function NoCardsReady({ dailyNewCardLimitReached }: Readonly<{ dailyNewCardLimitReached: boolean }>) {
@@ -107,6 +134,7 @@ function NoCardsReady({ dailyNewCardLimitReached }: Readonly<{ dailyNewCardLimit
 
 function ReviewBatch({ cards, onFinish, onConfirmed }: Readonly<{ cards: StudyCard[] } & BatchCallbacks>) {
   const { pathname } = useLocation();
+  const { reviewHeader } = useOutletContext<{ reviewHeader: HTMLElement | null }>();
   const [batch, setBatch] = useState(cards);
   const [index, setIndex] = useState(0);
   const [cardWasEdited, setCardWasEdited] = useState(false);
@@ -178,7 +206,14 @@ function ReviewBatch({ cards, onFinish, onConfirmed }: Readonly<{ cards: StudyCa
   if (status === 'signed-out') return <Navigate to={signInPath(pathname)} replace />;
   return (
     <>
-      <ReviewProgress title={card.setTitle} completed={index} total={batch.length} />
+      {reviewHeader && createPortal(<ReviewHeading title={card.setTitle} />, reviewHeader)}
+      <progress
+        aria-label="Batch progress"
+        value={index}
+        max={batch.length}
+        aria-valuetext={`${index} of ${batch.length} ${cardNoun(batch.length)} reviewed`}
+        className="sr-only"
+      />
       {cardWasEdited && (
         <output className="mb-3 block rounded-control bg-highlight-soft/60 p-4 text-body sm:mb-5">
           This card was edited. Your rating wasn’t saved, so try the updated question.
@@ -187,6 +222,7 @@ function ReviewBatch({ cards, onFinish, onConfirmed }: Readonly<{ cards: StudyCa
       <SavedCard
         key={`${card.id}:${card.contentVersion}`}
         card={card}
+        position={{ index, total: batch.length }}
         renderControls={(mode) => {
           if (status === 'saving') return <ReviewStatus text="Saving your rating…" />;
           if (status === 'unknown')
@@ -221,26 +257,6 @@ function ReviewBatch({ cards, onFinish, onConfirmed }: Readonly<{ cards: StudyCa
         }}
       />
     </>
-  );
-}
-
-function ReviewProgress({ title, completed, total }: Readonly<{ title: string; completed: number; total: number }>) {
-  return (
-    <div className="mb-3 sm:mb-5">
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-support sm:mb-3">
-        <p className="min-w-0 flex-1 basis-40 font-semibold wrap-anywhere">{title}</p>
-        <p className={`${chip} tabular-nums`} aria-live="polite">
-          Card {completed + 1} of {total}
-        </p>
-      </div>
-      <progress
-        aria-label="Batch progress"
-        value={completed}
-        max={total}
-        aria-valuetext={`${completed} of ${total} ${cardNoun(total)} reviewed`}
-        className="review-progress"
-      />
-    </div>
   );
 }
 

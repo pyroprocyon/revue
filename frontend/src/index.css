@@ -22,20 +22,96 @@
   outline-offset: -3px;
 }
 
-.review-progress {
-  display: block;
-  width: 100%;
-  height: 0.375rem;
-  appearance: none;
-  border: 0;
-  border-radius: 9999px;
-  overflow: hidden;
+.active-review-header:not(:empty) + .workspace-home-link { display: none; }
+
+.workspace-container:has(.active-review-header:not(:empty)) {
+  --container-page: 42rem;
+
+  > header {
+    width: 100%;
+    max-width: var(--container-page);
+    margin-inline: auto;
+    padding: max(0.25rem, env(safe-area-inset-top)) max(var(--spacing-compact-gutter), env(safe-area-inset-right)) 0 max(var(--spacing-compact-gutter), env(safe-area-inset-left));
+  }
+  > main { padding-inline: max(var(--spacing-compact-gutter), env(safe-area-inset-left)) max(var(--spacing-compact-gutter), env(safe-area-inset-right)); }
+  > main > div { padding-top: 0.6rem; }
+}
+.active-review-header { width: 100%; }
+html:has(.review-card-frame) { overflow-y: scroll; }
+
+.review-card-frame {
+  position: relative;
+  height: 288px;
+  perspective: 1150px;
+  overflow: clip;
+  border-radius: 1.25rem;
   background: var(--color-accent-soft);
+  box-shadow: 0 5px 0 -2px color-mix(in srgb, var(--color-accent) 18%, var(--color-line));
+}
+@media (max-width: 21rem) { .review-card-frame { height: 276px; } }
+@media (min-width: 46rem) {
+  .review-card-frame { height: 308px; }
+  .workspace-container:has(.active-review-header:not(:empty)) > header { padding-top: 2.8rem; }
+}
+.review-face {
+  grid-area: 1 / 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  border-radius: inherit;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  transition: opacity var(--card-flip) steps(2, jump-none);
+}
+.review-face[aria-hidden="true"] { opacity: 0; }
+.review-card-frame > div { border-radius: inherit; grid-template: minmax(0, 1fr) / minmax(0, 1fr); }
+.review-front { background: linear-gradient(120deg, var(--color-accent-strong), var(--color-accent)); color: var(--color-on-accent); }
+.review-back { background: var(--color-surface); border: 1px solid var(--color-line); }
+.review-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0 0.5rem;
+  flex: none;
+  min-height: 3rem;
+  padding-inline: 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.review-back .review-strip { color: var(--color-on-accent); background: var(--color-accent-strong); }
+.review-strip button { color: inherit; text-decoration: underline; text-underline-offset: 0.15em; }
+.review-strip button:focus-visible { outline-color: currentColor; outline-offset: -4px; }
+.review-segments { display: flex; gap: 3px; }
+.review-segments i { width: 0.65rem; height: 3px; border-radius: 2px; background: currentColor; opacity: 0.35; }
+.review-segments i[data-reviewed] { opacity: 1; }
+.review-reading { flex: 1; min-height: 0; overflow: auto; padding: 0.8rem 1rem; }
+.review-front .review-reading { display: flex; flex-direction: column; }
+.review-front .review-copy { margin-block: auto; }
+.review-copy h2 { max-width: none; text-align: left; text-wrap: pretty; }
+.review-back .review-copy > div:last-child { margin-top: 0.8rem; }
+@media (min-width: 40rem) and (max-height: 30rem) and (orientation: landscape) {
+  .workspace-container:has(.active-review-header:not(:empty)) {
+    --container-page: 57rem;
+    > header { padding-top: max(0.25rem, env(safe-area-inset-top)); }
+  }
+  .active-review-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    align-items: start;
+    gap: 1rem;
+  }
+  .active-review-card > div + div { margin-top: 0; }
 }
 
-.review-progress::-webkit-progress-bar { background: var(--color-accent-soft); }
-.review-progress::-webkit-progress-value { background: var(--color-accent); border-radius: 9999px; }
-.review-progress::-moz-progress-bar { background: var(--color-accent); border-radius: 9999px; }
+.review-draft-toggle { list-style: none; }
+.review-draft-toggle::-webkit-details-marker { display: none; }
+.review-draft-toggle > .draft-icon::before { content: '+'; font-size: 1.25rem; }
+details[open] > .review-draft-toggle > .draft-icon::before { content: '−'; }
+.review-draft { display: block; width: 100%; resize: vertical; border: 1px solid var(--color-field-edge); border-radius: var(--radius-control); background: var(--color-field); padding: 0.55rem 0.75rem; color: var(--color-ink); font-size: 1rem; }
 
 @media (height >= 30rem) {
   @container today (width >= 38rem) {
@@ -672,8 +748,6 @@
 
 :root {
   --card-flip: 500ms;
-  /* About one screen minus the review header and ratings, never below a typical card's height. */
-  --hidden-side-max: max(16rem, calc(100dvh - 24rem));
 }
 
 @layer base {
