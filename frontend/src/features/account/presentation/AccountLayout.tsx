@@ -24,7 +24,10 @@ import { WorkspaceLayout } from '../../../shared/ui/WorkspaceLayout';
 import { FocusRequestContext, InteractionPausedContext } from '../../../shared/ui/FocusRequestContext';
 import { pendingLoginKey } from '../../../shared/cache/queryKeys';
 
-type Session = { status: 'loading' | 'signed-out' } | { status: 'ready'; profile: AccountProfile };
+type Session =
+  | { status: 'loading' }
+  | { status: 'signed-out'; revision: ReturnType<typeof sessionRevision> }
+  | { status: 'ready'; profile: AccountProfile };
 
 const SESSION_FRESH_MS = 30_000;
 function withinSessionWindow(time: number | undefined) {
@@ -154,7 +157,7 @@ export function AccountLayout({
         }
         lastUsername.current = profile?.username;
         if (profile !== null) rememberConfirmedProfile(queryClient, profile);
-        setSession(profile === null ? { status: 'signed-out' } : { status: 'ready', profile });
+        setSession(profile === null ? { status: 'signed-out', revision } : { status: 'ready', profile });
       } catch {
         if (pendingRequest === request) {
           discardPendingLoginReads();
@@ -231,7 +234,13 @@ export function AccountLayout({
   }, [attempt, gateway, queryClient]);
 
   if (session.status === 'signed-out') {
-    return <Navigate to={signInPath(safeAccountReturnPath(location.pathname))} replace />;
+    return (
+      <Navigate
+        to={signInPath(safeAccountReturnPath(location.pathname))}
+        replace
+        state={{ signedOutRevision: session.revision }}
+      />
+    );
   }
 
   // Out of date, every private write is refused. A review pauses with it, while workspace pages and their open forms

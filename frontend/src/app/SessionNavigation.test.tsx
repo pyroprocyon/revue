@@ -36,6 +36,29 @@ function pendingSession() {
 }
 
 describe('session-dependent navigation', () => {
+  it('opens sign-in after one account check and rechecks after another tab signs in', async () => {
+    let signedIn = false;
+    const fetcher = vi.fn(async (path: string) => {
+      if (path === '/api/v1/me') return signedIn ? jsonResponse(200, { username: 'learner' }) : jsonResponse(401);
+      if (path === '/api/v1/auth/session') return jsonResponse(200, { signedIn });
+      return jsonResponse(404);
+    });
+    vi.stubGlobal('fetch', fetcher);
+    const { router } = renderApp('/today');
+
+    await screen.findByRole('heading', { name: 'Welcome back' });
+    expect(router.state.location.search).toBe('?returnTo=%2Ftoday');
+    expect(fetcher.mock.calls.map(([path]) => path)).toEqual(['/api/v1/me']);
+
+    signedIn = true;
+    await act(async () => {
+      localStorage.setItem('revue.session-revision', 'other-tab-signed-in');
+      window.dispatchEvent(new StorageEvent('storage', { key: 'revue.session-revision' }));
+    });
+    await screen.findByRole('heading', { name: 'Your review' });
+    expect(fetcher.mock.calls.filter(([path]) => path === '/api/v1/auth/session')).toHaveLength(1);
+  });
+
   it.each(['signed-in', 'guest', 'failed'])(
     'waits for a %s session when browser storage is blocked',
     async (outcome) => {

@@ -3,6 +3,22 @@ import { test, expect } from './fixtures';
 import { historyCards } from '../src/test/fixtures';
 import { SIGNED_IN_HINT_KEY } from '../src/shared/navigation/signedInHint';
 
+test('Today redirects after one account check and rechecks sign-in on reload', async ({ page, pilot }) => {
+  const sessionReads: string[] = [];
+  page.on('request', (request) => {
+    const path = new URL(request.url()).pathname;
+    if (path === '/api/v1/me' || path === '/api/v1/auth/session') sessionReads.push(path);
+  });
+
+  await page.goto(`${pilot.origin}/today`);
+  await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
+  expect(sessionReads).toEqual(['/api/v1/me']);
+
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
+  expect(sessionReads).toEqual(['/api/v1/me', '/api/v1/auth/session']);
+});
+
 async function delaySession(page: Page, signedIn = true) {
   let release!: () => void;
   const pending = new Promise<void>((resolve) => {
