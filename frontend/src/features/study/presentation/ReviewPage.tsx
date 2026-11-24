@@ -21,6 +21,7 @@ import { primaryButton, secondaryButton } from '../../../shared/ui/buttonStyles'
 import { TODAY_PATH, isReviewTopic, signInPath } from '../../../shared/navigation/paths';
 import { WhenSlow } from '../../../shared/ui/WhenSlow';
 import { FocusRequestContext } from '../../../shared/ui/FocusRequestContext';
+import { useFocusOnMount } from '../../../shared/ui/useFocusOnMount';
 import { NavigationLink } from '../../../shared/ui/NavigationLink';
 
 export function ReviewPage({ includeNew = false }: Readonly<{ includeNew?: boolean }>) {
@@ -30,13 +31,13 @@ export function ReviewPage({ includeNew = false }: Readonly<{ includeNew?: boole
 }
 
 function TopicReview({ selection }: Readonly<{ selection: ReviewSelection }>) {
-  const [finished, setFinished] = useState<{ count: number; note: string } | null>(null);
+  const [finished, setFinished] = useState<{ count: number; note: string; title: string } | null>(null);
   const reviewed = useRef(new Set<string>());
   return (
     <div className="pb-4 sm:pb-6">
       {finished ? (
         <>
-          <ReviewHeading finished />
+          <ReviewHeading title={finished.title} finished />
           <ReviewCompletion
             selection={selection}
             count={finished.count}
@@ -48,7 +49,7 @@ function TopicReview({ selection }: Readonly<{ selection: ReviewSelection }>) {
         <LoadBatch
           selection={selection}
           onConfirmed={(id) => reviewed.current.add(id)}
-          onFinish={(note = '') => setFinished({ count: reviewed.current.size, note })}
+          onFinish={(title, note = '') => setFinished({ count: reviewed.current.size, title, note })}
         />
       )}
     </div>
@@ -76,7 +77,7 @@ function ReviewHeading({ title, finished = false }: Readonly<{ title?: string; f
   );
 }
 
-type Finish = (note?: string) => void;
+type Finish = (title: string, note?: string) => void;
 type BatchCallbacks = { onFinish: Finish; onConfirmed: (id: string) => void };
 function LoadBatch({ selection, onFinish, onConfirmed }: Readonly<BatchCallbacks & { selection: ReviewSelection }>) {
   const query = useBatchQueue(selection);
@@ -105,9 +106,7 @@ function LoadBatch({ selection, onFinish, onConfirmed }: Readonly<BatchCallbacks
       </div>
     );
   } else {
-    feedback = (
-      <NoCardsReady dailyNewCardLimitReached={selection.includeNew && (query.data.unintroducedCards ?? 0) > 0} />
-    );
+    return <NoCardsReady dailyNewCardLimitReached={selection.includeNew && (query.data.unintroducedCards ?? 0) > 0} />;
   }
   return (
     <>
@@ -118,16 +117,20 @@ function LoadBatch({ selection, onFinish, onConfirmed }: Readonly<BatchCallbacks
 }
 
 function NoCardsReady({ dailyNewCardLimitReached }: Readonly<{ dailyNewCardLimitReached: boolean }>) {
+  const heading = useFocusOnMount<HTMLHeadingElement>();
   return (
-    <div className={statusPanel}>
-      <h2 className="text-section font-bold">
+    <div className="review-result result-panel mt-4">
+      <h1 {...heading} className="text-title font-bold outline-none">
         {dailyNewCardLimitReached ? 'You’ve reached today’s new-card limit.' : 'No cards are ready in this topic.'}
-      </h2>
+      </h1>
       <p className="mt-2 text-body text-muted">
         {dailyNewCardLimitReached
           ? 'This topic’s new cards are ready to start tomorrow.'
           : 'You can finish for now and return when more are due.'}
       </p>
+      <Link className={`${primaryButton} mt-4`} to={TODAY_PATH}>
+        Finish for now
+      </Link>
     </div>
   );
 }
@@ -159,7 +162,7 @@ function ReviewBatch({ cards, onFinish, onConfirmed }: Readonly<{ cards: StudyCa
       await submitRating(card.id, input);
       pending.current = null;
       onConfirmed(card.id);
-      if (index + 1 === batch.length) onFinish();
+      if (index + 1 === batch.length) onFinish(card.setTitle);
       else {
         setIndex((value) => value + 1);
         setCardWasEdited(false);
@@ -175,7 +178,7 @@ function ReviewBatch({ cards, onFinish, onConfirmed }: Readonly<{ cards: StudyCa
         return;
       }
       if (error instanceof ReviewFailure && ['conflict', 'unavailable', 'invalid'].includes(error.kind)) {
-        onFinish(conflictMessage(error));
+        onFinish(card.setTitle, conflictMessage(error));
       } else {
         setStatus('unknown');
       }
@@ -301,7 +304,7 @@ function ReviewCompletion({
   }, [loaded, requestFocus]);
   const Icon = count > 0 ? Check : Layers;
   return (
-    <section className={statusPanel}>
+    <section className="review-result result-panel mt-3">
       {query.isPending && (
         <WhenSlow>
           <ReviewStatus text="Checking your remaining cards…" />
@@ -330,7 +333,7 @@ function ReviewCompletion({
             <ArrowRight aria-hidden="true" className="size-5 shrink-0" />
           </button>
         )}
-        <Link to={TODAY_PATH} className={secondaryButton}>
+        <Link to={TODAY_PATH} className={remaining > 0 ? secondaryButton : primaryButton}>
           Back to Today
         </Link>
       </div>

@@ -1,4 +1,5 @@
-import { ChevronRight, CirclePause, Layers2 } from 'lucide-react';
+import { CollectionIcon } from '../../../shared/ui/CollectionIcon';
+import { ChevronRight } from 'lucide-react';
 import {
   useCallback,
   useEffect,
@@ -11,9 +12,8 @@ import {
   type RefObject,
 } from 'react';
 import { Link } from 'react-router';
-import { deckPath } from '../../../shared/navigation/paths';
+import { collectionKind, collectionItemPath, type CollectionItem } from './collectionItem';
 import { cardCountLabel } from '../../../shared/ui/cardCount';
-import type { Deck } from '../application/decks';
 
 const PREVIOUS_DECKS_DRAWN = 2;
 const NEXT_DECKS_DRAWN = 8;
@@ -30,7 +30,7 @@ export function DeckCarousel({
   initialIndex,
   onOpen,
 }: Readonly<{
-  decks: readonly Deck[];
+  decks: readonly CollectionItem[];
   fillsScreen: boolean;
   initialIndex: number;
   onOpen: (event: MouseEvent<HTMLAnchorElement>) => void;
@@ -122,7 +122,8 @@ export function DeckCarousel({
   return (
     <section
       ref={carousel}
-      aria-label="Decks"
+      aria-label={frontDeck.savedSetPath ? 'Saved sets' : 'Decks'}
+      data-saved={frontDeck.savedSetPath ? '' : undefined}
       aria-roledescription="carousel"
       className="deck-carousel @min-[64rem]/workspace:hidden"
       data-single-deck={decks.length === 1 ? '' : undefined}
@@ -207,7 +208,7 @@ function stageHeightReachingScreenBottom(section: HTMLElement): number | null {
 }
 
 type StackedDeckProps = Readonly<{
-  deck: Deck;
+  deck: CollectionItem;
   index: number;
   stepsFromFront: number;
   position: string;
@@ -258,7 +259,8 @@ function StackedDeck({
   }
   const above = stepsFromFront < 0;
   const adjacent = distanceFromFront === 1;
-  const adjacentLabel = above ? 'Previous deck' : 'Next deck';
+  const noun = deck.savedSetPath ? 'set' : 'deck';
+  const adjacentLabel = above ? `Previous ${noun}` : `Next ${noun}`;
   return (
     <div
       className="deck-carousel-card"
@@ -278,7 +280,7 @@ function StackedDeck({
         deck={deck}
         adjacent={adjacent}
         above={above}
-        label={adjacent ? adjacentLabel : 'Go to deck'}
+        label={adjacent ? adjacentLabel : `Go to ${noun}`}
         scroller={scroller}
         nativeScroll={nativeScroll}
         onChoose={() => onBringToFront(index)}
@@ -288,7 +290,7 @@ function StackedDeck({
 }
 
 type DeckPreviewProps = Readonly<{
-  deck: Deck;
+  deck: CollectionItem;
   adjacent: boolean;
   above: boolean;
   label: string;
@@ -338,7 +340,7 @@ function FrontDeckLink({
   const countId = useId();
   return (
     <Link
-      to={deckPath(deck.id)}
+      to={collectionItemPath(deck)}
       aria-label={`Open ${deck.title}`}
       aria-describedby={countId}
       data-library-deck={deck.id}
@@ -356,15 +358,10 @@ function FrontDeckLink({
   );
 }
 
-function DeckSummary({ deck, countId }: Readonly<{ deck: Deck; countId: string }>) {
+function DeckSummary({ deck, countId }: Readonly<{ deck: CollectionItem; countId: string }>) {
   return (
     <div className="deck-carousel-summary flex size-full items-center gap-3 p-compact-gutter @max-[24rem]:gap-2 @max-[22rem]:px-3">
-      <span
-        aria-hidden="true"
-        className={`deck-carousel-symbol grid size-[40px] shrink-0 place-items-center rounded-inset @max-[24rem]:size-8 @max-[20rem]:hidden ${deck.archived ? 'bg-subtle text-muted' : 'bg-accent-soft text-accent'}`}
-      >
-        {deck.archived ? <CirclePause className="size-[21px]" /> : <Layers2 className="size-[21px]" />}
-      </span>
+      <CollectionIcon kind={collectionKind(deck)} className="deck-carousel-symbol" />
       <div className="relative min-w-0 flex-1">
         <h3 className="deck-carousel-title text-section font-bold tracking-tight wrap-anywhere @max-[24rem]:text-body">
           {deck.title}

@@ -155,29 +155,23 @@ test('Study rhythm uses the weekly strip on wide screens and fits enlarged text 
   await expect(firstAction).toHaveAttribute('href', '/review/set-1');
   await expect(studied).toBeVisible();
   const next = page.getByRole('region', { name: 'Up next' });
-  for (const [width, height, wide, contentWidth] of [
-    [375, 667, false, 343],
-    [768, 1024, true, 704],
-    [1440, 900, true, 1024],
+  for (const [width, height] of [
+    [320, 568],
+    [375, 667],
+    [390, 844],
+    [768, 1024],
+    [1440, 900],
   ] as const) {
     await page.setViewportSize({ width, height });
     await page.evaluate(() => document.fonts.ready);
-    expect((await next.boundingBox())!.width).toBe(contentWidth);
-    for (const [first, second] of [
-      [studied, days],
-      [firstTopic, firstAction],
-    ]) {
-      const left = (await first.boundingBox())!;
-      const right = (await second.boundingBox())!;
-      if (wide) {
-        expect(right.x).toBeGreaterThanOrEqual(left.x + left.width);
-        expect(right.y).toBeLessThan(left.y + left.height);
-        expect(left.y).toBeLessThan(right.y + right.height);
-      } else {
-        expect(right.y).toBeGreaterThanOrEqual(left.y + left.height);
-      }
-    }
-    if (wide) {
+    const topicBox = (await next.boundingBox())!;
+    const rhythmBox = (await page.getByRole('region', { name: 'Study rhythm' }).boundingBox())!;
+    if (width >= 1024) expect(rhythmBox.x).toBeGreaterThanOrEqual(topicBox.x + topicBox.width);
+    else expect(rhythmBox.y).toBeGreaterThanOrEqual(topicBox.y + topicBox.height);
+    await expect(firstTopic).toBeVisible();
+    await expect(firstAction).toBeInViewport({ ratio: 1 });
+    await expect(days.locator('li')).toHaveCount(7);
+    if (width === 768) {
       await otherTopics.press('Enter');
       const cards = page.getByRole('group', { name: 'Review topics' }).getByRole('button');
       const positions = await cards.evaluateAll((buttons) =>
@@ -251,7 +245,7 @@ withVisibleScrollbars('Saved recall stays usable across widths and text sizes', 
     await expect(page.getByRole('heading', { name: started ? 'Continue review' : 'No cards due today' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Your review', exact: true })).toBeVisible();
     await page.evaluate(() => window.scrollTo({ top: 0, left: 0, behavior: 'instant' }));
-    await expect(page.getByRole('link', { name: 'Revue', exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Revue', exact: true })).toHaveCount(width >= 1024 ? 1 : 0);
     await page.screenshot({ path: info.outputPath(`today-${width}.png`), fullPage: true });
     if (started) {
       await page.getByRole('link', { name: 'Continue', exact: true }).click();

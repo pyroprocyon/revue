@@ -121,7 +121,7 @@ export function SaveSetAction({ shareCode, setKey }: Readonly<{ shareCode: strin
   if (membership.data)
     return (
       <div>
-        <Link ref={focusResult} to={LIBRARY_PATH} className={saveButton}>
+        <Link ref={focusResult} to={`${LIBRARY_PATH}?shelf=saved&set=${id}`} className={saveButton}>
           Open Library
         </Link>
         <output className="mt-2 block px-1 text-support font-semibold">Saved to your Library</output>

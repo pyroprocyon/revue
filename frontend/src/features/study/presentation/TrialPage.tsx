@@ -8,9 +8,11 @@ import { trialCardsQuery } from '../../catalog/application/publicContentQueries'
 import { TRIAL_CARD_COUNT } from '../../../shared/product/studyRules';
 import { cardNoun } from '../../../shared/ui/cardCount';
 import { primaryButton, secondaryButton } from '../../../shared/ui/buttonStyles';
-import { BackButton } from '../../../shared/ui/HeaderLinks';
+import { BackButton, HomeLink } from '../../../shared/ui/HeaderLinks';
 import { LoadFailed } from '../../../shared/ui/LoadFailed';
 import { LoadingScreen, MessageScreen } from '../../../shared/ui/MessageScreen';
+import { useFocusOnMount } from '../../../shared/ui/useFocusOnMount';
+import { PageLayout } from '../../../shared/ui/PageLayout';
 import { ActionRow } from '../../../shared/ui/LayoutParts';
 import { StudyLayout } from '../../../shared/ui/StudyLayout';
 import { usePublicSession } from '../../../shared/navigation/publicSession';
@@ -111,6 +113,7 @@ function TrialFinished({ setKey, cards, ratings }: Readonly<TrialFinishedProps>)
     'signed-in': 'back-to-set',
     'signed-out': 'another-set',
   } as const;
+  const heading = useFocusOnMount<HTMLHeadingElement>();
   const groups = trialSummary(cards, ratings);
   const finishedIcon = (
     <span className="mb-3 grid size-10 place-items-center rounded-full bg-accent-soft text-accent-strong">
@@ -118,19 +121,29 @@ function TrialFinished({ setKey, cards, ratings }: Readonly<TrialFinishedProps>)
     </span>
   );
   return (
-    <MessageScreen
-      title={`You practiced ${cards.length} cards.`}
-      icon={finishedIcon}
-      action={<SetLinks setKey={setKey} primary={primaryLinkBySession[session]} />}
-    >
-      <p>Example schedule, soonest first.</p>
-      <div className="space-y-6">
-        {groups.map((group, index) => (
-          <ReviewTimingGroup key={group.when} when={group.when} cards={group.cards} first={index === 0} />
-        ))}
-      </div>
-      <p className="text-support">This practice wasn’t saved.</p>
-    </MessageScreen>
+    <div className="lg:[--container-page:58rem]">
+      <PageLayout top={<HomeLink />}>
+        <div className="mt-3 grid items-start gap-4 lg:grid-cols-2">
+          <section className="result-panel">
+            {finishedIcon}
+            <h1 {...heading} className="text-title font-extrabold tracking-tight outline-none">
+              You practiced {cards.length} cards.
+            </h1>
+            <p className="my-4 text-body text-muted">This practice wasn’t saved.</p>
+            <SetLinks setKey={setKey} primary={primaryLinkBySession[session]} />
+          </section>
+          <section
+            aria-label="Example schedule"
+            className="rounded-card border border-line bg-surface p-compact-gutter sm:p-6"
+          >
+            <h2 className="mb-2 text-section font-bold">Example schedule</h2>
+            {groups.map((group, index) => (
+              <ReviewTimingGroup key={group.when} when={group.when} cards={group.cards} first={index === 0} />
+            ))}
+          </section>
+        </div>
+      </PageLayout>
+    </div>
   );
 }
 
@@ -148,23 +161,19 @@ type ReviewTimingGroupProps = {
 function ReviewTimingGroup({ when, cards, first }: Readonly<ReviewTimingGroupProps>) {
   const headingId = useId();
   return (
-    <section aria-labelledby={headingId}>
-      <div
-        className={`flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 rounded-inset px-3 py-2 ${first ? 'bg-highlight-soft' : 'bg-subtle'}`}
-      >
-        <h2 id={headingId} className="text-section font-bold text-ink">
-          {when}
-        </h2>
-        <p className="text-label font-semibold text-muted">
+    <details open={first} className="border-t border-line">
+      <summary className="min-h-12 cursor-pointer content-center font-semibold">
+        <span id={headingId}>{when}</span>{' '}
+        <span className="text-support text-muted">
           {cards.length} {cardNoun(cards.length)}
-        </p>
-      </div>
+        </span>
+      </summary>
       <ul aria-labelledby={headingId} className="mt-1 divide-y divide-line">
         {cards.map(({ card, rating }) => (
           <SummaryCardRow key={card.key} question={card.question} rating={rating} />
         ))}
       </ul>
-    </section>
+    </details>
   );
 }
 

@@ -32,8 +32,11 @@ export function WorkspaceLayout({
   const today = useMatch(TODAY_PATH);
   const deck = useMatch(DECK_ROUTE);
   const newDeck = useMatch(NEW_DECK_PATH);
+  const library = useMatch(LIBRARY_PATH);
+  const help = useMatch(HELP_PATH);
+  const compact = Boolean(today || library || newDeck || help);
   const onDeckPage = deck !== null && newDeck === null;
-  const desktopWidth = today || onDeckPage ? '@min-[64rem]/workspace:max-w-wide' : '';
+  const desktopWidth = today || library || onDeckPage ? '@min-[64rem]/workspace:max-w-wide' : '';
   const openAfterCheck = (to: string) => (event: MouseEvent<HTMLAnchorElement>) => {
     if (!onTabWhileChecking || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
       return;
@@ -43,7 +46,11 @@ export function WorkspaceLayout({
   return (
     <div className="workspace-container">
       <SkipToContent />
-      <div className="workspace-layout">
+      <div
+        className="workspace-layout"
+        data-compact={compact || undefined}
+        data-heading-help={Boolean(today || library) || undefined}
+      >
         <header className="workspace-chrome workspace-header-gutters">
           <div className={onDeckPage ? 'workspace-brand workspace-brand-replaced-by-back' : 'workspace-brand'}>
             <HomeLink to={TODAY_PATH} compact />

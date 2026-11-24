@@ -2,22 +2,6 @@ import type { Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { test, expect, signOut } from './fixtures';
 
-async function holdNextRead(page: Page, path: string) {
-  let release!: () => void;
-  const pending = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  await page.route(
-    path,
-    async (route) => {
-      await pending;
-      await route.continue();
-    },
-    { times: 1 },
-  );
-  return release;
-}
-
 async function register(page: Page, signupUrl: string) {
   const username = `library_${randomUUID().replaceAll('-', '').slice(0, 20)}`;
   await page.goto(signupUrl);
@@ -150,7 +134,6 @@ test('retired-set removal warns, supports keyboard cancellation and fits narrow 
       json: { ...body, items: body.items.map((set: object) => ({ ...set, retired: true })) },
     });
   });
-  await page.route('**/api/v1/decks', (route) => route.fulfill({ status: 503 }), { times: 1 });
   await page.getByRole('link', { name: 'Open Library', exact: true }).click();
   const remove = page.getByRole('button', { name: 'Remove from Library: Published test set' });
   let writes = 0;
@@ -162,19 +145,6 @@ test('retired-set removal warns, supports keyboard cancellation and fits narrow 
   const keep = page.getByRole('button', { name: 'Keep set', exact: true });
   await expect(keep).toBeFocused();
   await expect(page.getByText(/you won’t be able to save it again/)).toBeVisible();
-  const releaseDecks = await holdNextRead(page, '**/api/v1/decks');
-  const retry = page.waitForRequest('**/api/v1/decks');
-  const recovered = page.waitForResponse('**/api/v1/decks');
-  try {
-    await page.getByRole('button', { name: 'Retry decks' }).click();
-    await retry;
-    await expect(keep).toBeVisible();
-  } finally {
-    releaseDecks();
-  }
-  expect((await recovered).ok()).toBe(true);
-  await expect(page.getByRole('link', { name: 'Create a deck' })).toBeVisible();
-  await expect(keep).toBeVisible();
   for (const [label, width, height, scale] of [
     ['phone', 360, 800, 100],
     ['tablet', 640, 900, 100],
@@ -241,7 +211,7 @@ test('explicit save survives sign-in return, duplicate save, reload and another 
   await expect(page.getByRole('heading', { name: 'Published test set' })).toBeVisible();
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Published test set' })).toBeVisible();
-  await page.getByRole('link', { name: 'Revue', exact: true }).click();
+  await page.getByRole('link', { name: 'Today', exact: true }).click();
   await expect(page).toHaveURL(/\/today$/);
   await expect(page.getByRole('link', { name: 'View set: Published test set' })).toHaveCount(0);
   await page.getByRole('link', { name: 'Library', exact: true }).click();
@@ -344,10 +314,7 @@ test('Library read failures retain an explicit retry instead of showing an empty
   await expect(page.getByRole('heading', { name: 'Saved sets', exact: true })).toHaveCount(0);
 });
 
-test('Library keeps results in place in either response order and focuses Saved sets from the shortcut', async ({
-  page,
-  pilot,
-}) => {
+test('the collection switch opens Saved sets by keyboard above the phone navigation', async ({ page, pilot }) => {
   await page.setViewportSize({ width: 375, height: 667 });
   pilot.addSaveableSet();
   await register(page, pilot.signupUrl);
@@ -364,40 +331,13 @@ test('Library keeps results in place in either response order and focuses Saved 
   }
   await page.goto('/sets/published-test-set');
   await page.getByRole('button', { name: 'Save to Library' }).click();
-  const releaseDecks = await holdNextRead(page, '**/api/v1/decks');
-  const saved = page.waitForResponse('**/api/v1/me/saved-sets');
   await page.getByRole('link', { name: 'Open Library' }).click();
-  try {
-    await (await saved).finished();
-    await expect(page.getByRole('heading', { name: 'My decks' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Saved sets', exact: true })).toHaveCount(0);
-  } finally {
-    releaseDecks();
-  }
-  await expect(page.getByRole('heading', { name: 'Saved sets', exact: true })).toBeVisible();
-
-  const releaseSets = await holdNextRead(page, '**/api/v1/me/saved-sets');
-  const decks = page.waitForResponse('**/api/v1/decks');
-  await page.reload();
-  try {
-    await (await decks).finished();
-    await expect(page.getByRole('link', { name: 'Create a deck' })).toBeVisible();
-    await expect(page.locator('a[data-library-deck]')).toHaveCount(0);
-  } finally {
-    releaseSets();
-  }
-  const shortcut = page.getByRole('link', { name: 'Jump to saved sets' });
-  await shortcut.focus();
+  const shelf = page.getByRole('button', { name: /^Saved sets/ });
+  await shelf.focus();
   await page.keyboard.press('Enter');
-  const heading = page.getByRole('heading', { name: 'Saved sets', exact: true });
-  await expect(heading).toBeFocused();
-  const nav = page.getByRole('navigation', { name: 'Your workspace' });
-  await expect
-    .poll(async () => {
-      const [headingBox, navBox] = await Promise.all([heading.boundingBox(), nav.boundingBox()]);
-      return Boolean(headingBox && navBox && headingBox.y >= 0 && headingBox.y + headingBox.height <= navBox.y);
-    })
-    .toBe(true);
+  await expect(shelf).toHaveAttribute('aria-pressed', 'true');
+  await expect(shelf).toBeFocused();
+  await expect(page.getByRole('link', { name: 'Start review: Published test set' })).toBeInViewport({ ratio: 1 });
 });
 
 test('Library lists refresh at 30 seconds or after a browser return', async ({ page, pilot }) => {
@@ -487,4 +427,40 @@ test('Library preserves its page through a preview and offers Previous after a f
   await expect(page.getByRole('heading', { name: 'Philippine Nature' })).toBeVisible();
   await page.getByRole('button', { name: 'Previous' }).click();
   await expect(page.getByRole('heading', { name: 'Philippine History' })).toBeVisible();
+});
+
+test('Saved sets keep their place, preview return and blue identity in the stack and desktop grid', async ({
+  page,
+  pilot,
+}) => {
+  await register(page, pilot.signupUrl);
+  const sets = Array.from({ length: 12 }, (_, index) => ({
+    id: String(index + 1),
+    title: index === 1 ? 'Philippine Nature' : `Study set ${index + 1}`,
+    setKey: index === 1 ? 'philippine-nature' : 'philippine-history',
+    cardCount: 5,
+    description: 'Practice cards',
+    publisherName: 'Revue',
+    saveAllowed: true,
+    retired: false,
+    savedAt: '2026-11-15T00:00:00Z',
+  }));
+  await page.route('**/api/v1/me/saved-sets', (route) => route.fulfill({ json: { items: sets, nextCursor: null } }));
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.goto('/library');
+  await page.getByRole('button', { name: 'Next set: Philippine Nature' }).click();
+  const selected = page.getByRole('link', { name: 'Open Philippine Nature' });
+  await expect(selected.locator('.saved-set-icon')).toHaveCSS('color', 'rgb(24, 92, 145)');
+  await selected.press('Enter');
+  await page.getByRole('link', { name: 'View set: Philippine Nature' }).click();
+  await expect(page.getByRole('heading', { name: 'Philippine Nature' })).toBeVisible();
+  await expect(page.locator('.saved-set-icon')).toHaveCSS('background-color', 'rgb(222, 239, 255)');
+  await page.getByRole('button', { name: 'Library', exact: true }).click();
+  await page.getByRole('button', { name: /‹ Saved sets/ }).click();
+  await expect(selected).toBeFocused();
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(page.locator('.collection-grid').getByRole('link')).toHaveCount(12);
+  await expect(selected.locator('.saved-set-icon')).toHaveCSS('color', 'rgb(24, 92, 145)');
+  await page.getByRole('button', { name: 'Stack', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Next set: Study set 3' })).toBeVisible();
 });

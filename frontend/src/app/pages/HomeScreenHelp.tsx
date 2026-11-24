@@ -1,4 +1,4 @@
-import { ChevronDown, Download, Share } from 'lucide-react';
+import { ChevronDown, Download, Share, Smartphone } from 'lucide-react';
 import { useState } from 'react';
 import { installRevue, useInstallOffer } from '../homeScreenInstall';
 
@@ -81,14 +81,11 @@ export function HomeScreenHelp() {
         onClick={() => void openSetup()}
         aria-expanded={offer ? undefined : open}
         aria-disabled={offer === 'prompting'}
-        className="help-directory-row pressable bg-accent-soft px-3.5 @max-[16rem]/help:px-2 lg:px-[1.375rem]"
+        className="help-directory-row pressable px-3.5 @max-[16rem]/help:px-2 lg:px-[1.375rem]"
       >
-        <img
-          src="/icons/apple-touch-icon.png"
-          width="36"
-          height="36"
-          alt=""
-          className="@max-[16rem]/help:hidden size-9 shrink-0 rounded-xl border border-line"
+        <Smartphone
+          aria-hidden="true"
+          className="size-9 shrink-0 rounded-xl bg-accent-soft p-2 text-accent-strong @max-[16rem]/help:hidden"
         />
         <span className="flex-1">Install Revue</span>
         {offer ? (

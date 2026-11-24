@@ -105,7 +105,7 @@ test('invited learner registers with six characters, reloads, signs out and sign
   await page.getByRole('link', { name: 'Library', exact: true }).click();
   await expect(page).toHaveURL(/\/library$/);
   await expect(page.getByRole('heading', { name: 'Library', exact: true })).toBeVisible();
-  await page.getByRole('link', { name: 'Revue', exact: true }).click();
+  await page.getByRole('link', { name: 'Today', exact: true }).click();
   await expect(page).toHaveURL(/\/today$/);
   await page.getByRole('link', { name: 'Account', exact: true }).click();
   await expect(page.getByText(name, { exact: true })).toBeVisible();

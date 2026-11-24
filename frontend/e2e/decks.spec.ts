@@ -826,6 +826,11 @@ test('Library decks follow the finger on phones and tablets and filter the same 
   await expect(activeDeck).toHaveAccessibleName('Open Biology final');
   await expect(next).toHaveCount(0);
   await touch.send('Emulation.setTouchEmulationEnabled', { enabled: true });
+  // The compact Library can fit the whole page. Give the document room to scroll so
+  // this gesture still tests scroll chaining at the end of the native carousel.
+  await page.evaluate(() => {
+    document.body.style.paddingBottom = '8rem';
+  });
   const lastCard = (await activeDeck.boundingBox())!;
   const swipeY = Math.round(lastCard.y + lastCard.height - 14);
   const pageOffset = await page.evaluate(() => scrollY);
@@ -836,6 +841,9 @@ test('Library decks follow the finger on phones and tablets and filter the same 
   await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(pageOffset);
   await touch.detach();
+  await page.evaluate(() => {
+    document.body.style.removeProperty('padding-bottom');
+  });
   await previous.click();
   await expect(activeDeck).toHaveAccessibleName('Open History review');
   await expect(activeDeck).toBeFocused();
