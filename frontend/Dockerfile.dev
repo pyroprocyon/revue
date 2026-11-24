@@ -1,10 +1,15 @@
 # Local development only. The root Dockerfile builds the frontend for deployment, served by Spring Boot.
+FROM scratch AS npm-cacache
 FROM node:26.13.0-bookworm-slim
 WORKDIR /app
 RUN chown node:node /app
 USER node
 COPY --chown=node:node package.json package-lock.json .npmrc ./
-RUN npm ci
+RUN --mount=type=cache,target=/home/node/.npm,uid=1000,gid=1000,sharing=locked \
+    --mount=from=npm-cacache,target=/npm-cacache \
+    mkdir -p /home/node/.npm/_cacache \
+ && cp -r /npm-cacache/. /home/node/.npm/_cacache/ \
+ && npm ci --prefer-offline
 COPY --chown=node:node index.html vite.config.ts tsconfig.json tsconfig.domain.json .oxlintrc.json ./
 COPY --chown=node:node src/ ./src/
 COPY --chown=node:node public/ ./public/

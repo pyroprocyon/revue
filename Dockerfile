@@ -5,12 +5,21 @@
 # The image also holds Java's AOT cache for faster starts; see the runtime stage.
 # The build context is the repo root, so both the frontend and the backend are available.
 
+# CI supplies these directories as named contexts when runner caches are available.
+FROM scratch AS npm-cacache
+FROM scratch AS maven-wrapper-dists
+FROM scratch AS maven-repository
+
 # ---- Frontend stage: build the React app with the pinned Node version.
 FROM node:26.13.0-bookworm-slim AS frontend
 
 WORKDIR /frontend
 COPY frontend/package.json frontend/package-lock.json frontend/.npmrc ./
-RUN --mount=type=cache,target=/root/.npm npm ci
+RUN --mount=type=cache,target=/root/.npm,sharing=locked \
+    --mount=from=npm-cacache,target=/npm-cacache \
+    mkdir -p /root/.npm/_cacache \
+ && cp -a /npm-cacache/. /root/.npm/_cacache/ \
+ && npm ci --prefer-offline
 COPY frontend/ ./
 # Type-checks, builds into dist/ and writes .br and .gz copies of the text files.
 RUN npm run build
@@ -31,8 +40,13 @@ COPY --from=frontend /frontend/dist/ ./src/main/resources/static/
 
 # Tests need Docker for Testcontainers, so they run in `make test` and CI, not here.
 # The cache mount keeps downloaded dependencies between builds.
-RUN --mount=type=cache,target=/root/.m2 \
-    sh ./mvnw --batch-mode --no-transfer-progress -DskipTests package \
+RUN --mount=type=cache,target=/root/.m2,sharing=locked \
+    --mount=from=maven-wrapper-dists,target=/maven-wrapper-dists \
+    --mount=from=maven-repository,target=/maven-repository \
+    mkdir -p /root/.m2/wrapper/dists /root/.m2/repository \
+ && cp -a /maven-wrapper-dists/. /root/.m2/wrapper/dists/ \
+ && cp -a /maven-repository/. /root/.m2/repository/ \
+ && sh ./mvnw --batch-mode --no-transfer-progress -DskipTests package \
  && cp target/revue-*.jar /build/app.jar \
  && java -Djarmode=tools -jar /build/app.jar extract --destination /build/extracted
 

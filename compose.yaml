@@ -27,6 +27,7 @@ services:
       start_interval: 1s
 
   publisher:
+    image: ${REVUE_APP_IMAGE:-}
     build: .
     command: ["--revue.content.publish=true", "--server.address=127.0.0.1", "--server.port=0"]
     depends_on:
@@ -39,6 +40,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
 
   backend:
+    image: ${REVUE_APP_IMAGE:-}
     build:
       context: .
       dockerfile: Dockerfile
@@ -71,6 +73,7 @@ services:
       start_interval: 2s
 
   frontend:
+    image: ${REVUE_DEV_IMAGE:-}
     build:
       context: ./frontend
       dockerfile: Dockerfile.dev

@@ -12,6 +12,7 @@ SHELL := bash
 .DEFAULT_GOAL := up
 
 COMPOSE    ?= docker compose
+COMPOSE_UP_BUILD ?= --build
 SERVICE    ?=
 DB_SERVICE ?= db
 
@@ -35,7 +36,7 @@ start: up ## Start the full development stack (same as make or make up)
 stop: down ## Stop and remove containers, keeping database data (same as make down)
 
 up: $(PREREQS) check-build-context ## Build changed images and start the full development stack
-	$(COMPOSE) up --detach --build --wait $(SERVICE)
+	$(COMPOSE) up --detach $(COMPOSE_UP_BUILD) --wait $(SERVICE)
 	@$(COMPOSE) ps
 	@if [ -z "$(SERVICE)" ] || [ "$(SERVICE)" = "frontend" ]; then \
 	  address=$$($(COMPOSE) port frontend 5173); \
@@ -83,7 +84,7 @@ test: check-docker check-java frontend-install ## Install locked frontend packag
 	cd "$(FRONTEND_DIR)" && bash "$(NODE_RUN)" bash -c '$(FRONTEND_TEST)'
 
 frontend-install: ## Install frontend packages with the pinned Node version
-	cd "$(FRONTEND_DIR)" && bash "$(NODE_RUN)" npm ci
+	cd "$(FRONTEND_DIR)" && bash "$(NODE_RUN)" npm ci --prefer-offline
 
 build: frontend-install ## Type-check and build the frontend for production
 	cd "$(FRONTEND_DIR)" && bash "$(NODE_RUN)" npm run build

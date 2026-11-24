@@ -19,6 +19,10 @@ jobs:
     name: Tests and builds
     runs-on: ubuntu-24.04
     timeout-minutes: 25
+    env:
+      REVUE_APP_IMAGE: revue-ci-app:${{ github.sha }}
+      REVUE_DEV_IMAGE: revue-ci-dev:${{ github.sha }}
+      DOCKER_BUILD_RECORD_UPLOAD: 'false'
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -43,11 +47,65 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
           package-manager-cache: false
 
+      - name: Cache the Playwright browser
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-shell-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('frontend/package-lock.json') }}
+
+      - name: Cache the SonarQube scanner and analyzers
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            backend/target/quality/sonar-scanner-cli.jar
+            ~/.sonar/cache
+          key: sonar-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/check-sonar.py') }}
+
+      - name: Prepare Docker dependency inputs
+        id: docker-inputs
+        run: |
+          (cd backend && ./mvnw --version)
+          maven_cache="${MAVEN_USER_HOME:-$HOME/.m2}"
+          npm_cache="$(npm config get cache --prefix frontend)/_cacache"
+          mkdir -p "$maven_cache/repository" "$npm_cache"
+          {
+            printf 'maven_wrapper=%s\n' "$maven_cache/wrapper/dists"
+            printf 'maven_repository=%s\n' "$maven_cache/repository"
+            printf 'npm_cacache=%s\n' "$npm_cache"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build the app image for Playwright and smoke checks
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          load: true
+          tags: ${{ env.REVUE_APP_IMAGE }}
+          build-contexts: |
+            maven-wrapper-dists=${{ steps.docker-inputs.outputs.maven_wrapper }}
+            maven-repository=${{ steps.docker-inputs.outputs.maven_repository }}
+            npm-cacache=${{ steps.docker-inputs.outputs.npm_cacache }}
+          cache-from: type=gha,scope=revue-app
+          cache-to: type=gha,scope=revue-app,mode=max,ignore-error=true
+
       - name: Run the shared quality checks
         run: make quality PLAYWRIGHT_INSTALL_FLAGS=--with-deps
 
-      - name: Build containers and check the local app
-        run: make smoke
+      - name: Build the Vite image for the smoke check
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: frontend
+          file: frontend/Dockerfile.dev
+          load: true
+          tags: ${{ env.REVUE_DEV_IMAGE }}
+          build-contexts: npm-cacache=${{ steps.docker-inputs.outputs.npm_cacache }}
+          cache-from: type=gha,scope=revue-dev
+          cache-to: type=gha,scope=revue-dev,mode=max,ignore-error=true
+
+      - name: Check the local app using the prebuilt images
+        run: make smoke COMPOSE_UP_BUILD=--no-build
 
       - name: Save quality reports
         if: always()
