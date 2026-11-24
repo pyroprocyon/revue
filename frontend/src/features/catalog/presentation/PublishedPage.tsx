@@ -56,6 +56,7 @@ export function PublishedPage() {
   const matches = subjects.filter(({ subject }) => subject.toLocaleLowerCase().includes(term));
   const showSubjects = !selected && matches.length > 0;
   const restoreSubject = showSubjects && Boolean(lastOpenedSubject) && navigationType !== 'REPLACE';
+  const subjectFocusId = restoreSubject ? lastOpenedSubject : undefined;
   const subjectInView = selected?.subject;
   const subjectForAccent = hasCatalog ? subjectInView : requestedSubject;
   const topicSearch = useTopicSearch(subjectForAccent, searchTerm);
@@ -217,15 +218,10 @@ export function PublishedPage() {
                     )
                   : 0
               }
-              restoreFocus={restoreSubject}
+              focusId={subjectFocusId}
               onOpen={rememberSubject}
             />
-            <CollectionTiles
-              items={items}
-              kind="subjects"
-              focusId={restoreSubject ? lastOpenedSubject : undefined}
-              onOpen={rememberSubject}
-            />
+            <CollectionTiles items={items} kind="subjects" focusId={subjectFocusId} onOpen={rememberSubject} />
           </div>
         </CollectionStackContext>
       )}
@@ -334,7 +330,7 @@ function SubjectTopics({
               fillsScreen
               items={items}
               initialIndex={Math.max(0, restoredIndex)}
-              restoreFocus={focusId !== undefined}
+              focusId={focusId}
               onRestoreFocus={onRestoreFocus}
               onOpen={onOpen}
               onNearEnd={canLoadMore ? loadMore : undefined}

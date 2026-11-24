@@ -54,7 +54,7 @@ export function DeckCarousel({ decks, ...navigation }: CarouselNavigation & { de
 export function CollectionCarousel({
   items,
   kind,
-  restoreFocus = false,
+  focusId,
   onRestoreFocus,
   onNearEnd,
   fillsScreen,
@@ -64,7 +64,7 @@ export function CollectionCarousel({
   Readonly<{
     items: readonly CollectionLinkItem[];
     kind: CarouselKind;
-    restoreFocus?: boolean;
+    focusId?: string;
     onRestoreFocus?: (link: HTMLAnchorElement) => void;
     onNearEnd?: () => void;
   }>) {
@@ -76,7 +76,7 @@ export function CollectionCarousel({
   const snapPoints = useRef<HTMLDivElement>(null);
   const scrollStep = useRef(0);
   const frontLink = useRef<HTMLAnchorElement>(null);
-  const restoredFocus = useRef(false);
+  const restoredFocusId = useRef<string | undefined>(undefined);
   const focusWasInCarousel = useRef(false);
   const visible = useCollectionLayoutVisible(carousel);
   const fittedStageHeight = useFittedStageHeight(carousel, fillsScreen && visible);
@@ -104,11 +104,11 @@ export function CollectionCarousel({
   }, [frontIndex, nativeScroll]);
 
   useLayoutEffect(() => {
-    if (!restoreFocus || restoredFocus.current || !frontLink.current) return;
+    if (focusId === undefined || restoredFocusId.current === focusId || !frontLink.current) return;
     if (onRestoreFocus) onRestoreFocus(frontLink.current);
     else frontLink.current.focus({ preventScroll: true });
-    restoredFocus.current = true;
-  }, [restoreFocus, visible, onRestoreFocus]);
+    restoredFocusId.current = focusId;
+  }, [focusId, visible, onRestoreFocus]);
 
   const selectDeck = useCallback((index: number) => {
     if (index === selectedIndex.current) return;
