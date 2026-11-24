@@ -88,11 +88,7 @@ public class DeckService {
     /** Reads the deck and the cards that follow the given card, in the order they were added. */
     public CardPage cards(long deckId, long afterCardId, int limit, String search, boolean dueOnly) {
         String term = search.strip();
-        if (afterCardId < 0
-            || limit < 1
-            || limit > MAX_PAGE_SIZE
-            || term.length() > MAX_SEARCH_LENGTH
-            || term.indexOf('\0') >= 0) {
+        if (!validCardPage(afterCardId, limit, term)) {
             throw new DeckProblem(DeckProblem.Kind.INVALID_PAGE);
         }
         UUID learner = learners.current();
@@ -103,6 +99,18 @@ public class DeckService {
             dueOnly,
             DailyReviewScheduler.studyDate(clock.instant()));
         DeckStore.CardBatch batch = store.cardBatch(learner, deckId, query).orElseThrow(DeckService::notFound);
+        return cardPage(batch, limit);
+    }
+
+    static boolean validCardPage(long after, int limit, String term) {
+        return after >= 0
+            && limit >= 1
+            && limit <= MAX_PAGE_SIZE
+            && term.length() <= MAX_SEARCH_LENGTH
+            && term.indexOf('\0') < 0;
+    }
+
+    static CardPage cardPage(DeckStore.CardBatch batch, int limit) {
         List<DeckStore.Card> found = batch.items();
         boolean hasNextPage = found.size() > limit;
         List<DeckStore.Card> items = List.copyOf(found.subList(0, Math.min(found.size(), limit)));
@@ -121,6 +129,9 @@ public class DeckService {
             if (replay.isPresent()) {
                 return replay.get();
             }
+        }
+        if (text.answer().length() > CardText.MAX_ANSWER) {
+            throw new DeckProblem(DeckProblem.Kind.INVALID_TEXT);
         }
         if (store.countCards(learner) >= MAX_CARDS_PER_LEARNER) {
             throw new DeckProblem(DeckProblem.Kind.CARD_LIMIT);

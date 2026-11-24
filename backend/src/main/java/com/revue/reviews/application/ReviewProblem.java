@@ -11,6 +11,7 @@ public class ReviewProblem extends RuntimeException {
     public enum Kind {
         INVALID_RATING,
         INVALID_LIMIT,
+        INVALID_NEW_CARD_LIMIT,
         INVALID_TOPIC,
         UNAVAILABLE,
         STALE_SCHEDULE,

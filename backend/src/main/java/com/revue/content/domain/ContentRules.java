@@ -28,7 +28,7 @@ public final class ContentRules {
 
     private static final int MAX_QUESTION = 500;
 
-    private static final int MAX_ANSWER = 500;
+    private static final int MAX_ANSWER = 300;
 
     private static final int MAX_EXPLANATION = 2000;
 

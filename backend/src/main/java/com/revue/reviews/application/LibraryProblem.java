@@ -4,11 +4,12 @@ package com.revue.reviews.application;
 public class LibraryProblem extends RuntimeException {
     private final Kind kind;
 
-    /** Distinguishes authentication, unavailable content and invalid paging. */
+    /** Expected failures returned by the Library endpoints. */
     public enum Kind {
         UNAUTHENTICATED,
         UNAVAILABLE,
-        INVALID_PAGE
+        INVALID_PAGE,
+        SAVED_SET_LIMIT
     }
 
     public LibraryProblem(Kind kind) {
