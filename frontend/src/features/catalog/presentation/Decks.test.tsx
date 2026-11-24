@@ -151,7 +151,6 @@ function wideLayout() {
   );
 }
 
-/** fireEvent would also change a locked field, which a learner can't type into. */
 /** jsdom has no layout. The list starts phone-sized and widen() reports a tablet-or-wider list, like a turned phone. */
 function resizableLayout() {
   const watched = new Map<object, { report: ResizeObserverCallback; target: Element }>();
@@ -198,6 +197,7 @@ function isLocked(label: string) {
   return screen.getByLabelText(label).matches(':disabled');
 }
 
+/** fireEvent would also change a locked field, which a learner can't type into. */
 function type(label: string, text: string) {
   const field = screen.getByLabelText(label);
   expect(field.matches(':disabled'), `${label} is locked`).toBe(false);

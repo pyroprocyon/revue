@@ -189,6 +189,54 @@ describe('session-dependent navigation', () => {
     },
   );
 
+  it.each([
+    { destination: '/library?shelf=saved&set=1', heading: 'Philippine History' },
+    { destination: '/published?subject=Biology&q=cell', heading: 'Biology' },
+  ])('returns to $destination after signing in', async ({ destination, heading }) => {
+    let signedIn = false;
+    const profile = { username: 'learner' };
+    const reviewer = { ...historySet, id: '1', savedAt: '2026-11-13T00:00:00Z', retired: false };
+    const fetcher = vi.fn(async (path: string) => {
+      if (path === '/api/v1/auth/session') return jsonResponse(200, { signedIn });
+      if (path === '/api/v1/me') return jsonResponse(signedIn ? 200 : 401, signedIn ? profile : undefined);
+      if (path === '/api/v1/auth/csrf') return jsonResponse(200, { headerName: 'X-XSRF-TOKEN', token: 'csrf' });
+      if (path === '/api/v1/auth/login') {
+        signedIn = true;
+        return jsonResponse(200, profile);
+      }
+      if (path === '/api/v1/me/saved-sets/1') return jsonResponse(200, reviewer);
+      if (path === '/api/v1/me/saved-sets/1/cards') {
+        return jsonResponse(200, {
+          deck: { id: '1', title: reviewer.title, cardCount: 5, archived: false },
+          items: [],
+          dueCardIds: [],
+          nextCursor: null,
+        });
+      }
+      if (path === '/api/v1/me/saved-sets/keys') return jsonResponse(200, []);
+      if (path === '/api/v1/public-sets/catalog/subjects') {
+        return jsonResponse(200, [{ subject: 'Biology', topicCount: 1 }]);
+      }
+      if (path === '/api/v1/public-sets?published=true&limit=100&subject=Biology&q=cell') {
+        return jsonResponse(200, [{ ...historySet, title: 'Cell Biology', subject: 'Biology' }]);
+      }
+      return jsonResponse(404);
+    });
+    vi.stubGlobal('fetch', fetcher);
+
+    const { router } = renderApp(destination);
+    await screen.findByRole('heading', { name: 'Welcome back' });
+    expect(fetcher.mock.calls.some(([path]) => path.startsWith('/api/v1/me/saved-sets'))).toBe(false);
+    expect(new URLSearchParams(router.state.location.search).get('returnTo')).toBe(destination);
+    fireEvent.change(screen.getByLabelText('Username'), { target: { value: profile.username } });
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: crypto.randomUUID() } });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+
+    await screen.findByRole('heading', { level: 1, name: heading });
+    expect(router.state.location.pathname + router.state.location.search).toBe(destination);
+    if (heading === 'Biology') expect(await screen.findByRole('link', { name: 'Open Cell Biology' })).toBeDefined();
+  });
+
   it('scrolls an old desktop guide link after the session check mounts its section', async () => {
     // A guest in a browser that was signed in before: the homepage waits, so the section mounts late.
     saveSignedInHint(true);

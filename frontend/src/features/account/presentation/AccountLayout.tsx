@@ -236,13 +236,9 @@ export function AccountLayout({
   }, [attempt, gateway, queryClient]);
 
   if (session.status === 'signed-out') {
-    return (
-      <Navigate
-        to={signInPath(safeAccountReturnPath(location.pathname))}
-        replace
-        state={{ signedOutRevision: session.revision }}
-      />
-    );
+    const returnTo =
+      safeAccountReturnPath(location.pathname + location.search) ?? safeAccountReturnPath(location.pathname);
+    return <Navigate to={signInPath(returnTo)} replace state={{ signedOutRevision: session.revision }} />;
   }
 
   // Out of date, every private write is refused. A review pauses with it, while workspace pages and their open forms

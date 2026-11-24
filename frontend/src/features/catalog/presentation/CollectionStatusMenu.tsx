@@ -6,7 +6,7 @@ const labels: Record<ReviewGroup, string> = { active: 'Active', paused: 'Paused'
 
 type Props = {
   group: ReviewGroup;
-  counts: ReviewCounts;
+  counts?: ReviewCounts;
   onChoose: (group: ReviewGroup) => void;
   saved?: boolean;
   children: ReactNode;
@@ -78,7 +78,7 @@ export function CollectionStatusMenu({ group, counts, onChoose, saved = false, c
             <button
               key={option}
               type="button"
-              aria-label={`${labels[option]} ${counts[option]}`}
+              aria-label={counts && `${labels[option]} ${counts[option]}`}
               aria-pressed={group === option}
               onClick={() => {
                 close();
@@ -89,7 +89,7 @@ export function CollectionStatusMenu({ group, counts, onChoose, saved = false, c
             >
               {group === option && <Check aria-hidden="true" className="size-[1em] shrink-0" />}
               <span className="min-w-0 flex-1 text-start wrap-anywhere">{labels[option]}</span>
-              <span className="tabular-nums">{counts[option]}</span>
+              {counts && <span className="tabular-nums">{counts[option]}</span>}
             </button>
           ))}
         </fieldset>

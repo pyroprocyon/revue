@@ -195,7 +195,7 @@ test('removal refreshes Library, supports resaving, and recovers a lost response
 }, info) => {
   pilot.addSaveableSet();
   await page.clock.install();
-  await register(page, pilot.signupUrl);
+  const username = await register(page, pilot.signupUrl);
   await page.goto('/sets/published-test-set');
   await page.getByRole('button', { name: 'Save to Library' }).click();
   await page.getByRole('link', { name: 'Open Library', exact: true }).click();
@@ -266,10 +266,18 @@ test('removal refreshes Library, supports resaving, and recovers a lost response
   await page.getByRole('link', { name: 'Open Library', exact: true }).click();
   await page.getByRole('button', { name: 'Reviewer settings' }).click();
   await expect(remove).toBeVisible();
+  const { pathname, search } = new URL(page.url());
+  const reviewerPath = pathname + search;
   await context.clearCookies();
   await remove.click();
   await confirm.click();
-  await expect(page).toHaveURL(/\/sign-in\?returnTo=%2Flibrary$/);
+  await expect(page).toHaveURL(
+    (url) => url.pathname === '/sign-in' && url.searchParams.get('returnTo') === reviewerPath,
+  );
+  await signIn(page, username);
+  await expect(page).toHaveURL(new URL(reviewerPath, page.url()).href);
+  await expect(page.getByRole('heading', { name: 'Published test set', exact: true })).toBeVisible();
+  expect((await (await page.request.get('/api/v1/me/saved-sets')).json()).items).toHaveLength(1);
 });
 
 test('onboarding samples offer practice and reject direct saves', async ({ page, pilot }) => {

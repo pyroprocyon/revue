@@ -1,11 +1,12 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { Trash2 } from 'lucide-react';
 import { useId, useRef, useState } from 'react';
-import { Navigate } from 'react-router';
+import { Navigate, useLocation } from 'react-router';
 import { LibraryFailure, type LibraryPage, type SavedSet } from '../application/library';
 import { useLibraryGateway } from './LibraryProvider';
 import { libraryKeys, reviewKeys } from '../../../shared/cache/queryKeys';
 import { LIBRARY_PATH, signInPath } from '../../../shared/navigation/paths';
+import { useStillMounted } from '../../../shared/ui/useStillMounted';
 import {
   destructiveOutlineButton,
   inlineConfirmationButton,
@@ -20,6 +21,7 @@ export function useRemoveSetAction({ set, username, onRemoved }: Readonly<Props>
   const gateway = useLibraryGateway();
   const client = useQueryClient();
   const [state, setState] = useState<RemoveState>('idle');
+  const stillViewingReviewer = useStillMounted();
   const busy = useRef(false);
   const restoreFocus = useRef(false);
   const titleId = useId();
@@ -68,7 +70,7 @@ export function useRemoveSetAction({ set, username, onRemoved }: Readonly<Props>
       void client.resetQueries({ queryKey: libraryKeys.membership(set.id) });
       // Saved sets decide Today's cards, so its cached summary is now out of date.
       client.removeQueries({ queryKey: reviewKeys.all });
-      onRemoved(set.title, restoreFocus.current);
+      if (stillViewingReviewer.current) onRemoved(set.title, restoreFocus.current);
     } catch (error) {
       if (error instanceof LibraryFailure && error.reason === 'signed-out') {
         client.clear();
@@ -93,7 +95,8 @@ export function RemoveSetAction({
 }: Readonly<{ set: SavedSet; action: ReturnType<typeof useRemoveSetAction> }>) {
   const { state, changeConfirmation, titleId, warningId, focusResult, remove } = action;
 
-  if (state === 'signed-out') return <Navigate replace to={signInPath(LIBRARY_PATH)} />;
+  const { search } = useLocation();
+  if (state === 'signed-out') return <Navigate replace to={signInPath(LIBRARY_PATH + search)} />;
   if (state === 'removing')
     return (
       <button

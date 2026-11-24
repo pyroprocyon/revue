@@ -37,6 +37,7 @@ type Props = {
 };
 
 export function SavedSetBrowser({ set, cards, username, backTo, onRemoved }: Readonly<Props>) {
+  const location = useLocation();
   const { search, dueOnly, after, view, onSearch, onDue, pageTo, cursors } = useSavedCardFilters();
   const { items, dueIds, deck, progress, unavailable, signedOut, nextCursor } = useSavedCardPage(
     set,
@@ -58,7 +59,7 @@ export function SavedSetBrowser({ set, cards, username, backTo, onRemoved }: Rea
   const previewTabIndex = toolbarBottom === null ? undefined : 0;
 
   if (signedOut || (pause.error instanceof LibraryFailure && pause.error.reason === 'signed-out')) {
-    return <Navigate replace to={signInPath(LIBRARY_PATH)} />;
+    return <Navigate replace to={signInPath(LIBRARY_PATH + location.search)} />;
   }
   const earlier = after === undefined ? undefined : () => pageTo(cursors.at(-1), cursors.slice(0, -1));
   const pagination = (earlier || nextCursor) && (

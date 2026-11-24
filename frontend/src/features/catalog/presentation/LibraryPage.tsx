@@ -6,7 +6,7 @@ import type { LibraryBrowsing } from './LibraryBrowsingLayout';
 import { CreateDeckLink, MyDecks } from './MyDecks';
 import { useDecks } from './useDecks';
 import { SavedSets } from './SavedSets';
-import { LIBRARY_PATH, savedSetListParams, signInPath } from '../../../shared/navigation/paths';
+import { LIBRARY_PATH, isPositiveLongId, savedSetListParams, signInPath } from '../../../shared/navigation/paths';
 import { routeState } from '../../../shared/navigation/routeState';
 import { PageControls } from '../../../shared/ui/PageControls';
 import { usePageCursor } from '../../../shared/navigation/usePageCursor';
@@ -39,15 +39,15 @@ export function LibraryPage() {
   const nextCursor = library.data?.nextCursor;
   const counts = library.data?.counts;
   const savedCount = counts ? counts.active + counts.paused : library.data?.items.length;
-  const hasSavedSets = (savedCount ?? 0) > 0;
+  const shelf = params.get('shelf');
+  const showCollections = showLibraryCollections(shelf, firstPage, library.isFetched, savedCount);
   const createInHeading = firstPage && Boolean(decks.data?.length);
-  const nothingFollowsDecks = library.data !== undefined && !hasSavedSets && !removed;
+  const nothingFollowsDecks = savedCount === 0 && !removed;
   const saved =
-    browsingSet ||
-    isSavedShelf(params.get('shelf'), firstPage, hasSavedSets, decks.data?.length === 0 && !deletedDeckTitle);
+    browsingSet || isSavedShelf(shelf, firstPage, showCollections, decks.data?.length === 0 && !deletedDeckTitle);
   const firstLoad = useLibraryFirstLoad(browsingSet, linkedSet.loading, firstPage && !removed, decks, library);
   if (signedOut) {
-    return <Navigate replace to={signInPath(LIBRARY_PATH)} />;
+    return <Navigate replace to={signInPath(LIBRARY_PATH + location.search)} />;
   }
   if (firstLoad.library) {
     return (
@@ -60,7 +60,6 @@ export function LibraryPage() {
       </WorkspacePage>
     );
   }
-  const showCollections = hasSavedSets || !firstPage;
   function chooseShelf(value: string) {
     const next = new URLSearchParams();
     next.set('shelf', value);
@@ -115,10 +114,10 @@ export function LibraryPage() {
               Removed “{removed.title}” from your Library. Your progress is kept.
             </output>
           )}
-          {saved && (library.data || browsingSet) && (
+          {saved && (library.data || browsingSet || library.isError) && (
             <>
               <SavedSets
-                sets={library.data?.items ?? []}
+                sets={library.data?.items}
                 detail={firstLoad.notice ? undefined : linkedSet.detail}
                 linkedId={linkedSet.id}
                 detailFeedback={
@@ -137,7 +136,7 @@ export function LibraryPage() {
                 paginated={Boolean(after || nextCursor)}
                 onRemoved={showRemoval}
               />
-              {!browsingSet && !library.isPlaceholderData && (
+              {!browsingSet && !library.isPlaceholderData && !library.isError && (
                 <LibraryPaging after={after} nextCursor={nextCursor} previousPage={previousPage} nextPage={nextPage} />
               )}
             </>
@@ -165,7 +164,7 @@ function useLibraryRouteData(username: string, params: URLSearchParams, after: s
 
 function useLinkedSavedSet(username: string, id: string | null, library: ReturnType<typeof useSavedSets>) {
   const listed = library.isPlaceholderData ? undefined : library.data?.items.find((set) => set.id === id);
-  const validId = id !== null && /^[1-9]\d{0,18}$/.test(id) && BigInt(id) <= 9_223_372_036_854_775_807n;
+  const validId = id !== null && isPositiveLongId(id);
   const needsDetail = validId && !listed;
   const selected = useSavedSet(username, id ?? '', needsDetail);
   return {
@@ -250,9 +249,13 @@ function LibraryPaging({
   );
 }
 
-function isSavedShelf(shelf: string | null, firstPage: boolean, hasSavedSets: boolean, defaultToSaved: boolean) {
+function showLibraryCollections(shelf: string | null, firstPage: boolean, fetched: boolean, savedCount?: number) {
+  return !firstPage || (savedCount === undefined ? fetched && shelf === 'saved' : savedCount > 0);
+}
+
+function isSavedShelf(shelf: string | null, firstPage: boolean, showCollections: boolean, defaultToSaved: boolean) {
   if (!firstPage) return true;
-  if (!hasSavedSets) return false;
+  if (!showCollections) return false;
   return shelf ? shelf === 'saved' : defaultToSaved;
 }
 
