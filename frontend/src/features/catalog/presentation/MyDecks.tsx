@@ -1,11 +1,11 @@
-import { ChevronRight, Search, X } from 'lucide-react';
-import { useContext, useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
+import { Search, X } from 'lucide-react';
+import { useContext, useEffect, useRef, useState, type MouseEvent } from 'react';
 import { Link, Navigate, useOutletContext } from 'react-router';
 import { DeckFailure, type Deck } from '../application/decks';
 import type { useDecks } from './useDecks';
+import { CollectionGrid } from './CollectionGrid';
 import { DeckCarousel } from './DeckCarousel';
-import { LIBRARY_PATH, NEW_DECK_PATH, deckPath, signInPath } from '../../../shared/navigation/paths';
-import { cardCountLabel } from '../../../shared/ui/cardCount';
+import { LIBRARY_PATH, NEW_DECK_PATH, signInPath } from '../../../shared/navigation/paths';
 import { primaryButton, secondaryButton } from '../../../shared/ui/buttonStyles';
 import { WhenSlow } from '../../../shared/ui/WhenSlow';
 import { FocusRequestContext } from '../../../shared/ui/FocusRequestContext';
@@ -23,32 +23,23 @@ export function CreateDeckLink() {
 
 export function MyDecks({
   decks,
-  loading,
-  showHeading,
   fillsScreen,
   deletedDeckTitle,
   focusDeletedDeckNotice,
-  headingAction,
 }: Readonly<{
   decks: ReturnType<typeof useDecks>;
-  loading: boolean;
-  showHeading: boolean;
   fillsScreen: boolean;
   deletedDeckTitle?: string;
   focusDeletedDeckNotice: boolean;
-  headingAction?: ReactNode;
 }>) {
   if (decks.error instanceof DeckFailure && decks.error.reason === 'signed-out') {
     return <Navigate replace to={signInPath(LIBRARY_PATH)} />;
   }
   return (
     <section aria-labelledby="my-decks-heading" className={fillsScreen ? undefined : 'mb-10'}>
-      <div className={showHeading ? 'mb-4 flex min-h-12 flex-wrap items-center justify-between gap-3' : 'sr-only'}>
-        <h2 id="my-decks-heading" className="text-section font-bold">
-          My decks
-        </h2>
-        {headingAction}
-      </div>
+      <h2 id="my-decks-heading" className="sr-only">
+        My decks
+      </h2>
       {deletedDeckTitle && <DeletedDeckNotice title={deletedDeckTitle} focusOnEntry={focusDeletedDeckNotice} />}
       {decks.isError && (
         <div>
@@ -74,18 +65,12 @@ export function MyDecks({
           </div>
         </div>
       )}
-      {loading && (
-        <div
-          aria-busy="true"
-          className="min-h-40 rounded-card @min-[38rem]:min-h-34 @min-[64rem]/workspace:min-h-24 bg-surface p-compact-gutter shadow-card"
-        >
-          <WhenSlow>
-            <output className="block text-muted">Loading your Library…</output>
-          </WhenSlow>
-        </div>
+      {decks.isPending && (
+        <WhenSlow>
+          <output className="block text-muted">Loading your decks…</output>
+        </WhenSlow>
       )}
-      {!loading &&
-        decks.isSuccess &&
+      {decks.isSuccess &&
         (decks.data.length === 0 ? (
           <div className="flex flex-wrap items-center justify-between gap-4 rounded-card border border-line bg-surface p-compact-gutter sm:p-6">
             <p className="text-body text-muted">Make private flashcards for a class or exam.</p>
@@ -233,7 +218,7 @@ function DeckList({
               initialIndex={initialIndex}
               onOpen={openDeck}
             />
-            <DeckGrid decks={matches} onOpen={openDeck} />
+            <CollectionGrid decks={matches} onOpen={openDeck} />
           </>
         )}
       </div>
@@ -269,56 +254,5 @@ function DeckGroupChoice({
         </button>
       ))}
     </fieldset>
-  );
-}
-
-function DeckGrid({
-  decks,
-  onOpen,
-}: Readonly<{ decks: readonly Deck[]; onOpen: (event: MouseEvent<HTMLAnchorElement>) => void }>) {
-  const grid = useRef<HTMLUListElement>(null);
-  const [visible, setVisible] = useState(false);
-  useLayoutEffect(() => {
-    const element = grid.current;
-    if (!element) return;
-    // The workspace container query decides when the grid has a box. Mount its links
-    // before focus is restored on desktop and skip building hidden tiles on phones.
-    setVisible(element.getClientRects().length > 0);
-    const sizeChanges = new ResizeObserver(([entry]) => setVisible(entry.contentRect.width > 0));
-    sizeChanges.observe(element);
-    return () => sizeChanges.disconnect();
-  }, []);
-  return (
-    <ul ref={grid} className="hidden auto-rows-fr grid-cols-2 gap-4 @min-[64rem]/workspace:grid">
-      {visible && decks.map((deck) => <DeckTile key={deck.id} deck={deck} onOpen={onOpen} />)}
-    </ul>
-  );
-}
-
-function DeckTile({ deck, onOpen }: Readonly<{ deck: Deck; onOpen: (event: MouseEvent<HTMLAnchorElement>) => void }>) {
-  const countId = `grid-deck-${deck.id}-card-count`;
-  return (
-    <li className="min-w-0">
-      <Link
-        to={deckPath(deck.id)}
-        aria-label={`Open ${deck.title}`}
-        aria-describedby={countId}
-        data-library-deck={deck.id}
-        onClick={onOpen}
-        className={`pressable flex h-full min-h-24 min-w-0 flex-col justify-between gap-3 rounded-control px-5 py-4 ${deck.archived ? 'bg-subtle text-muted' : 'shadow-control hover:shadow-card'}`}
-      >
-        <h3 className="text-section leading-snug font-bold tracking-tight text-balance wrap-anywhere">{deck.title}</h3>
-        <div className="flex items-center justify-between gap-2">
-          <p
-            id={countId}
-            className={`rounded-full px-2.5 py-0.5 text-support font-medium tabular-nums ${deck.archived ? 'bg-surface text-muted' : 'bg-accent-soft text-accent-strong'}`}
-          >
-            {cardCountLabel(deck.cardCount)}
-            {deck.archived && <span className="sr-only">, paused</span>}
-          </p>
-          <ChevronRight aria-hidden="true" className="size-5 shrink-0 text-accent" />
-        </div>
-      </Link>
-    </li>
   );
 }

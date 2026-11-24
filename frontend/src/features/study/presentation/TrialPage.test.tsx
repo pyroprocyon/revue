@@ -217,8 +217,12 @@ describe('Five-card trial', () => {
 
     const heading = screen.getByRole('heading', { level: 1, name: 'You practiced 5 cards.' });
     expect(document.activeElement).toBe(heading);
-    expect(screen.getByText('Example schedule, soonest first.')).toBeDefined();
-    expect(screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)).toEqual([
+    expect(screen.getByRole('heading', { name: 'Example schedule' })).toBeDefined();
+    expect(screen.getByText('Tomorrow').closest('details')?.open).toBe(true);
+    expect(screen.getByText('In a few days').closest('details')?.open).toBe(false);
+    fireEvent.click(screen.getByText('In a few days'));
+    fireEvent.click(screen.getByText('In a week or more'));
+    expect(Array.from(document.querySelectorAll('summary [id]'), (label) => label.textContent)).toEqual([
       'Tomorrow',
       'In a few days',
       'In a week or more',
@@ -245,7 +249,7 @@ describe('Five-card trial', () => {
       showAnswerAndRate('Easy');
     }
 
-    expect(screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)).toEqual([
+    expect(Array.from(document.querySelectorAll('summary [id]'), (label) => label.textContent)).toEqual([
       'In a week or more',
     ]);
     expect(screen.getAllByText('In a week or more')).toHaveLength(1);

@@ -7,6 +7,7 @@ import { DeckWriteProblem } from './DeckWriteProblem';
 import { useDeckWrite } from './useDecks';
 import { LIBRARY_PATH, deckPath } from '../../../shared/navigation/paths';
 import { CREATED_DECK } from '../../../shared/navigation/routeState';
+import { NavigationLink } from '../../../shared/ui/NavigationLink';
 import { WorkspacePage } from '../../../shared/ui/WorkspacePage';
 import { useStillMounted } from '../../../shared/ui/useStillMounted';
 import type { LibraryBrowsing } from './LibraryBrowsingLayout';
@@ -20,8 +21,16 @@ export function NewDeckPage() {
   const { searchDecks, rememberOpenedDeck } = useOutletContext<LibraryBrowsing>();
   const write = useDeckWrite();
   return (
-    <WorkspacePage title="Create a deck" aboveTitle={<CreateDeckSteps current={1} />}>
-      <div className="max-w-lg rounded-card bg-surface p-compact-gutter py-6 shadow-card sm:p-8">
+    <WorkspacePage
+      title="Create a deck"
+      aboveTitle={
+        <NavigationLink to={LIBRARY_PATH} aria-label="Back to Library" back>
+          Library
+        </NavigationLink>
+      }
+    >
+      <CreateDeckSteps current={1} />
+      <div className="max-w-lg rounded-card border border-line bg-surface p-compact-gutter shadow-control sm:p-6">
         <DeckTitleForm
           title={title}
           onTitleChange={setTitle}

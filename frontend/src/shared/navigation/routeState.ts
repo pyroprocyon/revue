@@ -1,4 +1,6 @@
 type RouteState = {
+  fromLibrary?: boolean;
+  fromSavedSetList?: boolean;
   fromHelp?: boolean;
   fromWorkspace?: boolean;
   previousCursors?: (string | undefined)[];
@@ -6,6 +8,7 @@ type RouteState = {
   createdDeck?: boolean;
 };
 
+export const OPENED_FROM_LIBRARY: RouteState = { fromLibrary: true };
 export const OPENED_FROM_HELP: RouteState = { fromHelp: true };
 export const CREATED_DECK: RouteState = { createdDeck: true };
 export const OPENED_FROM_WORKSPACE: RouteState = { fromWorkspace: true };

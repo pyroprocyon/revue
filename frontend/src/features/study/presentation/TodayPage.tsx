@@ -1,5 +1,5 @@
 import { useContext, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import { ArrowRight, CalendarCheck, Check, Layers, Minus } from 'lucide-react';
+import { ArrowRight, CalendarCheck, CalendarDays, Clock3, Check, Layers, Minus } from 'lucide-react';
 import { Link, Navigate, useOutletContext } from 'react-router';
 import { ContinueReview } from './ContinueReview';
 import { TopicIcon } from './TopicIcon';
@@ -27,24 +27,26 @@ export function TodayPage() {
     const { studyDays = [], topics = [] } = overview;
     return (
       <WorkspacePage title="Your review">
-        <div className="@container/today grid gap-6">
+        <div className="review-overview grid items-start gap-4">
+          <div className="@container/today min-w-0 space-y-4">
+            {pausedTopic && !finished ? (
+              <ContinueReview
+                query={query}
+                onFinished={() => setFinished(true)}
+                username={username}
+                topic={pausedTopic}
+                fallback={<TodayTopics queue={overview} />}
+                otherReviews={
+                  topics.some((topic) => topic.id !== pausedTopic) ? (
+                    <NextTopic topics={topics.filter((topic) => topic.id !== pausedTopic)} />
+                  ) : null
+                }
+              />
+            ) : (
+              <TodayTopics queue={overview} />
+            )}
+          </div>
           <StudyRhythm days={studyDays} />
-          {pausedTopic && !finished ? (
-            <ContinueReview
-              query={query}
-              onFinished={() => setFinished(true)}
-              username={username}
-              topic={pausedTopic}
-              fallback={<TodayTopics queue={overview} />}
-              otherReviews={
-                topics.some((topic) => topic.id !== pausedTopic) ? (
-                  <NextTopic topics={topics.filter((topic) => topic.id !== pausedTopic)} />
-                ) : null
-              }
-            />
-          ) : (
-            <TodayTopics queue={overview} />
-          )}
         </div>
       </WorkspacePage>
     );
@@ -110,32 +112,43 @@ function StudyRhythm({ days }: Readonly<{ days: readonly StudyDay[] }>) {
   if (studiedCount === 0) return null;
   const dayLabel = studiedCount === 1 ? 'day' : 'days';
   return (
-    <div className="today-study-rhythm rounded-card bg-accent-soft p-compact-gutter text-accent-strong sm:p-6">
-      <div>
-        <p className="text-support font-semibold">Past 7 days</p>
-        <h2 className="mt-1 text-section font-extrabold tracking-tight sm:text-title">
-          {studiedCount} {dayLabel} studied
-        </h2>
+    <section
+      aria-label="Study rhythm"
+      className="rounded-card border border-line bg-accent-soft p-compact-gutter sm:p-6"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <p className="text-support font-semibold text-muted">Past 7 days</p>
+          <h2 className="text-section font-extrabold tracking-tight">
+            {studiedCount} {dayLabel} studied
+          </h2>
+        </div>
+        <CalendarDays aria-hidden="true" className="size-9 rounded-inset bg-surface/70 p-2 text-accent-strong" />
       </div>
-      <ol aria-label="Recent study days" className="today-study-days mt-4 grid max-w-sm grid-cols-7 gap-1">
-        {days.map((day) => {
+      <ol aria-label="Recent study days" className="study-week mt-4">
+        {days.map((day, index) => {
+          const isToday = index === days.length - 1;
           const dayName = weekday.format(new Date(`${day.date}T00:00:00${REVIEW_TIME_ZONE_OFFSET}`));
           const Icon = day.studied ? Check : Minus;
           return (
-            <li key={day.date} aria-label={`${nextReviewText(day.date)}, ${day.studied ? 'studied' : 'no reviews'}`}>
-              <div aria-hidden="true" className="flex min-w-0 flex-col items-center gap-1 text-xs font-semibold">
-                <span>{dayName.slice(0, 2)}</span>
+            <li
+              key={day.date}
+              aria-current={isToday ? 'date' : undefined}
+              aria-label={`${nextReviewText(day.date)}, ${day.studied ? 'studied' : 'no reviews'}`}
+            >
+              <span aria-hidden="true" className="grid justify-items-center gap-1 text-xs font-semibold text-muted">
+                {isToday ? 'Today' : dayName.slice(0, 2)}
                 <span
-                  className={`grid size-[26px] place-items-center rounded-full ${day.studied ? 'bg-study-day-complete text-on-accent' : 'bg-surface text-muted'}`}
+                  className={`study-marker ${day.studied ? 'bg-study-day-complete text-on-accent' : 'bg-surface text-muted'}`}
                 >
-                  <Icon className="size-[14px]" strokeWidth={day.studied ? 2.75 : undefined} />
+                  <Icon size={15} strokeWidth={day.studied ? 2.75 : 2} />
                 </span>
-              </div>
+              </span>
             </li>
           );
         })}
       </ol>
-    </div>
+    </section>
   );
 }
 
@@ -153,25 +166,31 @@ function NextTopic({ topics }: Readonly<{ topics: readonly ReviewTopic[] }>) {
 
   return (
     <section aria-labelledby={headingId}>
-      <h2 id={headingId} className="mb-3 text-section font-bold">
-        Up next
-      </h2>
-      <div className="today-next-card @container rounded-card bg-surface p-compact-gutter shadow-control sm:p-6">
-        <div className="mb-3 flex items-center gap-3">
-          <TopicIcon topic={currentTopic.id} />
-          <h3 id={topicTitleId} className="min-w-0 text-body font-bold wrap-anywhere sm:text-section">
+      <div className="overflow-hidden rounded-card border border-line bg-surface shadow-control">
+        <div className="collection-cover">
+          <div className="flex items-center justify-between gap-3">
+            <h2 id={headingId} className="flex items-center gap-2 text-support font-semibold">
+              <Clock3 aria-hidden="true" size={16} /> Up next
+            </h2>
+            <TopicIcon topic={currentTopic.id} />
+          </div>
+          <h3 id={topicTitleId} className="mt-5 text-title font-extrabold tracking-tight wrap-anywhere">
             {currentTopic.title}
           </h3>
+          <p className="mt-1 text-support">
+            {currentTopic.dueCards} {cardNoun(currentTopic.dueCards)} due
+          </p>
         </div>
-        <Link
-          ref={startLink}
-          to={reviewTopicPath(currentTopic.id)}
-          aria-describedby={topicTitleId}
-          className={`${primaryButton} w-full @min-[38rem]:w-auto`}
-        >
-          <span className="min-w-0 wrap-anywhere">{reviewAction(currentTopic.dueCards)}</span>
-          <ArrowRight aria-hidden="true" className="hidden size-5 shrink-0 @min-[12rem]:block" />
-        </Link>
+        <div className="p-3">
+          <Link
+            to={reviewTopicPath(currentTopic.id)}
+            ref={startLink}
+            aria-describedby={topicTitleId}
+            className={`${primaryButton} w-full`}
+          >
+            {reviewAction(currentTopic.dueCards)} <ArrowRight aria-hidden="true" size={18} />
+          </Link>
+        </div>
       </div>
       {topics.length > 1 && (
         <details className="mt-2">

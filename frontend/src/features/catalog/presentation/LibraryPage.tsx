@@ -1,18 +1,16 @@
-import { Navigate, useLocation, useNavigate, useNavigationType, useOutletContext } from 'react-router';
+import { Navigate, useLocation, useNavigate, useNavigationType, useOutletContext, useSearchParams } from 'react-router';
 import { useEffect, useRef, useState } from 'react';
 import { LibraryFailure } from '../application/library';
 import { useSavedSets } from './useSavedSets';
 import type { LibraryBrowsing } from './LibraryBrowsingLayout';
 import { CreateDeckLink, MyDecks } from './MyDecks';
 import { useDecks } from './useDecks';
-import { RemoveSetAction } from './RemoveSetAction';
-import { LIBRARY_PATH, reviewTopicPath, setPath, signInPath } from '../../../shared/navigation/paths';
+import { SavedSets } from './SavedSets';
+import { LIBRARY_PATH, signInPath } from '../../../shared/navigation/paths';
 import { routeState } from '../../../shared/navigation/routeState';
-import { cardCountLabel } from '../../../shared/ui/cardCount';
 import { PageControls } from '../../../shared/ui/PageControls';
 import { usePageCursor } from '../../../shared/navigation/usePageCursor';
 import { secondaryButton } from '../../../shared/ui/buttonStyles';
-import { NavigationLink } from '../../../shared/ui/NavigationLink';
 import { WhenSlow } from '../../../shared/ui/WhenSlow';
 import { WorkspacePage } from '../../../shared/ui/WorkspacePage';
 
@@ -21,12 +19,12 @@ export function LibraryPage() {
   const { cursor: after, previousPage, nextPage } = usePageCursor();
   const library = useSavedSets(profile.username, after);
   const firstPage = after === undefined;
-  const deletion = useDeckDeletionNotice(profile, firstPage);
-  const focusDeletedDeckNotice = deletion?.focus ?? false;
+  const { deletedDeckTitle, focusDeletedDeckNotice } = useDeletedDeckNotice(profile, firstPage);
   const decks = useDecks(profile.username, firstPage);
   const [removed, setRemoved] = useState<{ title: string; restoreFocus: boolean } | null>(null);
   const notice = useRef<HTMLOutputElement>(null);
-  const savedSetsHeading = useRef<HTMLHeadingElement>(null);
+  const [params, setParams] = useSearchParams();
+  const [stack, setStack] = useState(false);
   useEffect(() => {
     if (removed?.restoreFocus && document.activeElement === document.body) notice.current?.focus();
   }, [removed]);
@@ -36,154 +34,133 @@ export function LibraryPage() {
   const nextCursor = library.data?.nextCursor;
   const hasSavedSets = (library.data?.items.length ?? 0) > 0;
   const createInHeading = firstPage && decks.isSuccess && decks.data.length > 0;
-  const waitingForFirstLists = firstPage && !decks.isError && (!decks.isFetched || !library.isFetched);
   const nothingFollowsDecks = library.isSuccess && !hasSavedSets && !removed;
+  const shelf = params.get('shelf');
+  const saved =
+    !firstPage ||
+    (shelf === 'saved' && hasSavedSets) ||
+    (!shelf && hasSavedSets && decks.isSuccess && decks.data.length === 0 && !deletedDeckTitle);
+  const showCollections = hasSavedSets || !firstPage;
+  const showLayout = saved ? (library.data?.items.length ?? 0) > 1 && !params.get('set') : Boolean(decks.data?.length);
+  function chooseShelf(value: string) {
+    const next = new URLSearchParams();
+    next.set('shelf', value);
+    setParams(next, { replace: true });
+  }
   return (
     <WorkspacePage
       title="Library"
-      headingAction={
-        createInHeading ? (
-          <CreateDeckLink />
-        ) : (
-          firstPage && decks.isPending && <span aria-hidden="true" className="min-h-12" />
-        )
-      }
+      headingAction={(createInHeading || saved) && <CreateDeckLink />}
       focusHeading={!focusDeletedDeckNotice}
     >
-      {firstPage && (
-        <MyDecks
-          decks={decks}
-          loading={decks.isPending || waitingForFirstLists}
-          showHeading={hasSavedSets}
-          fillsScreen={nothingFollowsDecks}
-          deletedDeckTitle={deletion?.title}
-          focusDeletedDeckNotice={focusDeletedDeckNotice}
-          headingAction={
-            hasSavedSets &&
-            createInHeading && (
-              <a
-                href="#saved-sets"
-                className="pressable inline-flex min-h-12 items-center rounded-control px-2 text-support font-semibold text-accent"
-                onClick={(event) => {
-                  const heading = savedSetsHeading.current;
-                  if (!heading) return;
-                  event.preventDefault();
-                  heading.focus({ preventScroll: true });
-                  heading.scrollIntoView({ block: 'start' });
-                }}
-              >
-                Jump to saved sets
-              </a>
-            )
-          }
-        />
-      )}
-      {removed && (
-        <output
-          ref={notice}
-          tabIndex={-1}
-          className="mb-6 block rounded-control bg-accent-soft p-compact-gutter text-support text-accent-strong wrap-anywhere focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-        >
-          Removed “{removed.title}” from your Library. Your progress is kept.
-        </output>
-      )}
-      {library.isPending && !waitingForFirstLists && (
-        <WhenSlow>
-          <output className="block">Loading saved sets…</output>
-        </WhenSlow>
-      )}
-      {library.isError && (
-        <div>
-          <p role="alert" className="mb-4 text-muted">
-            Your saved sets couldn’t load. Check your connection and try again.
-          </p>
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              className={secondaryButton}
-              onClick={() => void library.refetch()}
-              disabled={library.isFetching}
-            >
-              {library.isFetching ? 'Retrying…' : 'Retry saved sets'}
-            </button>
-            {after !== undefined && (
-              <button type="button" className={secondaryButton} onClick={previousPage}>
-                Previous
-              </button>
+      <div className="library-collections" data-stack={stack || undefined}>
+        {(showCollections || showLayout) && (
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 border-b border-line">
+            {showCollections && (
+              <fieldset className="collection-switch">
+                <legend className="sr-only">Library collections</legend>
+                <button type="button" aria-pressed={!saved} onClick={() => chooseShelf('mine')}>
+                  My decks {decks.data?.length}
+                </button>
+                <button type="button" data-saved="" aria-pressed={saved} onClick={() => chooseShelf('saved')}>
+                  Saved sets {firstPage && library.data && `${library.data.items.length}${nextCursor ? '+' : ''}`}
+                </button>
+              </fieldset>
+            )}
+            {showLayout && (
+              <fieldset className="collection-layout ml-auto hidden @min-[64rem]/workspace:flex">
+                <legend className="sr-only">Collection layout</legend>
+                <button type="button" aria-pressed={!stack} onClick={() => setStack(false)}>
+                  Grid
+                </button>
+                <button type="button" aria-pressed={stack} onClick={() => setStack(true)}>
+                  Stack
+                </button>
+              </fieldset>
             )}
           </div>
-        </div>
-      )}
-      {library.isSuccess && !waitingForFirstLists && (hasSavedSets || !firstPage) && (
-        <>
-          <h2 id="saved-sets" ref={savedSetsHeading} tabIndex={-1} className="mb-4 scroll-mt-4 text-section font-bold">
-            Saved sets
-          </h2>
-          {!hasSavedSets && <p className="text-body text-muted">No more saved sets.</p>}
-          <ul className="grid gap-5 @min-[38rem]:grid-cols-2">
-            {library.data.items.map((set) => (
-              <li
-                key={set.id}
-                className="flex min-w-0 flex-col rounded-card border border-line bg-surface p-compact-gutter shadow-card sm:p-5"
+        )}
+        {firstPage && !saved && (
+          <MyDecks
+            decks={decks}
+            fillsScreen={nothingFollowsDecks || showCollections}
+            deletedDeckTitle={deletedDeckTitle}
+            focusDeletedDeckNotice={focusDeletedDeckNotice}
+          />
+        )}
+        {removed && (
+          <output
+            ref={notice}
+            tabIndex={-1}
+            className="mb-6 block rounded-control bg-accent-soft p-compact-gutter text-support text-accent-strong wrap-anywhere focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          >
+            Removed “{removed.title}” from your Library. Your progress is kept.
+          </output>
+        )}
+        {library.isPending && (
+          <WhenSlow>
+            <output className="block">Loading saved sets…</output>
+          </WhenSlow>
+        )}
+        {library.isError && (
+          <div>
+            <p role="alert" className="mb-4 text-muted">
+              Your saved sets couldn’t load. Check your connection and try again.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                className={secondaryButton}
+                onClick={() => void library.refetch()}
+                disabled={library.isFetching}
               >
-                <h3 className="text-section font-bold tracking-tight wrap-anywhere">{set.title}</h3>
-                <p className="mt-2 text-support text-muted wrap-anywhere">
-                  By {set.publisherName} · {cardCountLabel(set.cardCount)}
-                </p>
-                <p className="mt-4 flex-1 text-body text-muted wrap-anywhere">{set.description}</p>
-                {set.retired && (
-                  <p className="mt-4 text-support font-semibold">No longer offered · Still in your Library</p>
-                )}
-                <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3">
-                  {set.cardCount > 0 && (
-                    <NavigationLink
-                      to={reviewTopicPath(`set-${set.id}`, true)}
-                      aria-label={`Start review: ${set.title}`}
-                    >
-                      Start review
-                    </NavigationLink>
-                  )}
-                  {!set.retired && (
-                    <NavigationLink to={setPath(set.setKey)} aria-label={`View set: ${set.title}`}>
-                      View set
-                    </NavigationLink>
-                  )}
-                  <RemoveSetAction
-                    set={set}
-                    username={profile.username}
-                    onRemoved={(title, restoreFocus) => setRemoved({ title, restoreFocus })}
-                  />
-                </div>
-              </li>
-            ))}
-          </ul>
-          {(after !== undefined || nextCursor) && (
-            <PageControls
-              label="Library pages"
-              onPrevious={after === undefined ? undefined : previousPage}
-              onNext={nextCursor ? () => nextPage(nextCursor) : undefined}
+                {library.isFetching ? 'Retrying…' : 'Retry saved sets'}
+              </button>
+              {after !== undefined && (
+                <button type="button" className={secondaryButton} onClick={previousPage}>
+                  Previous
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+        {library.isSuccess && saved && (
+          <>
+            <SavedSets
+              key={after ?? ''}
+              sets={library.data.items}
+              username={profile.username}
+              paginated={Boolean(after || nextCursor)}
+              onRemoved={(title, restoreFocus) => setRemoved({ title, restoreFocus })}
             />
-          )}
-        </>
-      )}
+            {(after !== undefined || nextCursor) && (
+              <PageControls
+                label="Library pages"
+                onPrevious={after === undefined ? undefined : previousPage}
+                onNext={nextCursor ? () => nextPage(nextCursor) : undefined}
+              />
+            )}
+          </>
+        )}
+      </div>
     </WorkspacePage>
   );
 }
 
-function useDeckDeletionNotice(profile: LibraryBrowsing, firstPage: boolean) {
+function useDeletedDeckNotice(profile: LibraryBrowsing, firstPage: boolean) {
   const location = useLocation();
   const navigationType = useNavigationType();
   const navigate = useNavigate();
   const arrivedFromDeletion = firstPage ? routeState(location).deletedDeckTitle : undefined;
-  const [deletion, setDeletion] = useState(() => {
-    if (!arrivedFromDeletion) return undefined;
-    return {
-      title: arrivedFromDeletion,
-      focus: navigationType === 'REPLACE',
-      search: profile.search,
-      deckGroup: profile.deckGroup,
-    };
-  });
+  const [deletion, setDeletion] = useState(
+    () =>
+      arrivedFromDeletion && {
+        title: arrivedFromDeletion,
+        focus: navigationType === 'REPLACE',
+        search: profile.search,
+        deckGroup: profile.deckGroup,
+      },
+  );
   if (deletion && (profile.search !== deletion.search || profile.deckGroup !== deletion.deckGroup))
     setDeletion(undefined);
   // Browsers keep history state across reloads and Back, so the deletion is confirmed only on arrival.
@@ -191,5 +168,7 @@ function useDeckDeletionNotice(profile: LibraryBrowsing, firstPage: boolean) {
     if (routeState(location).deletedDeckTitle === undefined) return;
     void navigate(location, { replace: true, state: { ...routeState(location), deletedDeckTitle: undefined } });
   }, [location, navigate]);
-  return deletion;
+  const deletedDeckTitle = deletion ? deletion.title : undefined;
+  const focusDeletedDeckNotice = deletion ? deletion.focus : false;
+  return { deletedDeckTitle, focusDeletedDeckNotice };
 }

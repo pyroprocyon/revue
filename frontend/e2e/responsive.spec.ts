@@ -15,12 +15,13 @@ test('small tablet practice preview keeps trial above the sharing controls', asy
   await expect(trial).toHaveAccessibleDescription('Trial progress and ratings aren’t saved.');
   await expect(save).toHaveCount(0);
   await page.evaluate(() => document.fonts.ready);
+  await page.getByText('Share set', { exact: true }).click();
   const articleBox = (await page.getByRole('article').boundingBox())!;
   const trialBox = (await trial.boundingBox())!;
   const shareBox = (await share.boundingBox())!;
   const copyBox = (await copy.boundingBox())!;
-  expect(trialBox.y - articleBox.y - articleBox.height).toBeGreaterThanOrEqual(0);
-  expect(trialBox.y - articleBox.y - articleBox.height).toBeLessThanOrEqual(64);
+  expect(trialBox.y).toBeGreaterThan(articleBox.y);
+  expect(trialBox.y + trialBox.height).toBeLessThanOrEqual(articleBox.y + articleBox.height);
   expect(shareBox.y).toBeGreaterThan(trialBox.y + trialBox.height);
   expect(copyBox.y).toBe(shareBox.y);
   for (const box of [trialBox, shareBox, copyBox]) {
@@ -271,7 +272,8 @@ test('workspace navigation stays unique and reachable across layouts and enlarge
       await link.focus();
       await page.keyboard.press('Enter');
       await expect(page.getByRole('heading', { name: title, exact: true })).toBeFocused();
-      await expect(link).toHaveAttribute('aria-current', 'page');
+      if (destination === 'Help' && width < 1024) await expect(link).toHaveCount(0);
+      else await expect(link).toHaveAttribute('aria-current', 'page');
       await expect(page.getByRole('navigation', { name: 'Your workspace' })).toHaveCount(1);
       await expect(page.getByRole('link', { name: 'Browse sets', exact: true })).toHaveCount(0);
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);

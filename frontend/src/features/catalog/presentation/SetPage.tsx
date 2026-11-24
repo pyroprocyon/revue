@@ -1,21 +1,23 @@
 import { SaveSetAction } from './SaveSetAction';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { CollectionIcon } from '../../../shared/ui/CollectionIcon';
 import { ArrowRight } from 'lucide-react';
 import { useEffect } from 'react';
-import { Link, useParams } from 'react-router';
+import { Link, useLocation, useParams } from 'react-router';
 import type { PublicSet } from '../application/publicContent';
 import { usePublicContentQueries } from './PublicContentProvider';
-import { chip, primaryButton, secondaryButton } from '../../../shared/ui/buttonStyles';
+import { primaryButton, secondaryButton } from '../../../shared/ui/buttonStyles';
 import { TRIAL_CARD_COUNT } from '../../../shared/product/studyRules';
 import { cardCountLabel } from '../../../shared/ui/cardCount';
 import { FactLine } from '../../../shared/ui/FactLine';
-import { AllSetsLink, HomeLink } from '../../../shared/ui/HeaderLinks';
+import { AllSetsLink, BackButton, HomeLink } from '../../../shared/ui/HeaderLinks';
 import { LoadFailed } from '../../../shared/ui/LoadFailed';
 import { LoadingScreen, MessageScreen } from '../../../shared/ui/MessageScreen';
 import { ActionRow } from '../../../shared/ui/LayoutParts';
 import { PageLayout } from '../../../shared/ui/PageLayout';
 import { ShareLinks } from '../../../shared/ui/ShareLinks';
-import { SETS_PATH, setSharePath, trialPath } from '../../../shared/navigation/paths';
+import { routeState } from '../../../shared/navigation/routeState';
+import { LIBRARY_PATH, SETS_PATH, setSharePath, trialPath } from '../../../shared/navigation/paths';
 
 /** One set's preview at /sets/:setKey, the page a classmate's shared link opens. */
 export function SetPage() {
@@ -55,6 +57,7 @@ export function SetPage() {
 }
 
 function SetDetails({ publicSet }: Readonly<{ publicSet: PublicSet }>) {
+  const fromLibrary = routeState(useLocation()).fromLibrary === true;
   const { trialCardsQuery } = usePublicContentQueries();
   const queryClient = useQueryClient();
 
@@ -75,35 +78,48 @@ function SetDetails({ publicSet }: Readonly<{ publicSet: PublicSet }>) {
           <SaveSetAction key={publicSet.setKey} shareCode={publicSet.shareCode} setKey={publicSet.setKey} />
         )}
       </div>
-      <div className="border-t border-line pt-2">
+      <details className="border-t border-line">
+        <summary className="min-h-12 cursor-pointer content-center text-label font-semibold text-accent">
+          Share set
+        </summary>
         <ShareLinks title={publicSet.title} path={setSharePath(publicSet.shareCode)} />
-      </div>
+      </details>
     </div>
   );
   const top = (
     <>
-      <HomeLink />
+      {fromLibrary ? <BackButton label="Library" fallbackPath={LIBRARY_PATH} /> : <HomeLink />}
       <AllSetsLink />
     </>
   );
   return (
     <div className="lg:[--container-page:46rem]">
-      <PageLayout top={top} actions={actions}>
-        <article className="mt-2 flex flex-col rounded-card bg-surface px-compact-gutter py-4 shadow-card sm:p-6 lg:mt-8 lg:p-8">
-          <p className={`${chip} self-start`}>{publicSet.saveAllowed ? 'Shared set' : 'Practice set'}</p>
-          <h1 className="mt-3 text-title font-extrabold tracking-tight text-balance lg:text-title-lg">
-            {publicSet.title}
-          </h1>
-          <p className="mt-2 text-body text-muted lg:mt-3 lg:max-w-[54ch] lg:text-lg">{publicSet.description}</p>
-          <FactLine
-            facts={[`Published by ${publicSet.publisherName}`, 'Not yet checked', cardCountLabel(publicSet.cardCount)]}
-            className="pt-6 text-support font-medium lg:mt-6 lg:border-t lg:border-line lg:pt-4 lg:text-muted"
-          />
-          {publicSet.trialAvailable && (
-            <p id="trial-save-note" className="mt-2 text-support text-muted">
-              Trial progress and ratings aren’t saved.
+      <PageLayout top={top}>
+        <article className="mt-3 overflow-hidden rounded-card border border-line bg-surface shadow-control">
+          <div className="collection-cover">
+            <p className="flex items-center gap-2 text-support font-semibold">
+              <CollectionIcon kind="saved" />
+              {publicSet.saveAllowed ? 'Shared set' : 'Practice set'}
             </p>
-          )}
+            <h1 className="mt-4 text-title font-extrabold tracking-tight wrap-anywhere">{publicSet.title}</h1>
+          </div>
+          <div className="px-compact-gutter pb-4 sm:p-6">
+            <p className="mt-2 text-body text-muted lg:mt-3 lg:max-w-[54ch] lg:text-lg">{publicSet.description}</p>
+            <FactLine
+              facts={[
+                `Published by ${publicSet.publisherName}`,
+                'Not yet checked',
+                cardCountLabel(publicSet.cardCount),
+              ]}
+              className="pt-6 text-support font-medium lg:mt-6 lg:border-t lg:border-line lg:pt-4 lg:text-muted"
+            />
+            {publicSet.trialAvailable && (
+              <p id="trial-save-note" className="mt-2 text-support text-muted">
+                Trial progress and ratings aren’t saved.
+              </p>
+            )}
+            <div className="mt-4">{actions}</div>
+          </div>
         </article>
       </PageLayout>
     </div>

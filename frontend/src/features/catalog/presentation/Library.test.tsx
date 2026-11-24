@@ -77,7 +77,7 @@ describe('saved shared sets', () => {
     await waitFor(() => expect(finish).toBeDefined());
     finish(jsonResponse(200, savedSet));
     expect(await screen.findByText('Saved to your Library')).toBeDefined();
-    expect(screen.getByRole('link', { name: 'Open Library' }).getAttribute('href')).toBe('/library');
+    expect(screen.getByRole('link', { name: 'Open Library' }).getAttribute('href')).toBe('/library?shelf=saved&set=1');
     expect(fetcher).toHaveBeenCalledWith(
       savePath,
       expect.objectContaining({ method: 'POST', headers: { 'X-XSRF-TOKEN': 'csrf' } }),
@@ -213,6 +213,7 @@ describe('saved shared sets', () => {
           }
           return jsonResponse(200, { saved: !removed });
         }
+        if (path === '/api/v1/decks') return jsonResponse(200, { items: [] });
         if (path === '/api/v1/me/saved-sets') {
           if (removed) return new Promise<Response>(() => {});
           return jsonResponse(200, { items: [savedSet], nextCursor: null });
