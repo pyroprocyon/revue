@@ -1,15 +1,26 @@
 import { announceSessionChange } from '../../../shared/navigation/sessionChanges';
-import type { AccountGateway, AccountProfile, Signup } from '../application/account';
+import type { AccountGateway, AccountProfile, Signup, StudySettings } from '../application/account';
+import { DAILY_NEW_CARD_LIMITS } from '../../../shared/product/studyRules';
 import {
   csrfToken,
   forgetCsrfToken,
   prepareCsrfToken,
   sameOriginRequest,
+  sameOriginWrite,
 } from '../../../shared/http/sameOriginRequest';
 
 const SESSION_CHECK_FAILED = 'We could not check your session. Please try again.';
 const ACCOUNT_LOAD_FAILED = 'We could not load your account. Please try again.';
 const REQUEST_UNCONFIRMED = 'We could not confirm the request. Check your connection, then try signing in.';
+const STUDY_SETTINGS_PATH = '/api/v1/me/study-settings';
+
+async function readStudySettings(response: Response): Promise<StudySettings> {
+  if (!response.ok) throw new Error('Study settings request failed');
+  const settings = (await response.json()) as Partial<StudySettings> | null;
+  const dailyNewCardLimit = DAILY_NEW_CARD_LIMITS.find((limit) => limit === settings?.dailyNewCardLimit);
+  if (dailyNewCardLimit === undefined) throw new Error('Invalid study settings response');
+  return { dailyNewCardLimit };
+}
 
 async function post(path: string, values?: Record<string, string>): Promise<Response> {
   let response: Response;
@@ -63,6 +74,18 @@ export const httpAccount: AccountGateway = {
     const profile = (await response.json()) as Partial<AccountProfile> | null;
     if (typeof profile?.username !== 'string') throw new Error(ACCOUNT_LOAD_FAILED);
     return { username: profile.username };
+  },
+  async studySettings(signal) {
+    return readStudySettings(await sameOriginRequest(STUDY_SETTINGS_PATH, { signal }));
+  },
+  async saveStudySettings(settings) {
+    return readStudySettings(
+      await sameOriginWrite(STUDY_SETTINGS_PATH, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings),
+      }),
+    );
   },
   async register(input: Signup) {
     return postForProfile('/api/v1/auth/register', input);

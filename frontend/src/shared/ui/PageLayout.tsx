@@ -11,17 +11,19 @@ type PageLayoutProps = {
 /** Reading and browsing use document scrolling, with actions following their content. */
 export function PageLayout({ top, actions, pinActionsOnPhone = false, children }: Readonly<PageLayoutProps>) {
   const page = (
-    <div className={`min-h-dvh px-1 sm:pt-4 lg:px-2 ${pinActionsOnPhone ? 'page-with-phone-actions' : ''}`}>
+    <div
+      className={`@container min-h-[var(--page-height)] sm:pt-4 ${pinActionsOnPhone ? 'page-with-phone-actions' : ''}`}
+    >
       <SkipToContent />
       <header
-        className={`${readingColumn} flex min-h-14 shrink-0 flex-wrap items-center gap-x-3 gap-y-2 pt-[env(safe-area-inset-top)]`}
+        className={`${readingColumn} phone-page-header flex min-h-14 shrink-0 flex-wrap items-center gap-x-3 gap-y-2 pt-[env(safe-area-inset-top)]`}
       >
         {top}
       </header>
       <main
         id="main-content"
         tabIndex={-1}
-        className={`${readingColumn} @container flex flex-col pb-[max(1.5rem,env(safe-area-inset-bottom))] outline-none`}
+        className={`${readingColumn} screen-enter @container flex flex-col pb-[max(1.5rem,env(safe-area-inset-bottom))] outline-none`}
       >
         {children}
         {!pinActionsOnPhone && actions && <div className="pt-3">{actions}</div>}

@@ -4,6 +4,7 @@ export type PublicSet = {
   title: string;
   description: string;
   publisherName: string;
+  subject?: string;
   cardCount: number;
   trialAvailable: boolean;
   saveAllowed: boolean;
@@ -26,6 +27,7 @@ export type TrialCards = {
 };
 
 export type PublicSetPage = { items: PublicSet[]; nextCursor: string | null };
+export type ReviewerSubject = { subject: string; topicCount: number };
 
 /** The server limits concurrent public catalog reads and answers an extra one with 503 and Retry-After: 1. */
 export class PublicCatalogBusy extends Error {
@@ -36,7 +38,9 @@ export class PublicCatalogBusy extends Error {
 
 /** Application read port; App supplies its HTTP implementation to the screens. */
 export interface PublicContentReader {
-  list(after?: string): Promise<PublicSetPage>;
+  onboarding(signal: AbortSignal): Promise<PublicSet[]>;
+  topics(subject: string, search: string, after: string | undefined, signal: AbortSignal): Promise<PublicSetPage>;
+  subjects(signal: AbortSignal): Promise<ReviewerSubject[]>;
   sharedSummary(code: string): Promise<PublicSet | null>;
   summary(setKey: string): Promise<PublicSet | null>;
   trialCards(setKey: string): Promise<TrialCards | null>;

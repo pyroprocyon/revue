@@ -99,7 +99,7 @@ describe('App', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Review before it’s due.' })).toBeDefined();
     expect(screen.getByText('You do the thinking. Revue handles the timing.')).toBeDefined();
     // CSS shows the hero or footer link according to the rendered layout.
-    const browseLinks = screen.getAllByRole('link', { name: 'Browse sets' });
+    const browseLinks = screen.getAllByRole('link', { name: 'Browse reviewers' });
     expect(browseLinks.map((link) => link.getAttribute('href'))).toEqual(['/sets', '/sets']);
     expect(screen.queryByText(/free/i)).toBeNull();
     expect(screen.queryByRole('navigation', { name: 'Help and policies' })).toBeNull();
@@ -114,8 +114,8 @@ describe('App', () => {
     expect(await screen.findByRole('heading', { name: 'You’ll need an invitation' })).toBeDefined();
     expect(screen.queryByRole('textbox')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Create account' })).toBeNull();
-    fireEvent.click(screen.getByRole('link', { name: 'Browse sets' }));
-    expect(await screen.findByRole('heading', { name: 'Shared sets' })).toBeDefined();
+    fireEvent.click(screen.getByRole('link', { name: 'Browse reviewers' }));
+    expect(await screen.findByRole('heading', { name: 'Reviewers' })).toBeDefined();
   });
 
   it('lets returning learners sign in from a direct visit to the invitation explanation', async () => {
@@ -128,21 +128,23 @@ describe('App', () => {
     expect(fetchMock).toHaveBeenCalledExactlyOnceWith('/api/v1/auth/session', expect.anything());
   });
 
-  it('says "review" only in the headline, using practice, set and comes back elsewhere', async () => {
+  it('uses "review" as an action only in the headline', async () => {
     stubFetch(200, [historySet, natureSet]);
     renderApp('/');
 
-    const mentions = await screen.findAllByText(/\breview/i);
+    const mentions = await screen.findAllByText(/\breview\b/i);
     expect(mentions).toHaveLength(1);
     expect(mentions[0].closest('h1')).not.toBeNull();
   });
 
-  it('loads the list of sets in the background, so Browse sets opens without waiting', async () => {
+  it('loads the list of sets in the background, so Browse reviewers opens without waiting', async () => {
     const fetchMock = stubFetch(200, [historySet, natureSet]);
 
     renderApp('/');
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/v1/public-sets', expect.anything()));
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith('/api/v1/public-sets/catalog/onboarding', expect.anything()),
+    );
   });
 
   it('offers the guide inline on desktop and opens the separate page from the phone link', async () => {
@@ -156,8 +158,8 @@ describe('App', () => {
 
     expect(screen.getByRole('heading', { level: 1, name: 'How spaced repetition works' })).toBeDefined();
     expect(screen.getByText('Answer from memory.')).toBeDefined();
-    fireEvent.click(screen.getByRole('link', { name: 'Browse sets' }));
-    expect(await screen.findByRole('heading', { name: 'Shared sets' })).toBeDefined();
+    fireEvent.click(screen.getByRole('link', { name: 'Browse reviewers' }));
+    expect(await screen.findByRole('heading', { name: 'Reviewers' })).toBeDefined();
   });
 
   it('shows a sample card from the sets with the real rating look, and nothing to press', async () => {

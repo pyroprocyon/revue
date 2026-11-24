@@ -1,13 +1,13 @@
-import { useEffect, useId, type ReactNode } from 'react';
-import { Link, Navigate } from 'react-router';
+import { useEffect, type ReactNode } from 'react';
+import { Navigate } from 'react-router';
 import { ReviewFailure } from '../application/reviews';
-import { ArrowRight } from 'lucide-react';
+import { TodayReviewCard } from './TodayReviewCard';
 import type { useTodayQueue } from './ReviewProvider';
 import { forgetReview } from './pausedReview';
-import { TopicIcon } from './TopicIcon';
 import { reviewTopicPath, signInPath, TODAY_PATH } from '../../../shared/navigation/paths';
 import { primaryButton } from '../../../shared/ui/buttonStyles';
 import { WhenSlow } from '../../../shared/ui/WhenSlow';
+import { LoadingStatus } from '../../../shared/ui/LoadingFeedback';
 
 export function ContinueReview({
   username,
@@ -24,8 +24,6 @@ export function ContinueReview({
   query: ReturnType<typeof useTodayQueue>;
   onFinished: () => void;
 }>) {
-  const titleId = useId();
-  const topicId = useId();
   const summary = query.data?.continuation;
   const remaining = summary ? summary.dueCards + summary.newCards : 0;
   const unfinished = summary ? summary.dueCards + (summary.unintroducedCards ?? summary.newCards) : 0;
@@ -40,7 +38,7 @@ export function ContinueReview({
   if (query.error instanceof ReviewFailure && query.error.kind === 'signed-out') {
     return <Navigate replace to={signInPath(TODAY_PATH)} />;
   }
-  if (query.isError) {
+  if (query.isError && remaining === 0) {
     return (
       <>
         <div className="rounded-card bg-surface p-compact-gutter shadow-control sm:p-6">
@@ -53,11 +51,11 @@ export function ContinueReview({
       </>
     );
   }
-  if (query.isPending || query.isFetching) {
+  if (query.isPending || (query.isFetching && remaining === 0)) {
     return (
       <>
         <WhenSlow>
-          <output>Checking your remaining cards…</output>
+          <LoadingStatus>Checking your remaining cards…</LoadingStatus>
         </WhenSlow>
         {otherReviews}
       </>
@@ -67,30 +65,13 @@ export function ContinueReview({
 
   return (
     <>
-      <section aria-labelledby={titleId}>
-        <h2 id={titleId} className="mb-3 text-section font-bold">
-          Continue review
-        </h2>
-        <div className="today-next-card @container rounded-card bg-surface p-compact-gutter shadow-control sm:p-6">
-          <div className="mb-4 flex min-w-0 items-center gap-3">
-            <TopicIcon topic={topic} />
-            <div id={topicId} className="min-w-0">
-              <h3 className="text-body font-bold wrap-anywhere sm:text-section">{summary?.topicTitle}</h3>
-              <p className="text-support text-muted">
-                {remaining} {remaining === 1 ? 'card remains' : 'cards remain'}.
-              </p>
-            </div>
-          </div>
-          <Link
-            to={reviewTopicPath(topic, true)}
-            aria-describedby={topicId}
-            className={`${primaryButton} w-full @min-[38rem]:w-auto`}
-          >
-            <span className="min-w-0 wrap-anywhere">Continue</span>
-            <ArrowRight aria-hidden="true" className="hidden size-5 shrink-0 @min-[12rem]:block" />
-          </Link>
-        </div>
-      </section>
+      <TodayReviewCard
+        kind="continue"
+        title={summary?.topicTitle}
+        detail={`${remaining} ${remaining === 1 ? 'card remains' : 'cards remain'}.`}
+        to={reviewTopicPath(topic, true)}
+        action="Continue"
+      />
       {otherReviews}
     </>
   );

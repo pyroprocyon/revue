@@ -25,7 +25,6 @@ export function useInstallOffer() {
 
 export function watchPhoneInstall() {
   if (!/Android/i.test(navigator.userAgent)) return;
-  // Chrome can offer installation before the learner navigates to Help.
   window.addEventListener('beforeinstallprompt', (event) => {
     event.preventDefault();
     setOffer(event as InstallEvent);

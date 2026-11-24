@@ -1,16 +1,17 @@
-import { useContext, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import { ArrowRight, CalendarCheck, CalendarDays, Clock3, Check, Layers, Minus } from 'lucide-react';
+import { useContext, useId, useLayoutEffect, useRef, useState } from 'react';
+import { CalendarCheck, CalendarDays, ChevronDown, Check, Layers, Minus, PartyPopper } from 'lucide-react';
 import { Link, Navigate, useOutletContext } from 'react-router';
 import { ContinueReview } from './ContinueReview';
-import { TopicIcon } from './TopicIcon';
+import { TodayReviewCard } from './TodayReviewCard';
 import { pausedReview } from './pausedReview';
 import { type ReviewTopic, type StudyDay, type StudyQueue } from '../application/reviews';
 import { useTodayOverview } from './ReviewProvider';
 import { REVIEW_BATCH_SIZE, REVIEW_TIME_ZONE, REVIEW_TIME_ZONE_OFFSET } from '../../../shared/product/studyRules';
 import { cardNoun } from '../../../shared/ui/cardCount';
-import { primaryButton } from '../../../shared/ui/buttonStyles';
+import { blueAccentButton, primaryButton } from '../../../shared/ui/buttonStyles';
 import { LIBRARY_PATH, NEW_DECK_PATH, TODAY_PATH, reviewTopicPath, signInPath } from '../../../shared/navigation/paths';
-import { WhenSlow } from '../../../shared/ui/WhenSlow';
+import { useFirstLoadNotice } from '../../../shared/ui/useFirstLoadNotice';
+import { LoadingPlaceholder } from '../../../shared/ui/LoadingFeedback';
 import { WorkspacePage } from '../../../shared/ui/WorkspacePage';
 import { FocusRequestContext } from '../../../shared/ui/FocusRequestContext';
 
@@ -22,13 +23,16 @@ export function TodayPage() {
   const [pausedTopic] = useState(() => pausedReview(username));
   const [finished, setFinished] = useState(false);
   const { query, overview, loading, signedOut } = useTodayOverview(pausedTopic);
+  const showLoading = useFirstLoadNotice(loading && overview === undefined);
   if (signedOut) return <Navigate to={signInPath(TODAY_PATH)} replace />;
-  if (overview) {
+  if (overview && !showLoading) {
     const { studyDays = [], topics = [] } = overview;
+    const otherTopics = topics.filter((topic) => topic.id !== pausedTopic);
     return (
       <WorkspacePage title="Your review">
-        <div className="review-overview grid items-start gap-4">
-          <div className="@container/today min-w-0 space-y-4">
+        <div className="screen-enter space-y-4">
+          <StudyRhythm days={studyDays} />
+          <div className="min-w-0 space-y-4">
             {pausedTopic && !finished ? (
               <ContinueReview
                 query={query}
@@ -36,59 +40,87 @@ export function TodayPage() {
                 username={username}
                 topic={pausedTopic}
                 fallback={<TodayTopics queue={overview} />}
-                otherReviews={
-                  topics.some((topic) => topic.id !== pausedTopic) ? (
-                    <NextTopic topics={topics.filter((topic) => topic.id !== pausedTopic)} />
-                  ) : null
-                }
+                otherReviews={otherTopics.length > 0 && <NextTopic topics={otherTopics} />}
               />
             ) : (
               <TodayTopics queue={overview} />
             )}
           </div>
-          <StudyRhythm days={studyDays} />
         </div>
       </WorkspacePage>
     );
   }
-  let content: ReactNode;
-  if (loading) {
-    content = (
-      <WhenSlow>
-        <output>Loading your review…</output>
-      </WhenSlow>
-    );
-  } else {
-    content = (
-      <div>
-        <p role="alert">Your review couldn’t load. Try again.</p>
-        <button
-          type="button"
-          disabled={query.isFetching}
-          className={`${primaryButton} mt-4`}
-          onClick={() => void query.refetch()}
-        >
-          Try again
-        </button>
-      </div>
-    );
-  }
-  const panel = (
-    <div aria-busy={loading} className={loading ? `${statusPanel} min-h-32` : statusPanel}>
-      {content}
-    </div>
+  return (
+    <WorkspacePage title="Your review">
+      {loading || showLoading ? (
+        showLoading && <LoadingPlaceholder kind="today">Loading your review…</LoadingPlaceholder>
+      ) : (
+        <div className={statusPanel}>
+          <p role="alert">Your review couldn’t load. Try again.</p>
+          <button
+            type="button"
+            disabled={query.isFetching}
+            className={`${primaryButton} mt-4`}
+            onClick={() => void query.refetch()}
+          >
+            Try again
+          </button>
+        </div>
+      )}
+    </WorkspacePage>
   );
-  return <WorkspacePage title="Your review">{panel}</WorkspacePage>;
 }
 
 function TodayTopics({ queue }: Readonly<{ queue: StudyQueue }>) {
   const topics = queue.topics ?? [];
-  return topics.length > 0 ? (
-    <NextTopic topics={topics} />
-  ) : (
+  if (topics.length > 0) return <NextTopic topics={topics} />;
+  const canStartNewCards = queue.newCards > 0;
+  const newCardLimitReached = !canStartNewCards && (queue.unintroducedCards ?? 0) > 0;
+  if (queue.availableCards > 0 && queue.dueCards === 0 && !newCardLimitReached && queue.studyDays?.at(-1)?.studied) {
+    return <TodayCelebration canStartNewCards={canStartNewCards} nextReviewDate={queue.nextReviewDate} />;
+  }
+  return (
     <div className={statusPanel}>
       <TodayContent queue={queue} />
     </div>
+  );
+}
+
+function TodayCelebration({
+  canStartNewCards,
+  nextReviewDate,
+}: Readonly<{ canStartNewCards: boolean; nextReviewDate: string | null }>) {
+  const heading = useId();
+  return (
+    <section
+      aria-labelledby={heading}
+      className="grid justify-items-center gap-2 rounded-card border border-line bg-linear-to-br from-saved-set-soft to-surface to-80% px-4 py-6 text-center wrap-anywhere shadow-control short-phone:py-4 sm:px-6"
+    >
+      <span className="mb-1.5 grid size-15 place-items-center rounded-full border border-saved-set/20 bg-surface text-saved-set short-phone:size-12">
+        <PartyPopper aria-hidden="true" className="size-6" />
+      </span>
+      <h2 id={heading} className="text-2xl leading-tight font-extrabold tracking-tight short-phone:text-section">
+        Nice work today!
+      </h2>
+      <p className="text-base text-pretty text-muted">
+        {canStartNewCards
+          ? 'Scheduled reviews complete. Start new cards if you’d like.'
+          : 'Today’s reviews are complete.'}
+      </p>
+      {canStartNewCards && (
+        <Link to={LIBRARY_PATH} className={`${blueAccentButton} mt-2`}>
+          Open Library
+        </Link>
+      )}
+      {!canStartNewCards && nextReviewDate && (
+        <p className="mt-2 grid w-full max-w-64 gap-0.5 rounded-control border border-saved-set/20 bg-surface px-3 py-3.5">
+          <span className="text-label font-medium text-muted">Next review</span>
+          <time dateTime={nextReviewDate} className="text-lg leading-tight font-bold">
+            {nextReviewText(nextReviewDate)}
+          </time>
+        </p>
+      )}
+    </section>
   );
 }
 
@@ -139,7 +171,7 @@ function StudyRhythm({ days }: Readonly<{ days: readonly StudyDay[] }>) {
               <span aria-hidden="true" className="grid justify-items-center gap-1 text-xs font-semibold text-muted">
                 {isToday ? 'Today' : dayName.slice(0, 2)}
                 <span
-                  className={`study-marker ${day.studied ? 'bg-study-day-complete text-on-accent' : 'bg-surface text-muted'}`}
+                  className={`study-marker ${day.studied ? 'bg-study-day-complete text-on-study-day-complete' : 'bg-surface text-muted'}`}
                 >
                   <Icon size={15} strokeWidth={day.studied ? 2.75 : 2} />
                 </span>
@@ -154,79 +186,57 @@ function StudyRhythm({ days }: Readonly<{ days: readonly StudyDay[] }>) {
 
 function NextTopic({ topics }: Readonly<{ topics: readonly ReviewTopic[] }>) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const headingId = useId();
-  const topicTitleId = useId();
+  const pickerId = useId();
   const startLink = useRef<HTMLAnchorElement>(null);
   const requestFocus = useContext(FocusRequestContext);
   const currentTopic = topics.find((topic) => topic.id === selectedId) ?? topics[0];
+  const alternatives = topics.filter((topic) => topic.id !== currentTopic.id);
 
   useLayoutEffect(() => {
     if (selectedId !== null) requestFocus(startLink.current);
   }, [selectedId, requestFocus]);
 
   return (
-    <section aria-labelledby={headingId}>
-      <div className="overflow-hidden rounded-card border border-line bg-surface shadow-control">
-        <div className="collection-cover">
-          <div className="flex items-center justify-between gap-3">
-            <h2 id={headingId} className="flex items-center gap-2 text-support font-semibold">
-              <Clock3 aria-hidden="true" size={16} /> Up next
-            </h2>
-            <TopicIcon topic={currentTopic.id} />
-          </div>
-          <h3 id={topicTitleId} className="mt-5 text-title font-extrabold tracking-tight wrap-anywhere">
-            {currentTopic.title}
-          </h3>
-          <p className="mt-1 text-support">
-            {currentTopic.dueCards} {cardNoun(currentTopic.dueCards)} due
-          </p>
-        </div>
-        <div className="p-3">
-          <Link
-            to={reviewTopicPath(currentTopic.id)}
-            ref={startLink}
-            aria-describedby={topicTitleId}
-            className={`${primaryButton} w-full`}
-          >
-            {reviewAction(currentTopic.dueCards)} <ArrowRight aria-hidden="true" size={18} />
-          </Link>
-        </div>
-      </div>
-      {topics.length > 1 && (
-        <details className="mt-2">
-          <summary className="pressable mx-auto min-h-12 w-fit cursor-pointer rounded-control px-3 py-3 text-label font-semibold text-accent sm:mx-0">
+    <TodayReviewCard
+      kind="next"
+      title={currentTopic.title}
+      detail={`${currentTopic.dueCards} ${cardNoun(currentTopic.dueCards)} due`}
+      to={reviewTopicPath(currentTopic.id)}
+      action={reviewAction(currentTopic.dueCards)}
+      linkRef={startLink}
+    >
+      {alternatives.length > 0 && (
+        <details className="group/picker mt-2.5 border-t border-line">
+          <summary className="pressable flex min-h-12 cursor-pointer list-none items-center justify-between gap-2 rounded-control px-1 py-2 text-label font-semibold text-saved-set [&::-webkit-details-marker]:hidden">
             Other topics
+            <ChevronDown aria-hidden="true" className="size-4 shrink-0 group-open/picker:rotate-180" />
           </summary>
-          <fieldset className="today-topic-options mt-2 grid min-w-0 gap-2 @min-[38rem]:grid-cols-2">
-            <legend className="sr-only">Review topics</legend>
-            {topics.map((topic) => (
-              <button
-                key={topic.id}
-                type="button"
-                aria-pressed={topic.id === currentTopic.id}
-                aria-labelledby={`${headingId}-${topic.id}-title`}
-                aria-describedby={`${headingId}-${topic.id}-due`}
-                className="pressable flex min-h-12 flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-control bg-surface px-4 py-2 text-left text-label font-semibold wrap-anywhere shadow-control aria-pressed:bg-accent-soft aria-pressed:text-accent-strong"
-                onClick={() => {
-                  if (topic.id === selectedId) requestFocus(startLink.current);
-                  else setSelectedId(topic.id);
-                }}
-              >
-                <span id={`${headingId}-${topic.id}-title`} className="min-w-0">
-                  {topic.title}
-                </span>
-                <span
-                  id={`${headingId}-${topic.id}-due`}
-                  className="shrink-0 text-support font-medium text-muted tabular-nums"
+          <ul aria-label="Review topics" className="divide-y divide-line border-t border-line">
+            {alternatives.map((topic) => (
+              <li key={topic.id}>
+                <button
+                  type="button"
+                  aria-labelledby={`${pickerId}-${topic.id}-title`}
+                  aria-describedby={`${pickerId}-${topic.id}-due`}
+                  className="pressable flex min-h-12 w-full flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-control px-1 py-2 text-left text-label font-semibold wrap-anywhere"
+                  onClick={() => setSelectedId(topic.id)}
                 >
-                  {topic.dueCards} due
-                </span>
-              </button>
+                  <span id={`${pickerId}-${topic.id}-title`} className="min-w-0">
+                    {topic.title}
+                  </span>
+                  <span
+                    id={`${pickerId}-${topic.id}-due`}
+                    className="shrink-0 text-support font-medium text-muted tabular-nums"
+                  >
+                    {topic.dueCards} due
+                  </span>
+                </button>
+              </li>
             ))}
-          </fieldset>
+          </ul>
         </details>
       )}
-    </section>
+    </TodayReviewCard>
   );
 }
 
@@ -273,7 +283,7 @@ function emptyStateText(queue: StudyQueue) {
   if (queue.newCards > 0)
     return {
       title: 'No cards due today',
-      description: 'Open a deck or saved set in Library to start its new cards.',
+      description: 'Open a deck or saved reviewer in Library to start its new cards.',
     };
   if ((queue.unintroducedCards ?? 0) > 0)
     return {

@@ -12,10 +12,10 @@ export function PrivacyPage() {
           signed in securely. Your browser also remembers that you signed in, so Revue opens the right page.
         </p>
         <p>
-          We keep the sets you save, your ratings, study dates and review schedules. Typed answers stay in your browser.
-          Public trial attempts aren’t saved, and sharing a set doesn’t share your account.
+          We keep the reviewers you save, your ratings, study dates and review schedules. Typed answers stay in your
+          browser. Public trial attempts aren’t saved, and sharing a reviewer doesn’t share your account.
         </p>
-        <p>Removing a set from your Library keeps your progress so you can resume if you save it again.</p>
+        <p>Removing a reviewer from your Library keeps your progress so you can resume if you save it again.</p>
         <p>You can request a copy of your data, corrections, or removal. We handle these requests directly.</p>
         <Link to={`${TERMS_PATH}#help-and-corrections`} className={`${textLink} inline-flex min-h-12 items-center`}>
           Contact us
@@ -36,7 +36,7 @@ export function PrivacyPage() {
           </p>
           <p>If you email us, we receive your email address and message so we can reply.</p>
           <p>
-            We keep account information and saved sets while you participate. There’s no automatic deletion. If you
+            We keep account information and saved reviewers while you participate. There’s no automatic deletion. If you
             request removal, we’ll explain the timing and any copies remaining in backups.
           </p>
         </div>

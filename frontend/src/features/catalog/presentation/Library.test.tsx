@@ -1,7 +1,8 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { historySet } from '../../../test/fixtures';
 import { jsonResponse, renderApp } from '../../../test/renderApp';
+import { libraryKeys } from '../../../shared/cache/queryKeys';
 
 const setPath = '/sets/philippine-history';
 const savePath = `/api/v1/sets/${Number.parseInt(historySet.shareCode, 36)}/save`;
@@ -23,6 +24,7 @@ function api({
   retired = false,
   save = async () => jsonResponse(200, savedSet),
   remove = async () => jsonResponse(204),
+  moreSaved = [] as (typeof savedSet)[],
 } = {}) {
   const fetcher = vi.fn(async (path: string, init?: RequestInit) => {
     if (path === '/api/v1/auth/session') return jsonResponse(200, { signedIn });
@@ -45,8 +47,18 @@ function api({
       return jsonResponse(signedIn ? 200 : 401, { saved });
     }
     if (path === '/api/v1/decks') return jsonResponse(200, { items: [] });
-    if (path === '/api/v1/me/saved-sets')
-      return jsonResponse(200, { items: saved ? [{ ...savedSet, retired }] : [], nextCursor: null });
+    if (/^\/api\/v1\/me\/saved-sets\/\d+\/cards(?:\?|$)/.test(path))
+      return jsonResponse(saved ? 200 : 404, {
+        deck: { id: savedSet.id, title: savedSet.title, cardCount: savedSet.cardCount, archived: false },
+        progress: { dueCards: 0, newCards: savedSet.cardCount, newCardsLeftToday: 10, nextReviewDate: null },
+        items: [],
+        dueCardIds: [],
+        nextCursor: null,
+      });
+    if (path === `/api/v1/me/saved-sets/${savedSet.id}`)
+      return jsonResponse(saved ? 200 : 404, { ...savedSet, retired });
+    if (path === '/api/v1/me/saved-sets?limit=50&paused=false')
+      return jsonResponse(200, { items: saved ? [{ ...savedSet, retired }, ...moreSaved] : [], nextCursor: null });
     return jsonResponse(404);
   });
   vi.stubGlobal('fetch', fetcher);
@@ -71,13 +83,18 @@ describe('saved shared sets', () => {
         }),
     });
     renderApp(setPath);
-    fireEvent.click(await screen.findByRole('button', { name: 'Save to Library' }));
+    const save = await screen.findByRole('button', { name: 'Save to Library' });
+    save.focus();
+    fireEvent.click(save);
     expect(await screen.findByRole('button', { name: 'Saving…' })).toHaveProperty('disabled', true);
-    expect(screen.queryByText('Saved to your Library')).toBeNull();
+    expect(screen.queryByText('Saved')).toBeNull();
     await waitFor(() => expect(finish).toBeDefined());
     finish(jsonResponse(200, savedSet));
-    expect(await screen.findByText('Saved to your Library')).toBeDefined();
-    expect(screen.getByRole('link', { name: 'Open Library' }).getAttribute('href')).toBe('/library?shelf=saved&set=1');
+    const open = await screen.findByRole('link', { name: 'Open Library', description: 'Saved to your Library' });
+    expect(open).toBe(document.activeElement);
+    expect(open.className).toContain(save.className);
+    expect(open.getAttribute('href')).toBe('/library?shelf=saved&set=1');
+    expect(open.contains(await screen.findByText('Saved'))).toBe(true);
     expect(fetcher).toHaveBeenCalledWith(
       savePath,
       expect.objectContaining({ method: 'POST', headers: { 'X-XSRF-TOKEN': 'csrf' } }),
@@ -96,10 +113,25 @@ describe('saved shared sets', () => {
       'textContent',
       'We couldn’t confirm the save. Trying again won’t create a duplicate.',
     );
-    expect(screen.queryByText('Saved to your Library')).toBeNull();
+    expect(screen.queryByText('Saved')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Try saving again' }));
-    expect(await screen.findByText('Saved to your Library')).toBeDefined();
+    expect(await screen.findByText('Saved')).toBeDefined();
     expect(save).toHaveBeenCalledTimes(2);
+  });
+
+  it('explains the saved-set limit and links to the shelf where the learner can make room', async () => {
+    api({ save: async () => jsonResponse(409) });
+    renderApp(setPath);
+    const save = await screen.findByRole('button', { name: 'Save to Library' });
+    save.focus();
+    fireEvent.click(save);
+    expect(await screen.findByRole('alert')).toHaveProperty(
+      'textContent',
+      'Your Library holds up to 50 saved reviewers. Remove a reviewer to make room.',
+    );
+    const library = screen.getByRole('link', { name: 'Open Library' });
+    expect(library.getAttribute('href')).toBe('/library?shelf=saved');
+    expect(document.activeElement).toBe(library);
   });
 
   it.each([401, 403, 404])('handles a save rejected with HTTP %i without claiming success', async (status) => {
@@ -108,7 +140,7 @@ describe('saved shared sets', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Save to Library' }));
     if (status === 401) expect(await screen.findByRole('link', { name: 'Sign in to save' })).toBeDefined();
     else expect(await screen.findByRole('alert')).toBeDefined();
-    expect(screen.queryByText('Saved to your Library')).toBeNull();
+    expect(screen.queryByText('Saved')).toBeNull();
   });
 
   it('rechecks the current session after a save instead of attributing the old account response to a new account', async () => {
@@ -133,7 +165,7 @@ describe('saved shared sets', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Save to Library' }));
     await waitFor(() => expect(posted).toBe(true));
     expect(await screen.findByRole('button', { name: 'Save to Library' })).toBeDefined();
-    expect(screen.queryByText('Saved to your Library')).toBeNull();
+    expect(screen.queryByText('Saved')).toBeNull();
   });
 
   it('loads already saved state without another write', async () => {
@@ -143,20 +175,115 @@ describe('saved shared sets', () => {
     expect(fetcher.mock.calls.filter(([, init]) => init?.method === 'POST')).toEqual([]);
   });
 
+  it('keeps the saved row on return while checking the same session, then checks again for a new session', async () => {
+    const revisionKey = 'revue.session-revision';
+    localStorage.setItem(revisionKey, 'first-session');
+    const fetcher = api({ saved: true });
+    const { router } = renderApp(setPath);
+    const savedLink = () => screen.getByRole('link', { name: 'Open Library' });
+    await screen.findByRole('link', { name: 'Open Library' });
+    await act(() => router.navigate('/help'));
+
+    const respond = fetcher.getMockImplementation()!;
+    let finish!: (response: Response) => void;
+    const pending = new Promise<Response>((resolve) => {
+      finish = resolve;
+    });
+    const refresh = vi.fn(() => pending);
+    fetcher.mockImplementation((path, init) => (path === savePath ? refresh() : respond(path, init)));
+    await act(() => router.navigate(-1));
+    await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
+    const visibleDuringRefresh = savedLink();
+    await act(() => finish(jsonResponse(200, { saved: true })));
+    expect(savedLink()).toBe(visibleDuringRefresh);
+
+    fetcher.mockImplementation((path, init) =>
+      path === savePath ? Promise.resolve(jsonResponse(200, { saved: false })) : respond(path, init),
+    );
+    await act(() => {
+      localStorage.setItem(revisionKey, 'second-session');
+      window.dispatchEvent(new StorageEvent('storage', { key: revisionKey, newValue: 'second-session' }));
+    });
+    expect(await screen.findByRole('button', { name: 'Save to Library' })).toBeDefined();
+    expect(screen.queryByRole('link', { name: 'Open Library' })).toBeNull();
+  });
+
+  it('keeps the confirmed Save action in place while saved status refreshes', async () => {
+    const fetcher = api();
+    const { queryClient } = renderApp(setPath);
+    const save = await screen.findByRole('button', { name: 'Save to Library' });
+    const respond = fetcher.getMockImplementation()!;
+    let finish!: (response: Response) => void;
+    const pending = new Promise<Response>((resolve) => {
+      finish = resolve;
+    });
+    fetcher.mockImplementation((path, init) => (path === savePath ? pending : respond(path, init)));
+
+    const refresh = queryClient.invalidateQueries({ queryKey: libraryKeys.membership(savedSet.id) });
+    await waitFor(() => expect(save.getAttribute('aria-disabled')).toBe('true'));
+    expect(screen.getByRole('button', { name: 'Save to Library' })).toBe(save);
+    fireEvent.click(save);
+    expect(fetcher.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false);
+    finish(jsonResponse(200, { saved: true }));
+    await refresh;
+    expect(await screen.findByRole('link', { name: 'Open Library' })).toBeDefined();
+  });
+
+  it.each([
+    ['/library', 'Loading your Library…', 'Open Java notes'],
+    ['/library?shelf=saved&set=1', 'Loading the saved reviewer…', 'Philippine History'],
+  ])('waits for the correct shelf on a cold visit to %s', async (path, waiting, ready) => {
+    const fetcher = api({ saved: true });
+    const respond = fetcher.getMockImplementation()!;
+    let finish!: (response: Response) => void;
+    const pending = new Promise<Response>((resolve) => {
+      finish = resolve;
+    });
+    fetcher.mockImplementation((url, init) => {
+      if (url === `/api/v1/me/saved-sets/${savedSet.id}` || url.startsWith('/api/v1/me/saved-sets?')) return pending;
+      if (url === '/api/v1/decks')
+        return Promise.resolve(jsonResponse(200, { items: [{ id: '8', title: 'Java notes', cardCount: 3 }] }));
+      return respond(url, init);
+    });
+    renderApp(path);
+    await screen.findByText(waiting);
+    expect(screen.queryByRole('link', { name: 'Open Java notes' })).toBeNull();
+    const linkedSet = path.includes('set=');
+    finish(jsonResponse(200, linkedSet ? savedSet : { items: [savedSet], nextCursor: null }));
+    const role = linkedSet ? 'heading' : 'link';
+    expect(await screen.findByRole(role, { name: ready })).toBeDefined();
+  });
+
   it('shows deck creation and hides the saved sets section when no sets are saved', async () => {
     api();
     renderApp('/library');
     expect(await screen.findByRole('link', { name: 'Create a deck' })).toBeDefined();
-    expect(screen.queryByRole('heading', { name: 'Saved sets' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Saved reviewers' })).toBeNull();
     expect(screen.getByRole('link', { name: 'Today' }).getAttribute('href')).toBe('/today');
   });
 
   it('reads the saved Library after mounting the verified account boundary', async () => {
     api({ saved: true });
     renderApp('/library');
-    expect(await screen.findByRole('heading', { name: historySet.title })).toBeDefined();
-    expect(screen.getByRole('heading', { name: 'Saved sets' })).toBeDefined();
+    expect(await screen.findByRole('link', { name: `Open ${historySet.title}` })).toBeDefined();
+    expect(screen.getByRole('heading', { name: 'Saved reviewers' })).toBeDefined();
     expect(screen.getByRole('link', { name: 'Library' }).getAttribute('aria-current')).toBe('page');
+  });
+
+  it('searches saved sets with the same clearable field as decks', async () => {
+    api({
+      saved: true,
+      moreSaved: [{ ...savedSet, id: '2', setKey: 'philippine-nature', title: 'Philippine Nature' }],
+    });
+    renderApp('/library?shelf=saved');
+    fireEvent.change(await screen.findByRole('searchbox', { name: 'Search reviewers' }), {
+      target: { value: 'Nature' },
+    });
+    fireEvent.click(await screen.findByRole('button', { name: 'Clear reviewer search' }));
+
+    const search = screen.getByRole('searchbox', { name: 'Search reviewers' });
+    expect(search).toHaveProperty('value', '');
+    expect(document.activeElement).toBe(search);
   });
 
   it('waits for confirmed removal before updating Library', async () => {
@@ -168,8 +295,12 @@ describe('saved shared sets', () => {
           finish = resolve;
         }),
     });
-    renderApp('/library');
+    renderApp('/library?shelf=saved&set=1');
+    fireEvent.click(await screen.findByRole('button', { name: 'Reviewer settings' }));
     fireEvent.click(await screen.findByRole('button', { name: `Remove from Library: ${historySet.title}` }));
+    expect(screen.getByText(/Your progress is kept/)).toBeDefined();
+    expect(fetcher.mock.calls.filter(([, init]) => init?.method === 'DELETE')).toHaveLength(0);
+    fireEvent.click(screen.getByRole('button', { name: /^Remove$/ }));
     expect(await screen.findByRole('button', { name: 'Removing…' })).toHaveProperty('disabled', true);
     expect(screen.getByRole('heading', { name: historySet.title })).toBeDefined();
     await waitFor(() => expect(finish).toBeDefined());
@@ -177,7 +308,7 @@ describe('saved shared sets', () => {
     expect(
       await screen.findByText(`Removed “${historySet.title}” from your Library. Your progress is kept.`),
     ).toBeDefined();
-    expect(screen.queryByRole('heading', { name: 'Saved sets' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Saved reviewers' })).toBeNull();
     expect(screen.queryByRole('heading', { name: historySet.title })).toBeNull();
     expect(fetcher).toHaveBeenCalledWith(
       savePath,
@@ -187,15 +318,16 @@ describe('saved shared sets', () => {
 
   it('warns before removing a retired set and supports cancelling', async () => {
     const fetcher = api({ saved: true, retired: true });
-    renderApp('/library');
+    renderApp('/library?shelf=saved&set=1');
+    fireEvent.click(await screen.findByRole('button', { name: 'Reviewer settings' }));
     fireEvent.click(await screen.findByRole('button', { name: `Remove from Library: ${historySet.title}` }));
     expect(screen.getByText(/you won’t be able to save it again/)).toBeDefined();
     expect(fetcher.mock.calls.filter(([, init]) => init?.method === 'DELETE')).toHaveLength(0);
-    fireEvent.click(screen.getByRole('button', { name: 'Keep set' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Keep$/ }));
     expect(screen.queryByText(/you won’t be able to save it again/)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: `Remove from Library: ${historySet.title}` }));
-    fireEvent.click(screen.getByRole('button', { name: 'Remove from Library' }));
-    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Saved sets' })).toBeNull());
+    fireEvent.click(screen.getByRole('button', { name: /^Remove$/ }));
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Saved reviewers' })).toBeNull());
   });
 
   it('finishes confirmed removal even when the following Library refresh stalls', async () => {
@@ -203,6 +335,7 @@ describe('saved shared sets', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (path: string, init?: RequestInit) => {
+        if (path === `/api/v1/me/saved-sets/${savedSet.id}`) return jsonResponse(200, savedSet);
         if (path === '/api/v1/me') return jsonResponse(200, { username: 'learner' });
         if (path === '/api/v1/auth/csrf')
           return jsonResponse(200, { token: 'csrf', headerName: 'X-XSRF-TOKEN', username: 'learner' });
@@ -214,15 +347,17 @@ describe('saved shared sets', () => {
           return jsonResponse(200, { saved: !removed });
         }
         if (path === '/api/v1/decks') return jsonResponse(200, { items: [] });
-        if (path === '/api/v1/me/saved-sets') {
+        if (path === '/api/v1/me/saved-sets?limit=50&paused=false') {
           if (removed) return new Promise<Response>(() => {});
           return jsonResponse(200, { items: [savedSet], nextCursor: null });
         }
         return jsonResponse(404);
       }),
     );
-    renderApp('/library');
+    renderApp('/library?shelf=saved&set=1');
+    fireEvent.click(await screen.findByRole('button', { name: 'Reviewer settings' }));
     fireEvent.click(await screen.findByRole('button', { name: `Remove from Library: ${historySet.title}` }));
+    fireEvent.click(screen.getByRole('button', { name: /^Remove$/ }));
     expect(
       await screen.findByText(`Removed “${historySet.title}” from your Library. Your progress is kept.`),
     ).toBeDefined();
@@ -236,8 +371,10 @@ describe('saved shared sets', () => {
       .mockRejectedValueOnce(new TypeError('connection lost'))
       .mockResolvedValueOnce(jsonResponse(204));
     api({ saved: true, remove });
-    renderApp('/library');
+    renderApp('/library?shelf=saved&set=1');
+    fireEvent.click(await screen.findByRole('button', { name: 'Reviewer settings' }));
     fireEvent.click(await screen.findByRole('button', { name: `Remove from Library: ${historySet.title}` }));
+    fireEvent.click(screen.getByRole('button', { name: /^Remove$/ }));
     expect(await screen.findByRole('alert')).toHaveProperty(
       'textContent',
       'We couldn’t confirm removal. Please try again. Your progress is kept.',
@@ -245,6 +382,6 @@ describe('saved shared sets', () => {
     expect(screen.getByRole('heading', { name: historySet.title })).toBeDefined();
     expect(screen.queryByText(/^Removed “/)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Try removing again' }));
-    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Saved sets' })).toBeNull());
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Saved reviewers' })).toBeNull());
   });
 });

@@ -1,4 +1,3 @@
-import { secondaryButton } from '../../../shared/ui/buttonStyles';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronRight } from 'lucide-react';
 import { Link } from 'react-router';
@@ -8,55 +7,42 @@ import { AccountHeaderLink, HomeLink } from '../../../shared/ui/HeaderLinks';
 import { LoadFailed } from '../../../shared/ui/LoadFailed';
 import { MessageScreen } from '../../../shared/ui/MessageScreen';
 import { WhenSlow } from '../../../shared/ui/WhenSlow';
+import { LoadingPlaceholder } from '../../../shared/ui/LoadingFeedback';
 import { PageLayout } from '../../../shared/ui/PageLayout';
-import { PageControls } from '../../../shared/ui/PageControls';
-import { usePageCursor } from '../../../shared/navigation/usePageCursor';
 import { setPath } from '../../../shared/navigation/paths';
 
-/** "Browse sets" opens this list. Each set opens its preview, where the trial starts. */
+/** "Browse reviewers" opens this list. Each set opens its preview, where the trial starts. */
 export function SetsPage() {
-  const { publicSetsPageQuery } = usePublicContentQueries();
-  const { cursor, previousPage, nextPage } = usePageCursor();
-  const publicSets = useQuery(publicSetsPageQuery(cursor));
+  const { onboardingSetsQuery } = usePublicContentQueries();
+  const publicSets = useQuery(onboardingSetsQuery);
+  const top = (
+    <>
+      <HomeLink />
+      <AccountHeaderLink />
+    </>
+  );
 
   if (publicSets.isError) {
-    return (
-      <LoadFailed
-        onRetry={() => void publicSets.refetch()}
-        retrying={publicSets.isFetching}
-        recoveryAction={
-          cursor !== undefined && (
-            <button type="button" className={secondaryButton} onClick={previousPage}>
-              Previous
-            </button>
-          )
-        }
-      />
-    );
+    return <LoadFailed onRetry={() => void publicSets.refetch()} retrying={publicSets.isFetching} />;
   }
-  if (publicSets.data?.items.length === 0 && cursor === undefined) {
+  if (publicSets.data?.length === 0) {
     return (
-      <MessageScreen title="No sets are available right now.">
+      <MessageScreen title="No reviewers are available right now.">
         <p>Check back later.</p>
       </MessageScreen>
     );
   }
-  const { items, nextCursor } = publicSets.data ?? { items: [], nextCursor: null };
+  const items = publicSets.data ?? [];
   return (
-    <PageLayout
-      top={
-        <>
-          <HomeLink />
-          <AccountHeaderLink />
-        </>
-      }
-    >
+    <PageLayout top={top}>
       <section className="pt-2">
-        <h1 className="text-title font-extrabold tracking-tight">Shared sets</h1>
+        <h1 className="text-title font-extrabold tracking-tight">Reviewers</h1>
         <p className="mt-2 text-body text-muted">Try a five-card practice session.</p>
         {publicSets.isPending && (
           <WhenSlow>
-            <output>Loading the sets…</output>
+            <LoadingPlaceholder kind="rows" blue className="mt-6">
+              Loading reviewers…
+            </LoadingPlaceholder>
           </WhenSlow>
         )}
         <ul aria-busy={publicSets.isPending} className="mt-6 grid gap-3">
@@ -66,16 +52,6 @@ export function SetsPage() {
             </li>
           ))}
         </ul>
-        {!publicSets.isPending && items.length === 0 && (
-          <p className="mt-6 text-body text-muted">No more sets are available.</p>
-        )}
-        {!publicSets.isPending && (cursor !== undefined || nextCursor !== null) && (
-          <PageControls
-            label="Set pages"
-            onPrevious={cursor === undefined ? undefined : previousPage}
-            onNext={nextCursor ? () => nextPage(nextCursor) : undefined}
-          />
-        )}
       </section>
     </PageLayout>
   );

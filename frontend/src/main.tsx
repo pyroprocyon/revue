@@ -4,7 +4,8 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createBrowserRouter, RouterProvider } from 'react-router';
 import { appRoutes } from './app/routes';
-import { watchPhoneInstall } from './app/homeScreenInstall';
+import { watchPhoneInstall } from './features/account/presentation/homeScreenInstall';
+import { watchTouchFocus } from './app/touchFocus';
 import './index.css';
 
 const rootElement = document.getElementById('root');
@@ -13,6 +14,7 @@ if (!rootElement) {
 }
 
 watchPhoneInstall();
+watchTouchFocus();
 const queryClient = new QueryClient();
 const router = createBrowserRouter(appRoutes);
 

@@ -6,9 +6,16 @@ import { bindWritesTo, forgetCsrfToken } from '../shared/http/sameOriginRequest'
 window.scrollTo = () => {};
 Element.prototype.scrollIntoView = () => {};
 
-// jsdom has no layout, so nothing it renders ever changes size.
 globalThis.ResizeObserver ??= class {
-  observe() {}
+  constructor(private readonly notify: ResizeObserverCallback) {}
+
+  observe(element: Element) {
+    if (element.matches('.deck-carousel')) {
+      const contentRect = new DOMRectReadOnly(0, 0, 375, 0);
+      this.notify([{ target: element, contentRect } as ResizeObserverEntry], this);
+    }
+  }
+
   unobserve() {}
   disconnect() {}
 };

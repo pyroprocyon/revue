@@ -28,25 +28,32 @@ type CardPreviewProps = {
   card: DeckCard;
   questionId: string;
   due?: boolean;
+  savedSet?: boolean;
   /** The phone card screen moves focus here when it opens, rather than to its first button. */
   questionRef?: Ref<HTMLHeadingElement>;
 };
 
-export function CardPreview({ card, questionId, due = false, questionRef }: Readonly<CardPreviewProps>) {
+export function CardPreview({
+  card,
+  questionId,
+  due = false,
+  savedSet = false,
+  questionRef,
+}: Readonly<CardPreviewProps>) {
   const extras = cardExtras(card);
   return (
     <div className="@container/preview">
       {due && (
-        <p className="mb-2 flex items-center gap-1.5 text-support font-semibold text-highlight-strong">
-          <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-highlight" /> Due today
+        <p className="mb-2 flex items-center gap-1.5 text-support font-semibold text-due">
+          <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-due" /> Due today
         </p>
       )}
       <h2 ref={questionRef} id={questionId} tabIndex={-1} className={`${cardText} font-bold outline-none`}>
         {card.question}
       </h2>
-      <div className="mt-4 rounded-[1.25rem] bg-accent-soft px-4 pt-3.5 pb-4">
-        <span className={`${sideLabel} bg-surface text-accent`}>Answer</span>
-        <p className={`mt-2 ${cardText} font-bold text-accent-strong`}>{card.answer}</p>
+      <div className={`mt-4 rounded-[1.25rem] px-4 pt-3.5 pb-4 ${savedSet ? 'bg-saved-set-soft' : 'bg-accent-soft'}`}>
+        <span className={`${sideLabel} bg-surface ${savedSet ? 'text-saved-set' : 'text-accent'}`}>Answer</span>
+        <p className={`mt-2 ${cardText} font-bold ${savedSet ? 'text-ink' : 'text-accent-strong'}`}>{card.answer}</p>
       </div>
       {extras.length > 0 && (
         <dl className="mt-5 grid gap-4">

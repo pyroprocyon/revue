@@ -1,23 +1,23 @@
 import {
   ArrowRight,
   ChevronLeft,
-  CircleCheck,
   CirclePause,
   Clock,
+  PartyPopper,
   Play,
   Plus,
   Search,
   SlidersHorizontal,
-  Sparkles,
 } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type Ref, type RefObject } from 'react';
 import { Link } from 'react-router';
 import type { Deck, DeckProgress } from '../application/decks';
 import { DeckSearch } from './DeckSearch';
 import { LIBRARY_PATH, reviewTopicPath } from '../../../shared/navigation/paths';
-import { DAILY_NEW_CARD_LIMIT, REVIEW_TIME_ZONE, REVIEW_TIME_ZONE_OFFSET } from '../../../shared/product/studyRules';
-import { primaryButton, secondaryButton } from '../../../shared/ui/buttonStyles';
+import { REVIEW_TIME_ZONE, REVIEW_TIME_ZONE_OFFSET } from '../../../shared/product/studyRules';
+import { blueAccentButton, primaryButton, secondaryButton } from '../../../shared/ui/buttonStyles';
 import { cardCountLabel } from '../../../shared/ui/cardCount';
+import { FlashcardsIcon } from '../../../shared/ui/FlashcardsIcon';
 
 const reviewDay = new Intl.DateTimeFormat('en', {
   weekday: 'short',
@@ -26,8 +26,10 @@ const reviewDay = new Intl.DateTimeFormat('en', {
   timeZone: REVIEW_TIME_ZONE,
 });
 
-const iconButton =
+export const cardToolButton =
   'pressable grid size-12 shrink-0 place-items-center rounded-control bg-surface text-accent shadow-control aria-expanded:bg-accent-soft';
+
+const deckStatusPill = 'inline-flex min-w-0 items-center gap-1.5 rounded-control py-0.5 pr-2.5 pl-2 font-semibold';
 
 type StudyKind = 'resume' | 'review' | 'start' | 'add';
 
@@ -60,11 +62,11 @@ export function DeckStatus({ deck, progress }: Readonly<{ deck: Deck; progress: 
   if (studyKind(deck, progress) === 'add' && progress.nextReviewDate) {
     const next = reviewDay.format(new Date(`${progress.nextReviewDate}T00:00:00${REVIEW_TIME_ZONE_OFFSET}`));
     return (
-      <span className="flex flex-wrap items-center gap-x-1.5">
-        {cardCountLabel(deck.cardCount)} ·
-        <span className="inline-flex items-center gap-1 text-good">
-          <CircleCheck aria-hidden="true" className="size-4 shrink-0" />
-          Caught up until {next}
+      <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        {cardCountLabel(deck.cardCount)}
+        <span className={`${deckStatusPill} bg-success-soft text-success`}>
+          <PartyPopper aria-hidden="true" className="size-4 shrink-0" />
+          Next review {next}
         </span>
       </span>
     );
@@ -73,13 +75,12 @@ export function DeckStatus({ deck, progress }: Readonly<{ deck: Deck; progress: 
 }
 
 function NewCardsToday({ left }: Readonly<{ left: number }>) {
-  const Icon = left > 0 ? Sparkles : Clock;
+  const Icon = left > 0 ? FlashcardsIcon : Clock;
+  const unit = left === 1 ? 'card' : 'cards';
   return (
-    <span
-      className={`inline-flex min-w-0 items-center gap-1.5 rounded-control py-0.5 pr-2.5 pl-2 font-semibold ${left > 0 ? 'bg-accent-soft text-accent-strong' : 'bg-subtle text-muted'}`}
-    >
+    <span className={`${deckStatusPill} ${left > 0 ? 'bg-accent-soft text-accent-strong' : 'bg-subtle text-muted'}`}>
       <Icon aria-hidden="true" className="size-4 shrink-0" />
-      {left > 0 ? `${left} of ${DAILY_NEW_CARD_LIMIT} new left today` : 'New cards tomorrow'}
+      {left > 0 ? `${left} new ${unit} left today` : 'New cards tomorrow'}
     </span>
   );
 }
@@ -87,17 +88,20 @@ function NewCardsToday({ left }: Readonly<{ left: number }>) {
 type DeckToolbarProps = {
   wide: boolean;
   deck: Deck;
-  progress: DeckProgress;
+  progress?: DeckProgress;
   term: string;
   onSearch: (value: string) => void;
   onClearSearch: () => void;
-  addButton: Ref<HTMLButtonElement>;
-  startLink: Ref<HTMLAnchorElement>;
-  resuming: boolean;
-  onAdd: () => void;
-  onResume: () => void;
-  settings: { id: string; open: boolean; onToggle: () => void };
-  settingsButton: Ref<HTMLButtonElement>;
+  addButton?: Ref<HTMLButtonElement>;
+  startLink?: Ref<HTMLAnchorElement>;
+  resuming?: boolean;
+  onAdd?: () => void;
+  onResume?: () => void;
+  settings?: { id: string; open: boolean; onToggle: () => void; label?: string };
+  collectionAction?: ReactNode;
+  filter?: ReactNode;
+  settingsButton?: Ref<HTMLButtonElement>;
+  savedSetBack?: string;
   pagination: ReactNode;
   stickyBottom: number | null;
   onHeldBottomChange: (bottom: number | null) => void;
@@ -113,6 +117,8 @@ export function DeckToolbar(props: Readonly<DeckToolbarProps>) {
     onClearSearch,
     settings,
     settingsButton: settingsRef,
+    savedSetBack,
+    collectionAction,
     pagination,
     stickyBottom,
     onHeldBottomChange,
@@ -122,17 +128,17 @@ export function DeckToolbar(props: Readonly<DeckToolbarProps>) {
   const bar = useRef<HTMLDivElement>(null);
   const showBackBar = useHeldAtStickyTop(titleMarker, bar, stickyBottom);
   useReportedHeldBottom(bar, onHeldBottomChange);
-  const addIsStudyAction = studyKind(deck, progress) === 'add';
-  const settingsButton = (
+  const addIsStudyAction = progress && studyKind(deck, progress) === 'add';
+  const settingsButton = settings && (
     <button
       ref={settingsRef}
       type="button"
-      aria-label="Deck settings"
-      title="Deck settings"
+      aria-label={settings.label ?? 'Deck settings'}
+      title={settings.label ?? 'Deck settings'}
       aria-expanded={settings.open}
       aria-controls={settings.id}
       onClick={settings.onToggle}
-      className={iconButton}
+      className={cardToolButton}
     >
       <SlidersHorizontal aria-hidden="true" className="size-5" />
     </button>
@@ -146,7 +152,8 @@ export function DeckToolbar(props: Readonly<DeckToolbarProps>) {
     tools = (
       <>
         {search(false)}
-        {!addIsStudyAction && <AddCardButton {...props} labeled />}
+        {props.onAdd && !addIsStudyAction && <AddCardButton {...props} labeled />}
+        {collectionAction}
         {settingsButton}
         <StudyAction {...props} />
         {pagination}
@@ -172,8 +179,9 @@ export function DeckToolbar(props: Readonly<DeckToolbarProps>) {
     tools = (
       <>
         <StudyAction {...props} />
-        {!addIsStudyAction && <AddCardButton {...props} labeled={false} />}
-        <button type="button" aria-label="Search cards" onClick={() => setSearching(true)} className={iconButton}>
+        {props.onAdd && !addIsStudyAction && <AddCardButton {...props} labeled={false} />}
+        {collectionAction}
+        <button type="button" aria-label="Search cards" onClick={() => setSearching(true)} className={cardToolButton}>
           <Search aria-hidden="true" className="size-5" />
         </button>
         {settingsButton}
@@ -186,10 +194,11 @@ export function DeckToolbar(props: Readonly<DeckToolbarProps>) {
       <div
         ref={bar}
         data-stuck={showBackBar || undefined}
-        className={`z-10 -mx-1 mb-1 flex flex-wrap items-center gap-2 bg-page px-1 py-2 @min-[20rem]/workspace:top-14 data-stuck:shadow-[0_1px_0_var(--color-line)] ${stickyBottom !== null ? 'sticky' : ''}`}
+        className={`deck-toolbar z-10 -mx-1 mb-1 flex flex-wrap items-center gap-2 bg-page px-1 py-2 data-stuck:shadow-[0_1px_0_var(--color-line)] ${stickyBottom !== null ? 'sticky' : ''}`}
       >
-        {showBackBar && <DeckBackBar deck={deck} />}
+        {showBackBar && <DeckBackBar deck={deck} backTo={savedSetBack ?? LIBRARY_PATH} />}
         {tools}
+        {props.filter && <div className="min-w-0 basis-full">{props.filter}</div>}
       </div>
     </>
   );
@@ -206,10 +215,9 @@ function useHeldAtStickyTop(
     const element = bar.current;
     if (!target || !element || stickyBottom === null) return;
     const offset = stickyTop(element);
-    const watcher = new IntersectionObserver(
-      ([entry]) => setHeld(!entry.isIntersecting && entry.boundingClientRect.top < offset),
-      { rootMargin: `${-offset}px 0px 0px 0px` },
-    );
+    const watcher = new IntersectionObserver(() => setHeld(target.getBoundingClientRect().top < offset), {
+      rootMargin: `${-offset}px 0px 0px 0px`,
+    });
     watcher.observe(target);
     return () => watcher.disconnect();
   }, [marker, bar, stickyBottom]);
@@ -244,15 +252,15 @@ function stickyTop(element: HTMLElement) {
   return Number.parseFloat(getComputedStyle(element).top) || 0;
 }
 
-function DeckBackBar({ deck }: Readonly<{ deck: Deck }>) {
+function DeckBackBar({ deck, backTo }: Readonly<{ deck: Deck; backTo: string }>) {
   return (
     <div className="absolute inset-x-0 bottom-full hidden h-14 items-center gap-1 bg-page px-1 @min-[20rem]/workspace:flex">
       <Link
-        to={LIBRARY_PATH}
+        to={backTo}
         aria-label="Back to Library"
-        className="pressable -ml-1 grid size-12 shrink-0 place-items-center rounded-control text-accent"
+        className="pressable header-link -ml-1 w-12 shrink-0 justify-center"
       >
-        <ChevronLeft aria-hidden="true" className="size-6" />
+        <ChevronLeft aria-hidden="true" />
       </Link>
       <div aria-hidden="true" className="min-w-0 leading-tight">
         <p className="truncate text-label font-extrabold tracking-tight">{deck.title}</p>
@@ -269,7 +277,7 @@ function AddCardButton({
 }: Readonly<Pick<DeckToolbarProps, 'addButton' | 'onAdd'> & { labeled: boolean }>) {
   if (!labeled) {
     return (
-      <button ref={addButton} type="button" aria-label="Add card" onClick={onAdd} className={iconButton}>
+      <button ref={addButton} type="button" aria-label="Add card" onClick={onAdd} className={cardToolButton}>
         <Plus aria-hidden="true" className="size-5" />
       </button>
     );
@@ -291,16 +299,20 @@ function StudyAction({
   resuming,
   onAdd,
   onResume,
+  savedSetBack,
 }: Readonly<DeckToolbarProps>) {
+  if (!progress) return null;
   const fill = wide ? 'shrink-0' : 'min-w-fit flex-1';
   const kind = studyKind(deck, progress);
+  const topic = `${savedSetBack ? 'set' : 'deck'}-${deck.id}`;
+  const reviewButton = savedSetBack ? blueAccentButton : primaryButton;
   if (kind === 'resume') {
     return (
       <button
         type="button"
         aria-label={resuming ? undefined : 'Resume reviews'}
         disabled={resuming}
-        className={`${primaryButton} ${fill}`}
+        className={`${reviewButton} ${fill}`}
         onClick={onResume}
       >
         <Play aria-hidden="true" className="size-5 shrink-0" />
@@ -308,27 +320,21 @@ function StudyAction({
       </button>
     );
   }
-  if (kind === 'review') {
-    return (
-      <Link ref={startLink} to={reviewTopicPath(`deck-${deck.id}`)} className={`${primaryButton} ${fill}`}>
-        Review {progress.dueCards} due
-        {wide && <ArrowRight aria-hidden="true" className="size-5 shrink-0" />}
-      </Link>
-    );
-  }
-  if (kind === 'start') {
+  if (kind === 'review' || kind === 'start') {
+    const action = kind === 'review' ? `Review ${progress.dueCards} due` : 'Start';
     return (
       <Link
         ref={startLink}
-        to={reviewTopicPath(`deck-${deck.id}`, true)}
-        aria-label="Start review"
-        className={`${primaryButton} ${fill}`}
+        to={reviewTopicPath(topic, kind === 'start')}
+        aria-label={startReviewLabel(kind, deck.title, Boolean(savedSetBack))}
+        className={`${reviewButton} ${fill}`}
       >
-        Start
+        {action}
         {wide && <ArrowRight aria-hidden="true" className="size-5 shrink-0" />}
       </Link>
     );
   }
+  if (!onAdd) return null;
   return (
     <button ref={addButton} type="button" onClick={onAdd} className={`${primaryButton} ${fill}`}>
       <Plus aria-hidden="true" className="size-5 shrink-0" />
@@ -337,28 +343,28 @@ function StudyAction({
   );
 }
 
+function startReviewLabel(kind: 'review' | 'start', title: string, saved: boolean) {
+  if (kind === 'start') return saved ? `Start review: ${title}` : 'Start review';
+  return undefined;
+}
+
 /** The study action already shows the due count, so the filter labels leave it out. */
 export function DueFilter({ dueOnly, onChange }: Readonly<{ dueOnly: boolean; onChange: (dueOnly: boolean) => void }>) {
-  const option = (label: ReactNode, value: boolean) => (
+  const option = (label: string, isDue: boolean) => (
     <button
       type="button"
-      aria-pressed={dueOnly === value}
-      onClick={() => onChange(value)}
-      className="pressable flex min-h-12 flex-1 items-center justify-center gap-1.5 rounded-inset px-3 text-support font-bold text-muted aria-pressed:bg-surface aria-pressed:text-ink aria-pressed:shadow-control"
+      aria-pressed={dueOnly === isDue}
+      onClick={() => onChange(isDue)}
+      className={`pressable flex min-h-12 min-w-0 items-center justify-center border-b-2 border-transparent px-2 text-center text-label leading-tight font-bold wrap-anywhere aria-pressed:border-accent ${isDue ? 'text-due' : 'text-muted aria-pressed:text-accent-strong'}`}
     >
       {label}
     </button>
   );
   return (
-    <fieldset className="mb-3 flex w-full max-w-64 min-w-0 gap-1 rounded-control bg-subtle p-1">
+    <fieldset className="mb-3 grid w-51 max-w-full min-w-0 grid-cols-2 gap-1 border-b border-line">
       <legend className="sr-only">Show cards</legend>
-      {option('All', false)}
-      {option(
-        <>
-          <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-highlight" /> Due
-        </>,
-        true,
-      )}
+      {option('All cards', false)}
+      {option('Due', true)}
     </fieldset>
   );
 }

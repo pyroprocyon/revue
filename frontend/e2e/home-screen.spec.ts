@@ -11,6 +11,7 @@ async function offerInstall(page: Page, outcome: 'accepted' | 'dismissed' | 'fai
       prompt: async () => {
         const root = document.documentElement;
         root.dataset.promptCalls = String(Number(root.dataset.promptCalls ?? 0) + 1);
+        root.dataset.promptUserActivation = String(navigator.userActivation.isActive);
         if (result === 'failed') throw new Error('Installer unavailable');
       },
       userChoice:
@@ -23,6 +24,16 @@ async function offerInstall(page: Page, outcome: 'accepted' | 'dismissed' | 'fai
     window.dispatchEvent(event);
     return event.defaultPrevented;
   }, outcome);
+}
+
+async function registerLearner(page: Page, signupUrl: string) {
+  const password = randomUUID();
+  await page.goto(signupUrl);
+  await page.getByRole('textbox', { name: 'Username' }).fill('home_' + randomUUID().slice(0, 16));
+  await page.getByLabel('Password', { exact: true }).fill(password);
+  await page.getByLabel('Confirm password', { exact: true }).fill(password);
+  await page.getByRole('button', { name: 'Create account' }).click();
+  await expect(page).toHaveURL(/\/today$/);
 }
 
 test('launcher metadata and icons are public and a signed-out launch preserves Today', async ({ page, request }) => {
@@ -53,13 +64,14 @@ test('launcher metadata and icons are public and a signed-out launch preserves T
 test('Help keeps words intact on a narrow phone with enlarged text', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 568 });
   await page.goto('/help');
-  await page.getByRole('button', { name: setupName }).waitFor();
+  await expect(page.getByRole('heading', { name: 'Help', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: setupName })).toHaveCount(0);
   await page.evaluate(async () => {
     document.documentElement.style.fontSize = '200%';
     await document.fonts.ready;
   });
   const labels = page.locator('.help-directory-row > span');
-  await expect(labels).toHaveCount(4);
+  await expect(labels).toHaveCount(3);
   const brokenWords = await labels.evaluateAll((spans) =>
     spans.flatMap((span) => {
       const text = span.firstChild!;
@@ -78,13 +90,7 @@ test('Help keeps words intact on a narrow phone with enlarged text', async ({ pa
 });
 
 test('a fresh Home Screen launch reaches Today with only the session cookies', async ({ page, browser, pilot }) => {
-  const password = randomUUID();
-  await page.goto(pilot.signupUrl);
-  await page.getByRole('textbox', { name: 'Username' }).fill('home_' + randomUUID().slice(0, 16));
-  await page.getByLabel('Password', { exact: true }).fill(password);
-  await page.getByLabel('Confirm password', { exact: true }).fill(password);
-  await page.getByRole('button', { name: 'Create account' }).click();
-  await expect(page).toHaveURL(/\/today$/);
+  await registerLearner(page, pilot.signupUrl);
   const app = await browser.newContext({ baseURL: pilot.origin });
   try {
     await app.addCookies(await page.context().cookies());
@@ -100,16 +106,19 @@ test('a fresh Home Screen launch reaches Today with only the session cookies', a
 });
 
 test.describe('Android Home screen', () => {
-  test.use({ userAgent: android });
-  test('a prompt received before Help opens takes one tap, and dismissal falls back to the menu', async ({ page }) => {
-    await page.goto('/help');
-    await page.getByRole('link', { name: 'Privacy notice' }).click();
+  test.use({ userAgent: android, hasTouch: true, isMobile: true });
+  test('a prompt received before Account opens takes one tap, and dismissal falls back to the menu', async ({
+    page,
+    pilot,
+  }) => {
+    await registerLearner(page, pilot.signupUrl);
     expect(await offerInstall(page, 'dismissed')).toBe(true);
-    await page.goBack();
+    await page.getByRole('link', { name: 'Account', exact: true }).tap();
     const install = page.getByRole('button', { name: setupName });
-    await install.press('Enter');
+    await install.tap();
     await expect(install).toHaveAttribute('aria-disabled', 'true');
     await expect(install).toBeFocused();
+    await expect(page.locator('html')).toHaveAttribute('data-prompt-user-activation', 'true');
     await page.keyboard.press('Enter');
     await expect(page.locator('html')).toHaveAttribute('data-prompt-calls', '1');
     await page.evaluate(() => window.dispatchEvent(new Event('dismiss-test-install')));
@@ -128,14 +137,27 @@ test.describe('Android Home screen', () => {
 });
 
 test.describe('iPhone Home Screen', () => {
-  test.use({ userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15' });
-  test('one tap reveals the Safari steps and a standalone launch hides setup', async ({ page }) => {
-    await page.goto('/help');
-    await page.getByRole('button', { name: setupName }).click();
+  test.use({
+    userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15',
+    hasTouch: true,
+    isMobile: true,
+  });
+  test('the phone logo opens Help and Account offers Safari setup', async ({ page, pilot }) => {
+    await registerLearner(page, pilot.signupUrl);
+    const help = page.getByRole('link', { name: 'Help', exact: true });
+    await expect(help.locator('svg rect').first()).toBeVisible();
+    await expect(help.getByText('Help', { exact: true })).toBeHidden();
+    await help.tap();
+    await expect(page.getByRole('link', { name: 'Privacy notice' })).toBeVisible();
+    await expect(page.getByRole('button', { name: setupName })).toHaveCount(0);
+    await page.getByRole('link', { name: 'Account', exact: true }).tap();
+    const install = page.getByRole('button', { name: setupName });
+    await expect(install.locator('svg rect')).toHaveCount(0);
+    await install.tap();
     await expect(page.getByText('Open as Web App', { exact: true })).toBeVisible();
     await page.addInitScript(() => Object.defineProperty(navigator, 'standalone', { value: true }));
     await page.reload();
-    await expect(page.getByRole('link', { name: 'Privacy notice' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Your account' })).toBeVisible();
     await expect(page.getByRole('button', { name: setupName })).toHaveCount(0);
   });
 });

@@ -35,7 +35,7 @@ export function ReviewDetail({ label, icon: Icon, children }: Readonly<ReviewDet
         onClick={() => dialog.current?.showModal()}
         className={detailButton}
       >
-        <Icon aria-hidden="true" className="size-4 shrink-0 short-phone:@max-[18.5rem]/review-details:hidden" />
+        <Icon aria-hidden="true" className="size-4 shrink-0" />
         {label}
       </button>
       <dialog
@@ -46,7 +46,7 @@ export function ReviewDetail({ label, icon: Icon, children }: Readonly<ReviewDet
           event.preventDefault();
           close();
         }}
-        className="@container m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-32px)] max-w-lg overflow-y-auto rounded-card bg-surface text-left text-ink shadow-card backdrop:bg-ink/40"
+        className="@container m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-32px)] max-w-lg overflow-y-auto rounded-card bg-surface text-left text-ink shadow-card backdrop:bg-scrim/40"
       >
         <div className="sticky top-0 flex flex-wrap items-center gap-x-3 gap-y-2 bg-surface px-compact-gutter pt-4 pb-2 sm:px-6 sm:pt-5">
           <span
@@ -72,5 +72,35 @@ export function ReviewDetail({ label, icon: Icon, children }: Readonly<ReviewDet
         <div className="space-y-4 px-compact-gutter pt-2 pb-6 text-body wrap-anywhere sm:px-6">{children}</div>
       </dialog>
     </>
+  );
+}
+
+export function CardDetails({ explanation, tip }: Readonly<{ explanation: string | null; tip: string | null }>) {
+  const disclosure = useRef<HTMLDetailsElement>(null);
+  const interactionsPaused = useContext(InteractionPausedContext);
+
+  useLayoutEffect(() => {
+    if (interactionsPaused && disclosure.current) disclosure.current.open = false;
+  }, [interactionsPaused]);
+
+  return (
+    <details ref={disclosure} className="rounded-control border border-line bg-surface text-left">
+      <summary className="pressable min-h-12 cursor-pointer rounded-control px-3 py-3 text-label font-semibold text-accent">
+        Card details
+      </summary>
+      <div className="space-y-4 px-3 pt-1 pb-3 text-body">
+        {explanation && <DetailSection title="Explanation">{explanation}</DetailSection>}
+        {tip && <DetailSection title="Tip to remember">{tip}</DetailSection>}
+      </div>
+    </details>
+  );
+}
+
+export function DetailSection({ title, children }: Readonly<{ title: string; children: string }>) {
+  return (
+    <section>
+      <h3 className="text-label font-semibold">{title}</h3>
+      <p className="mt-1 whitespace-pre-wrap wrap-anywhere">{children}</p>
+    </section>
   );
 }

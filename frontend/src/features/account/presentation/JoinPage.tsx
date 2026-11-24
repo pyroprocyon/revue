@@ -21,9 +21,9 @@ export function JoinPage() {
       <p className="mt-4 text-body text-muted">
         Signups are invite-only for now. Open the link you received to get started.
       </p>
-      <p className="mt-3 text-body text-muted">You can try the practice sets without an account.</p>
+      <p className="mt-3 text-body text-muted">You can try practice cards without an account.</p>
       <Link to={SETS_PATH} className={`${primaryButton} mt-6 w-full`}>
-        Browse sets
+        Browse reviewers
       </Link>
       <div className="mt-5 text-center">
         <p className="text-support text-muted">Already have an account?</p>

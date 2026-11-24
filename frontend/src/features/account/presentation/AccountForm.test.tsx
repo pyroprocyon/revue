@@ -16,6 +16,8 @@ function setup(register = true, entry = '/register') {
     signIn: vi.fn().mockResolvedValue({ username: 'student' }),
     signOut: vi.fn().mockResolvedValue(undefined),
     current: vi.fn().mockResolvedValue(null),
+    studySettings: vi.fn().mockResolvedValue({ dailyNewCardLimit: 10 }),
+    saveStudySettings: vi.fn(),
   };
   render(
     <QueryClientProvider client={new QueryClient()}>

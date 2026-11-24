@@ -37,6 +37,55 @@ async function rateShownCard(page: Page, answer: string) {
   await page.getByRole('button', { name: /^Good:/ }).click();
 }
 
+test('the Account daily allowance updates the deck pill and survives a reload', async ({ page, pilot }) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  await signup(page, pilot.signupUrl);
+  const csrf = await (await page.request.get('/api/v1/auth/csrf')).json();
+  const headers = { [csrf.headerName]: csrf.token };
+  const created = await page.request.post('/api/v1/decks', { headers, data: { title: 'Daily practice' } });
+  expect(created.status()).toBe(201);
+  const { id } = await created.json();
+  const card = await page.request.post(`/api/v1/decks/${id}/cards`, {
+    headers,
+    data: { question: 'A new question', answer: 'A new answer' },
+  });
+  expect(card.status()).toBe(201);
+  await page.goto(`/library/decks/${id}`);
+  await expect(page.getByText('10 new cards left today', { exact: true })).toBeVisible();
+
+  const account = page.getByRole('link', { name: 'Account', exact: true });
+  const ten = page.getByRole('radio', { name: '10 per day' });
+  const twenty = page.getByRole('radio', { name: '20 per day' });
+  const save = page.getByRole('button', { name: 'Save', exact: true });
+  await account.click();
+  await expect(ten).toBeChecked();
+  await expect(save).toHaveCount(0);
+  await ten.press('ArrowRight');
+  await expect(twenty).toBeChecked();
+  await expect(save).toBeEnabled();
+  await twenty.press('ArrowLeft');
+  await expect(ten).toBeChecked();
+  await expect(save).toHaveCount(0);
+  await page.getByText('20 per day', { exact: true }).click();
+  await save.press('Enter');
+  await expect(page.getByText('Daily limit saved.')).toBeVisible();
+  await expect(save).toHaveCount(0);
+  await expect(twenty).toBeFocused();
+  await page.getByRole('navigation', { name: 'Your workspace' }).getByRole('link', { name: 'Library' }).click();
+  await page.getByRole('link', { name: 'Open Daily practice' }).click();
+  await expect(page.getByText('20 new cards left today', { exact: true })).toBeVisible();
+
+  await account.click();
+  await page.reload();
+  await expect(twenty).toBeChecked();
+  await expect(save).toHaveCount(0);
+  await page.getByText('10 per day', { exact: true }).click();
+  await save.click();
+  await expect(page.getByText('Daily limit saved.')).toBeVisible();
+  await expect(ten).toBeChecked();
+  await expect(save).toHaveCount(0);
+});
+
 test('a refreshed search preserves a draft after another tab changes the matching card', async ({
   page,
   pilot,
@@ -122,7 +171,7 @@ test('a learner creates a private deck, starts its first review from the deck an
   await expect(page.getByLabel('Tip to remember', { exact: true })).toBeHidden();
   await expect(page.getByLabel('Source', { exact: true })).toBeVisible();
   await page.setViewportSize({ width: 375, height: 360 });
-  await expect(tabs).toHaveCSS('position', 'static');
+  await expect(tabs).toHaveCSS('position', 'relative');
   await page.setViewportSize({ width: 375, height: 667 });
   await page.screenshot({ path: info.outputPath('deck-new-card-phone.png'), fullPage: true });
 
@@ -162,13 +211,22 @@ test('a learner creates a private deck, starts its first review from the deck an
 
   await page.getByRole('link', { name: 'Back to Today', exact: true }).click();
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'All caught up', exact: true })).toBeVisible();
+  const celebration = page.getByRole('region', { name: 'Nice work today!' });
+  await expect(celebration).toBeVisible();
   await expect(page.getByRole('heading', { name: '1 day studied', exact: true })).toBeVisible();
-  await expect(page.getByText(/^Next review: /)).toBeVisible();
+  await expect(celebration.locator('time')).toBeVisible();
 
   await page.getByRole('link', { name: 'Library', exact: true }).click();
   await page.getByRole('heading', { name: 'Biology quiz', exact: true }).click();
   await expect(page).toHaveURL(deckUrl);
+  await expect(page.getByText(/^Next review [A-Z][a-z]{2}, [A-Z][a-z]{2} \d{1,2}$/)).toBeVisible();
+  await page.getByRole('button', { name: 'Add card', exact: true }).click();
+  await addCard(page, 'What is active transport?', 'Movement that requires energy');
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
+  await page.getByRole('link', { name: 'Today', exact: true }).click();
+  await expect(celebration.getByText(/^Scheduled reviews complete/)).toBeVisible();
+  await celebration.getByRole('link', { name: 'Open Library', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Library', exact: true })).toBeVisible();
 
   const otherLearner = await browser.newContext();
   const otherPage = await otherLearner.newPage();
@@ -232,17 +290,19 @@ test('cards can be corrected and deleted by keyboard, and deleting a deck emptie
   const remove = sheet.getByRole('button', { name: 'Delete', exact: true });
   await remove.focus();
   await page.keyboard.press('Enter');
-  const confirm = page.getByRole('dialog', { name: 'Delete card?' });
-  await expect(confirm.getByText('Second question', { exact: true })).toBeVisible();
+  const confirm = page.getByRole('region', { name: 'Delete card?' });
+  await expect(confirm.getByText('Removes this card and its review progress.')).toBeVisible();
+  await expect(confirm.getByText('This can’t be undone.')).toBeVisible();
+  await expect(sheet.getByRole('heading', { name: 'Second question' })).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(remove).toBeFocused();
   await page.keyboard.press('Enter');
-  await expect(page.getByRole('button', { name: 'Keep card', exact: true })).toBeFocused();
+  await expect(page.getByRole('button', { name: 'Keep', exact: true })).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(remove).toBeFocused();
   await page.keyboard.press('Enter');
   await page.keyboard.press('Tab');
-  await expect(page.getByRole('button', { name: 'Delete card', exact: true })).toBeFocused();
+  await expect(page.getByRole('button', { name: 'Delete', exact: true })).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(page.getByText('Card deleted.', { exact: true })).toBeVisible();
   await expect(sheet).toBeHidden();
@@ -260,11 +320,21 @@ test('cards can be corrected and deleted by keyboard, and deleting a deck emptie
   await search.fill('Wrong handout');
   await page.getByRole('link', { name: 'Open Wrong handout', exact: true }).click();
   await page.getByRole('button', { name: 'Deck settings', exact: true }).click();
-  await page.getByRole('button', { name: 'Delete deck', exact: true }).click();
-  await page
-    .getByRole('dialog', { name: 'Delete deck?' })
-    .getByRole('button', { name: 'Delete deck', exact: true })
-    .click();
+  const deleteDeck = page.getByRole('button', { name: 'Delete', exact: true });
+  await deleteDeck.click();
+  const confirmation = page.getByRole('region', { name: 'Delete deck?' });
+  const keepDeck = confirmation.getByRole('button', { name: 'Keep', exact: true });
+  const confirmDelete = confirmation.getByRole('button', { name: 'Delete', exact: true });
+  await expect(keepDeck).toBeFocused();
+  await expect(confirmDelete).toHaveCSS(
+    'font-size',
+    await keepDeck.evaluate((button) => getComputedStyle(button).fontSize),
+  );
+  await keepDeck.press('Escape');
+  await expect(confirmation).toHaveCount(0);
+  await expect(deleteDeck).toBeFocused();
+  await deleteDeck.click();
+  await confirmDelete.click();
   await expect(page).toHaveURL(/\/library$/);
   await expect(page.getByText('Deleted “Wrong handout” and its cards.', { exact: true })).toBeFocused();
   await expect(search).toHaveValue('Wrong handout');
@@ -295,7 +365,7 @@ test('a failed card deletion keeps its confirmation, and Escape returns focus', 
   const remove = page
     .getByRole('dialog', { name: 'Why does a plant bend toward a window?' })
     .getByRole('button', { name: 'Delete', exact: true });
-  const dialog = page.getByRole('dialog', { name: 'Delete card?' });
+  const confirmation = page.getByRole('region', { name: 'Delete card?' });
   let rejectDelete = () => {};
   const allowReply = new Promise<void>((resolve) => {
     rejectDelete = resolve;
@@ -313,20 +383,20 @@ test('a failed card deletion keeps its confirmation, and Escape returns focus', 
 
   try {
     await remove.click();
-    await expect(dialog.getByRole('button', { name: 'Keep card' })).toBeFocused();
-    await dialog.getByRole('button', { name: 'Delete card', exact: true }).click();
-    await expect(dialog.getByRole('button', { name: 'Deleting…' })).toBeDisabled();
+    await expect(confirmation.getByRole('button', { name: 'Keep', exact: true })).toBeFocused();
+    await confirmation.getByRole('button', { name: 'Delete', exact: true }).click();
+    await expect(confirmation.getByRole('button', { name: 'Deleting…' })).toBeDisabled();
     await page.keyboard.press('Escape');
-    await expect(dialog).toBeVisible();
+    await expect(confirmation).toBeVisible();
     rejectDelete();
-    await expect(dialog.getByRole('alert')).toContainText('We couldn’t confirm the change.');
-    await expect(dialog.getByRole('button', { name: 'Keep card' })).toBeEnabled();
-    expect(await dialog.evaluate((element) => element.scrollWidth)).toBeLessThanOrEqual(
-      await dialog.evaluate((element) => element.clientWidth),
+    await expect(confirmation.getByRole('alert')).toContainText('We couldn’t confirm the change.');
+    await expect(confirmation.getByRole('button', { name: 'Keep', exact: true })).toBeEnabled();
+    expect(await confirmation.evaluate((element) => element.scrollWidth)).toBeLessThanOrEqual(
+      await confirmation.evaluate((element) => element.clientWidth),
     );
     expect(deleteRequests).toBe(1);
     await page.keyboard.press('Escape');
-    await expect(dialog).toBeHidden();
+    await expect(confirmation).toBeHidden();
     await expect(remove).toBeFocused();
     await expect(
       page
@@ -384,17 +454,17 @@ test('a session check on a phone hides the delete confirmation, then brings back
   await createDeckWithCard(page, 'Session checks', 'What does a leaf turn toward?', 'The light');
   const sessionChecks = await holdSessionChecks(page);
   const cardScreen = page.getByRole('dialog', { name: 'What does a leaf turn toward?' });
-  const confirmation = page.getByRole('dialog', { name: 'Delete card?' });
+  const confirmation = page.getByRole('region', { name: 'Delete card?' });
   try {
     await page.locator('[data-card-row]').filter({ hasText: 'What does a leaf' }).click();
     await cardScreen.getByRole('button', { name: 'Delete', exact: true }).click();
-    await expect(confirmation.getByRole('button', { name: 'Keep card' })).toBeFocused();
+    await expect(confirmation.getByRole('button', { name: 'Keep', exact: true })).toBeFocused();
     await sessionChecks.start();
     await expect(confirmation).toBeHidden();
     await expect(cardScreen).toBeHidden();
     sessionChecks.finish();
-    await expect(confirmation.getByRole('button', { name: 'Keep card' })).toBeFocused();
-    await confirmation.getByRole('button', { name: 'Keep card' }).click();
+    await expect(confirmation.getByRole('button', { name: 'Keep', exact: true })).toBeFocused();
+    await confirmation.getByRole('button', { name: 'Keep', exact: true }).click();
     await expect(cardScreen.getByText('The light', { exact: true })).toBeVisible();
     await cardScreen.getByRole('button', { name: 'Back to cards' }).click();
     await expect(page.locator('[data-card-row]').filter({ hasText: 'What does a leaf' })).toBeVisible();
@@ -412,18 +482,18 @@ test('a session check beside the side pane hides the delete confirmation and the
   await createDeckWithCard(page, 'Session checks', 'What does a root grow toward?', 'Water');
   const sessionChecks = await holdSessionChecks(page);
   const pane = page.getByRole('region', { name: 'Selected card' });
-  const confirmation = page.getByRole('dialog', { name: 'Delete card?' });
+  const confirmation = page.getByRole('region', { name: 'Delete card?' });
   const prompt = page.getByRole('dialog', { name: 'Discard your changes?' });
   try {
     await page.locator('[data-card-row]').filter({ hasText: 'What does a root' }).click();
     const remove = pane.getByRole('button', { name: 'Delete', exact: true });
     await remove.click();
-    await expect(confirmation.getByRole('button', { name: 'Keep card' })).toBeFocused();
+    await expect(confirmation.getByRole('button', { name: 'Keep', exact: true })).toBeFocused();
     await sessionChecks.start();
     await expect(confirmation).toBeHidden();
     sessionChecks.finish();
-    await expect(confirmation.getByRole('button', { name: 'Keep card' })).toBeFocused();
-    await confirmation.getByRole('button', { name: 'Keep card' }).click();
+    await expect(confirmation.getByRole('button', { name: 'Keep', exact: true })).toBeFocused();
+    await confirmation.getByRole('button', { name: 'Keep', exact: true }).click();
     await expect(remove).toBeFocused();
 
     await pane.getByRole('button', { name: 'Edit card', exact: true }).click();
@@ -472,6 +542,11 @@ test('deck screens fit phone, tablet and desktop widths and enlarged text', asyn
       await page.evaluate(() => document.fonts.ready);
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
       if (screen === 'deck') {
+        if (label === 'phone') {
+          const help = (await page.getByRole('link', { name: 'Help', exact: true }).boundingBox())!;
+          const title = (await page.getByRole('heading', { level: 1 }).boundingBox())!;
+          expect(title.y - help.y - help.height).toBeCloseTo(16);
+        }
         await page.getByRole('button', { name: 'Add card', exact: true }).click();
         for (const name of ['Save card', 'Done']) {
           const box = await page.getByRole('button', { name, exact: true }).boundingBox();
@@ -486,14 +561,31 @@ test('deck screens fit phone, tablet and desktop widths and enlarged text', asyn
         }
         expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
         await page.screenshot({ path: info.outputPath(`card-${label}.png`) });
+        const answer = page.getByText(/Binuo nito ang unang konstitusyon/);
+        const remove = page.getByRole('button', { name: 'Delete', exact: true });
+        const answerBox = (await answer.boundingBox())!;
+        expect((await remove.boundingBox())!.y).toBeGreaterThanOrEqual(answerBox.y + answerBox.height);
+        await remove.focus();
+        await remove.press('Enter');
+        const confirmation = page.getByRole('region', { name: 'Delete card?' });
+        await expect(confirmation.getByRole('button', { name: 'Keep', exact: true })).toBeFocused();
+        const visibleAnswer = (await answer.boundingBox())!;
+        expect((await confirmation.boundingBox())!.y).toBeGreaterThanOrEqual(visibleAnswer.y + visibleAnswer.height);
+        await page.keyboard.press('Escape');
+        await expect(remove).toBeFocused();
         if (await page.getByRole('dialog').count()) await page.keyboard.press('Escape');
         await page.getByRole('button', { name: 'Deck settings', exact: true }).click();
         await expect(page.getByRole('heading', { name: 'Deck settings' })).toBeFocused();
-        await expect(page.getByRole('button', { name: 'Save name', exact: true })).toHaveCount(0);
-        for (const name of ['Delete deck']) {
-          const box = await page.getByRole('button', { name, exact: true }).boundingBox();
-          expect(box!.height, `${name} height at ${label}`).toBeGreaterThanOrEqual(48);
+        const sheet = page.getByRole('dialog', { name: 'Deck settings' });
+        if (await sheet.count()) {
+          const [bar, body] = await sheet
+            .locator(':scope > div')
+            .evaluateAll((regions) => regions.map((region) => getComputedStyle(region).paddingLeft));
+          expect(bar).toBe(body);
         }
+        await expect(page.getByRole('button', { name: 'Save name', exact: true })).toHaveCount(0);
+        const deleteButton = await page.getByRole('button', { name: 'Delete', exact: true }).boundingBox();
+        expect(deleteButton!.height, `Delete height at ${label}`).toBeGreaterThanOrEqual(48);
       }
       if (screen === 'library' && width < 1024) {
         const title = page.locator('[data-slot="front"] h3');
@@ -515,7 +607,7 @@ test('phone card fields fit the draft while writing and when reopening a card', 
   const question = 'Why does a generational collector collect young objects more often?';
   const answer = page.getByRole('textbox', { name: 'Answer', exact: true });
   const explanation = page.getByRole('textbox', { name: 'Explanation', exact: true });
-  const longAnswer = 'Most allocations become unreachable quickly. '.repeat(8).trim();
+  const longAnswer = 'Most allocations become unreachable quickly. '.repeat(6).trim();
   await page.getByLabel('Question', { exact: true }).fill(question);
   const emptyHeight = await answer.evaluate((field) => field.clientHeight);
   await answer.fill(longAnswer);
@@ -550,7 +642,7 @@ test('a failed phone save shows the error below Save and preserves the long draf
   const answer = page.getByLabel('Answer', { exact: true });
   const save = page.getByRole('button', { name: 'Save card', exact: true });
   const alert = page.getByRole('alert').filter({ hasText: 'confirm the change' });
-  const longAnswer = 'Young objects become unreachable before the next collection.\n\n'.repeat(8);
+  const longAnswer = 'Young objects become unreachable before the next collection.\n\n'.repeat(4);
   await answer.fill(longAnswer);
   await save.click();
   await expect(question).toBeFocused();
@@ -762,6 +854,7 @@ test('Library decks follow the finger on phones and tablets and filter the same 
   const activeDeck = carousel.getByRole('link');
   const next = carousel.getByRole('button', { name: /^Next deck:/ });
   const previous = carousel.getByRole('button', { name: /^Previous deck:/ });
+  const thirdDeckStrip = carousel.locator('button[aria-label$=": Biology final"]');
   const desktopTiles = decks.locator('ul > li');
   await expect(desktopTiles).toHaveCount(0);
   await expect(activeDeck).toHaveAccessibleName('Open Biology quiz');
@@ -774,14 +867,17 @@ test('Library decks follow the finger on phones and tablets and filter the same 
   expect(nextBox.y + nextBox.height).toBeLessThanOrEqual(nav.y);
   expect(nextBox.y + nextBox.height - (card.y + card.height)).toBeGreaterThanOrEqual(48);
   await expect(previous).toHaveCount(0);
+  await expect(thirdDeckStrip).toBeEnabled();
+  await page.setViewportSize({ width: 320, height: 532 });
+  await expect(thirdDeckStrip).toBeDisabled();
+  await page.setViewportSize({ width: 320, height: 568 });
+  await expect(thirdDeckStrip).toBeEnabled();
 
   const touch = await page.context().newCDPSession(page);
   await touch.send('Emulation.setTouchEmulationEnabled', { enabled: true });
   const x = Math.round(card.x + card.width / 2);
   const y = Math.round(card.y + card.height - 14);
   const scrollBefore = await page.evaluate(() => scrollY);
-  const thirdDeckStrip = carousel.locator('button[aria-label$=": Biology final"]');
-  await expect(thirdDeckStrip).toBeDisabled();
   const stripBottom = async () => {
     const box = (await thirdDeckStrip.boundingBox())!;
     return box.y + box.height;
@@ -805,6 +901,10 @@ test('Library decks follow the finger on phones and tablets and filter the same 
     activeDeck.evaluate((link) => new DOMMatrixReadOnly(getComputedStyle(link.closest('article')!).transform).a);
   await expect.poll(frontCardScaleBetweenSnaps).toBeLessThan(1);
   const earlyInDrag = await stripBottom();
+  await touch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: y - 16 }] });
+  await expect.poll(stripBottom).toBeGreaterThan(earlyInDrag);
+  await touch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: y - 30 }] });
+  await expect.poll(stripBottom).toBeCloseTo(earlyInDrag, 0);
   await touch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: y - 60 }] });
   await expect.poll(async () => earlyInDrag - (await stripBottom())).toBeCloseTo(30, 0);
   await expect(activeDeck).toHaveAccessibleName('Open History review');
@@ -884,10 +984,10 @@ test('Library decks follow the finger on phones and tablets and filter the same 
   expect(tabletCard.y - (tabletSearch.y + tabletSearch.height)).toBeLessThanOrEqual(48);
   const lastDeckStrip = carousel.getByRole('button', { name: 'Go to deck: Biology final' });
   await expect(lastDeckStrip).toBeVisible();
-  const counter = carousel.getByRole('status');
-  const counterBefore = (await counter.boundingBox())!;
-  expect(counterBefore.y).toBeGreaterThanOrEqual(tabletSearch.y + tabletSearch.height);
-  expect(counterBefore.y + counterBefore.height).toBeLessThanOrEqual(tabletCard.y);
+  const position = activeDeck.locator('.deck-carousel-position');
+  const positionBefore = (await position.boundingBox())!;
+  expect(positionBefore.y).toBeGreaterThanOrEqual(tabletCard.y);
+  expect(positionBefore.y + positionBefore.height).toBeLessThanOrEqual(tabletCard.y + tabletCard.height);
   const pageScrollRoom = await page.evaluate(
     () => document.documentElement.scrollHeight - document.documentElement.clientHeight,
   );
@@ -895,14 +995,20 @@ test('Library decks follow the finger on phones and tablets and filter the same 
   await lastDeckStrip.click();
   await expect(activeDeck).toHaveAccessibleName('Open Biology final');
   await expect(activeDeck).toBeFocused();
-  await expect(counter).toContainText('3 of 3');
-  const counterAfter = (await counter.boundingBox())!;
-  expect(counterAfter.y).toBeCloseTo(counterBefore.y, 0);
-  expect(counterAfter.x + counterAfter.width).toBeCloseTo(counterBefore.x + counterBefore.width, 0);
+  await expect(position).toHaveText('3 of 3');
+  await expect(carousel.getByRole('status')).toContainText('3 of 3');
+  const lastCardPosition = (await activeDeck.boundingBox())!;
+  const positionAfter = (await position.boundingBox())!;
+  expect(positionAfter.y - lastCardPosition.y).toBeCloseTo(positionBefore.y - tabletCard.y, 0);
+  expect(lastCardPosition.x + lastCardPosition.width - positionAfter.x - positionAfter.width).toBeCloseTo(
+    tabletCard.x + tabletCard.width - positionBefore.x - positionBefore.width,
+    0,
+  );
   await previous.click();
   await expect(activeDeck).toHaveAccessibleName('Open History review');
   await page.setViewportSize({ width: 1440, height: 900 });
   await expect(carousel).toBeHidden();
+  await expect(carousel.locator('.deck-carousel-stage')).toHaveCount(0);
   await expect(decks.getByRole('listitem')).toHaveCount(3);
   await search.fill('biology');
   await expect(decks.getByRole('listitem')).toHaveCount(2);
@@ -1042,19 +1148,32 @@ test('deck lists append cards on phones and page by keyboard on wide screens', a
   const backInHeader = page.getByRole('banner').getByRole('link', { name: 'Back to Library', exact: true });
   const backInPage = page.getByRole('main').getByRole('link', { name: 'Back to Library', exact: true });
   const title = page.getByRole('heading', { name: 'Pagination checks', level: 1 });
+  const navigation = page.getByRole('navigation', { name: 'Your workspace' });
   for (const [width, height] of [
     [375, 667],
+    [768, 1024],
     [1440, 900],
   ] as const) {
+    const phone = width < 640;
+    const statusArea = phone ? await page.addStyleTag({ content: ':root { --status-area-top: 58px; }' }) : null;
     await page.setViewportSize({ width, height });
     await page.evaluate(() => window.scrollTo(0, 0));
-    await expect(width < 640 ? backInHeader : backInPage).toBeInViewport({ ratio: 1 });
-    await expect(width < 640 ? backInPage : backInHeader).toHaveCount(0);
+    await expect(phone ? backInHeader : backInPage).toBeInViewport({ ratio: 1 });
+    await expect(phone ? backInPage : backInHeader).toHaveCount(0);
+    const navAtTop = (await navigation.boundingBox())!;
     await page.evaluate(() => window.scrollTo(0, 900));
     await expect(title).not.toBeInViewport();
     const backAboveToolbar = backInPage.last();
     await expect(backAboveToolbar).toBeInViewport({ ratio: 1 });
-    expect((await backAboveToolbar.boundingBox())!.y).toBeLessThan((await settings.boundingBox())!.y);
+    const compactTitle = backAboveToolbar.locator('..').getByText('Pagination checks', { exact: true });
+    await expect(compactTitle).toBeInViewport({ ratio: 1 });
+    const backTop = (await backAboveToolbar.boundingBox())!.y;
+    expect(backTop).toBeLessThan((await settings.boundingBox())!.y);
+    if (phone) {
+      expect(backTop).toBeGreaterThanOrEqual(58);
+      expect((await navigation.boundingBox())!.y).toBeCloseTo(navAtTop.y);
+      await statusArea?.evaluate((style) => style.parentNode?.removeChild(style));
+    }
   }
   for (const [width, height] of [
     [1440, 900],
@@ -1387,6 +1506,7 @@ test('a deck with paused reviews stays in Library and its reviews come back afte
   await expect(page.getByRole('link', { name: 'Continue', exact: true })).toHaveCount(0);
   await page.goto('/library');
   await expect(page.getByText('No active decks. Resume one from Paused, or create a deck.')).toBeVisible();
+  await page.getByRole('button', { name: 'Review status: Active' }).click();
   await page.getByRole('button', { name: 'Paused 1' }).click();
   await expect(page.getByRole('link', { name: 'Open Finished exam' })).toHaveAccessibleDescription(/paused/);
   await page.getByRole('link', { name: 'Open Finished exam' }).click();
@@ -1454,7 +1574,7 @@ test('pausing and resuming reviews protect settings while pending and survive a 
       await action.click();
       expect(await committed).toBe(204);
       await expect(page.getByLabel('Name', { exact: true })).toBeDisabled();
-      await expect(page.getByRole('button', { name: 'Delete deck', exact: true })).toBeDisabled();
+      await expect(page.getByRole('button', { name: 'Delete', exact: true })).toBeDisabled();
     } finally {
       release();
     }
@@ -1505,6 +1625,10 @@ test('Library keeps paused decks under Paused at every width and returns a resum
     const decks = page.getByRole('region', { name: 'My decks' });
     const active = decks.getByRole('button', { name: 'Active 2' });
     const paused = decks.getByRole('button', { name: 'Paused 2' });
+    const filter = decks.getByRole('button', { name: 'Review status: Active' });
+    await expect(filter).toBeInViewport();
+    await expect(filter).toHaveCSS('color', 'rgb(47, 42, 138)');
+    await filter.press('Enter');
     await expect(active).toHaveAttribute('aria-pressed', 'true');
     await expect(paused).toBeInViewport();
     if (width === 1440) {
@@ -1515,13 +1639,15 @@ test('Library keeps paused decks under Paused at every width and returns a resum
       await decks.getByRole('searchbox').fill('biology');
       await expect(decks.getByRole('heading', { level: 3 })).toHaveText([pastBiology]);
     } else {
+      await filter.press('Escape');
+      await expect(filter).toBeFocused();
       const carousel = decks.getByRole('region', { name: 'Decks', exact: true });
       const front = carousel.getByRole('link');
       await expect(front).toHaveAccessibleName('Open ' + history);
       await decks.getByRole('searchbox').fill('physics');
       await expect(decks.getByText('No active decks match. 1 paused deck matches.')).toBeVisible();
       await decks.getByRole('button', { name: 'Show paused decks' }).click();
-      await expect(paused).toHaveAttribute('aria-pressed', 'true');
+      await expect(decks.getByRole('button', { name: 'Review status: Paused' })).toBeVisible();
       await expect(front).toHaveAccessibleName('Open ' + pastPhysics);
       await expect(front).toHaveAccessibleDescription(/paused/);
       await decks.getByRole('searchbox').fill('');
@@ -1537,6 +1663,8 @@ test('Library keeps paused decks under Paused at every width and returns a resum
   await expect(page.getByText('Deck resumed.', { exact: true })).toBeVisible();
   await page.getByRole('link', { name: 'Library', exact: true }).click();
   const decks = page.getByRole('region', { name: 'My decks' });
+  await decks.getByRole('button', { name: 'Review status: Active' }).click();
   await expect(decks.getByRole('button', { name: 'Active 3' })).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('Escape');
   await expect(decks.getByRole('heading', { level: 3 })).toHaveText([pastBiology, biology]);
 });

@@ -2,19 +2,24 @@ import {
   ACCOUNT_PATH,
   LIBRARY_PATH,
   NEW_DECK_PATH,
+  PUBLISHED_PATH,
   REVIEW_PATH,
   SETS_PATH,
   TODAY_PATH,
   isReviewTopic,
 } from '../../../shared/navigation/paths';
+import type { DailyNewCardLimit } from '../../../shared/product/studyRules';
 
 export type AccountProfile = { username: string };
 export type Signup = { username: string; password: string };
+export type StudySettings = { dailyNewCardLimit: DailyNewCardLimit };
 
 export interface AccountGateway {
   prepareWrite(): void;
   signedIn(signal?: AbortSignal): Promise<boolean>;
   current(signal?: AbortSignal): Promise<AccountProfile | null>;
+  studySettings(signal?: AbortSignal): Promise<StudySettings>;
+  saveStudySettings(settings: StudySettings): Promise<StudySettings>;
   register(input: Signup): Promise<AccountProfile>;
   signIn(username: string, password: string): Promise<AccountProfile>;
   signOut(): Promise<void>;
@@ -23,6 +28,7 @@ export interface AccountGateway {
 const PRIVATE_RETURN_PATHS: ReadonlySet<string> = new Set([
   LIBRARY_PATH,
   NEW_DECK_PATH,
+  PUBLISHED_PATH,
   TODAY_PATH,
   REVIEW_PATH,
   ACCOUNT_PATH,

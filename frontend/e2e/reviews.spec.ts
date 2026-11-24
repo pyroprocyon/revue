@@ -13,6 +13,7 @@ async function signup(page: import('@playwright/test').Page, signupUrl: string) 
 
 async function savedSetReviewPath(page: import('@playwright/test').Page) {
   await page.goto('/library');
+  await page.getByRole('link', { name: 'Open Published test set' }).click();
   const start = page.getByRole('link', { name: 'Start review: Published test set', exact: true });
   await expect(start).toBeVisible();
   return (await start.getAttribute('href'))!;
@@ -49,7 +50,7 @@ async function settledCardHeight(card: import('@playwright/test').Locator) {
 test('saved review survives a lost response, exact retry, reload and removal', async ({ page, pilot }, info) => {
   pilot.addSaveableSet();
   await signup(page, pilot.signupUrl);
-  await expect(page.getByRole('link', { name: 'Browse sets' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Browse reviewers' })).toHaveCount(0);
   await page.screenshot({ path: info.outputPath('today-empty.png'), fullPage: true });
   await page.goto('/sets/published-test-set');
   await page.getByRole('button', { name: 'Save to Library' }).click();
@@ -57,9 +58,11 @@ test('saved review survives a lost response, exact retry, reload and removal', a
   await page.getByRole('link', { name: 'Revue', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'No cards due today' })).toBeVisible();
   await page.getByRole('link', { name: 'Open Library' }).click();
+  await page.getByRole('link', { name: 'Open Published test set' }).click();
   await page.getByRole('link', { name: 'Start review: Published test set' }).click();
   await expect(page.getByRole('heading', { name: 'Test question', exact: true })).toBeFocused();
   await expect(page.getByRole('heading', { name: 'Test answer', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('group', { name: 'Rate your answer' })).toHaveCount(0);
   await page.getByText('Write an answer', { exact: false }).click();
   await page.getByLabel('Your answer (optional)').fill('private-browser-only-answer');
   await page.getByRole('button', { name: 'Show answer' }).click();
@@ -74,6 +77,8 @@ test('saved review survives a lost response, exact retry, reload and removal', a
       await route.abort('failed');
     } else await route.fulfill({ response });
   });
+  await page.getByRole('button', { name: 'Back to question' }).click();
+  await expect(page.getByRole('heading', { name: 'Test question', exact: true })).toBeFocused();
   await page.getByRole('button', { name: /^Good:/ }).click();
   await expect(page.getByRole('button', { name: 'Retry rating' })).toBeFocused();
   const queueRequests: string[] = [];
@@ -94,35 +99,35 @@ test('saved review survives a lost response, exact retry, reload and removal', a
   await expect(page.getByRole('button', { name: 'Retry rating' })).toBeVisible();
   await page.screenshot({ path: info.outputPath('review-unknown.png'), fullPage: true });
   await expect(page.getByText('1 card reviewed', { exact: true })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Back to question' }).click();
-  await expect(page.getByRole('textbox', { name: 'Your answer', exact: true })).toHaveValue(
-    'private-browser-only-answer',
-  );
   await page.getByRole('button', { name: 'Back to answer' }).click();
+  await expect(page.getByRole('button', { name: 'Retry rating' })).toBeVisible();
+  await page.getByRole('button', { name: 'Back to question' }).click();
+  await expect(page.getByText('private-browser-only-answer', { exact: true })).toBeVisible();
+  await expect(page.getByRole('textbox')).toHaveCount(0);
   await page.getByRole('button', { name: 'Retry rating' }).click();
   await expect(page.getByRole('heading', { name: '1 card reviewed', exact: true })).toBeVisible();
-  await expect(page.getByText('This topic is caught up.', { exact: true })).toBeVisible();
+  await expect(page.getByText('Review complete for Published test set', { exact: true })).toBeVisible();
   await page.screenshot({ path: info.outputPath('review-complete.png'), fullPage: true });
   expect(payloads).toHaveLength(2);
   expect(payloads[1]).toBe(payloads[0]);
   expect(payloads[0]).not.toContain('private-browser-only-answer');
   await page.getByRole('link', { name: 'Back to Today', exact: true }).click();
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'All caught up', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Nice work today!', exact: true })).toBeVisible();
   await page.getByRole('link', { name: 'Library', exact: true }).click();
+  await page.getByRole('link', { name: 'Open Published test set' }).click();
+  await page.getByRole('button', { name: 'Reviewer settings' }).click();
   await page.getByRole('button', { name: 'Remove from Library: Published test set', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Saved sets', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Remove', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Saved reviewers', exact: true })).toHaveCount(0);
   await page.goto('/sets/published-test-set');
   await page.getByRole('button', { name: 'Save to Library' }).click();
   await expect(page.getByText('Saved to your Library')).toBeVisible();
   await page.getByRole('link', { name: 'Revue', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'All caught up', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Nice work today!', exact: true })).toBeVisible();
 });
 
-test('Study rhythm uses the weekly strip on wide screens and fits enlarged text on a phone', async ({
-  page,
-  pilot,
-}, info) => {
+test('Study rhythm sits above the review topics at every width', async ({ page, pilot }, info) => {
   const title = 'Cell transport and membrane transport mechanisms';
   await signup(page, pilot.signupUrl);
   await page.route('**/api/v1/cards/due*', (route) =>
@@ -133,6 +138,9 @@ test('Study rhythm uses the weekly strip on wide screens and fits enlarged text 
           { id: 'deck-1', title, dueCards: 7 },
           { id: 'deck-2', title: 'History', dueCards: 1 },
         ],
+        continuation: new URL(route.request().url()).searchParams.has('pausedTopic')
+          ? { topicTitle: 'Data structures and the algorithms that use them every day', dueCards: 0, newCards: 6 }
+          : null,
         studyDays: Array.from({ length: 7 }, (_, index) => ({
           date: `2026-11-${11 + index}`,
           studied: [2, 4, 6].includes(index),
@@ -151,10 +159,12 @@ test('Study rhythm uses the weekly strip on wide screens and fits enlarged text 
   const studied = page.getByRole('heading', { name: '3 days studied' });
   const days = page.getByRole('list', { name: 'Recent study days' });
   const firstTopic = page.getByRole('heading', { name: 'Science quick review' });
-  const otherTopics = page.getByText('Other topics', { exact: true });
   await expect(firstAction).toHaveAttribute('href', '/review/set-1');
   await expect(studied).toBeVisible();
   const next = page.getByRole('region', { name: 'Up next' });
+  const otherTopics = next.getByText('Other topics', { exact: true });
+  const choices = next.getByRole('list', { name: 'Review topics' });
+  const nextSizes = new Map<number, { width: number; height: number }>();
   for (const [width, height] of [
     [320, 568],
     [375, 667],
@@ -165,30 +175,44 @@ test('Study rhythm uses the weekly strip on wide screens and fits enlarged text 
     await page.setViewportSize({ width, height });
     await page.evaluate(() => document.fonts.ready);
     const topicBox = (await next.boundingBox())!;
+    nextSizes.set(width, { width: topicBox.width, height: topicBox.height });
     const rhythmBox = (await page.getByRole('region', { name: 'Study rhythm' }).boundingBox())!;
-    if (width >= 1024) expect(rhythmBox.x).toBeGreaterThanOrEqual(topicBox.x + topicBox.width);
-    else expect(rhythmBox.y).toBeGreaterThanOrEqual(topicBox.y + topicBox.height);
+    expect(rhythmBox.y + rhythmBox.height).toBeLessThanOrEqual(topicBox.y);
     await expect(firstTopic).toBeVisible();
+    await firstAction.scrollIntoViewIfNeeded();
     await expect(firstAction).toBeInViewport({ ratio: 1 });
     await expect(days.locator('li')).toHaveCount(7);
     if (width === 768) {
       await otherTopics.press('Enter');
-      const cards = page.getByRole('group', { name: 'Review topics' }).getByRole('button');
-      const positions = await cards.evaluateAll((buttons) =>
-        buttons.map((button) => {
-          const [title, due] = button.children;
-          const heading = title.getBoundingClientRect();
-          return { titleTop: heading.top, titleBottom: heading.bottom, dueTop: due.getBoundingClientRect().top };
-        }),
-      );
-      expect(positions).toHaveLength(3);
-      expect(new Set(positions.map(({ titleTop }) => titleTop)).size).toBe(1);
-      expect(new Set(positions.map(({ dueTop }) => dueTop)).size).toBe(1);
-      expect(positions.every(({ titleBottom, dueTop }) => dueTop >= titleBottom)).toBe(true);
+      await expect(choices.getByRole('button')).toHaveCount(2);
+      await expect(choices.getByRole('button', { name: 'Science quick review' })).toHaveCount(0);
+      const firstRow = (await choices.getByRole('button', { name: title }).boundingBox())!;
+      const secondRow = (await choices.getByRole('button', { name: 'History' }).boundingBox())!;
+      expect(firstRow.height).toBeGreaterThanOrEqual(48);
+      expect(secondRow.y).toBeGreaterThanOrEqual(firstRow.y + firstRow.height);
       await otherTopics.press('Enter');
     }
     await page.screenshot({ path: info.outputPath(`study-rhythm-${width}.png`), fullPage: true });
   }
+  const { username } = await (await page.request.get('/api/v1/me')).json();
+  await page.evaluate((learner) => localStorage.setItem(`revue.paused-review.${learner}`, 'deck-3'), username);
+  for (const [width, height] of [
+    [390, 844],
+    [768, 1024],
+  ] as const) {
+    await page.setViewportSize({ width, height });
+    await page.reload();
+    const continuation = page.getByRole('region', { name: 'Continue review' });
+    await expect(continuation).toBeVisible();
+    await expect(next).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+    const topicBox = (await next.boundingBox())!;
+    expect({ width: topicBox.width, height: topicBox.height }).toEqual(nextSizes.get(width));
+    const resume = (await continuation.getByRole('link', { name: 'Continue', exact: true }).boundingBox())!;
+    const start = (await firstAction.boundingBox())!;
+    expect({ width: start.width, height: start.height }).toEqual({ width: resume.width, height: resume.height });
+  }
+
   await page.setViewportSize({ width: 320, height: 568 });
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.evaluate(() => {
@@ -200,7 +224,8 @@ test('Study rhythm uses the weekly strip on wide screens and fits enlarged text 
   await expect(topic).toBeHidden();
   await otherTopics.press('Enter');
   await topic.press('Enter');
-  await expect(topic).toHaveAttribute('aria-pressed', 'true');
+  await expect(topic).toHaveCount(0);
+  await expect(choices.getByRole('button', { name: 'Science quick review' })).toBeVisible();
   await expect(heading).toBeVisible();
   await expect(start).toBeFocused();
   await expect(start).toHaveAttribute('href', '/review/deck-1');
@@ -245,12 +270,13 @@ withVisibleScrollbars('Saved recall stays usable across widths and text sizes', 
     await expect(page.getByRole('heading', { name: started ? 'Continue review' : 'No cards due today' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Your review', exact: true })).toBeVisible();
     await page.evaluate(() => window.scrollTo({ top: 0, left: 0, behavior: 'instant' }));
-    await expect(page.getByRole('link', { name: 'Revue', exact: true })).toHaveCount(width >= 1024 ? 1 : 0);
+    await expect(page.getByRole('link', { name: 'Revue', exact: true })).toHaveCount(width >= 640 ? 1 : 0);
     await page.screenshot({ path: info.outputPath(`today-${width}.png`), fullPage: true });
     if (started) {
       await page.getByRole('link', { name: 'Continue', exact: true }).click();
     } else {
       await page.getByRole('link', { name: 'Open Library' }).click();
+      await page.getByRole('link', { name: 'Open Published test set' }).click();
       await page.getByRole('link', { name: 'Start review: Published test set' }).click();
       started = true;
     }
@@ -264,9 +290,19 @@ withVisibleScrollbars('Saved recall stays usable across widths and text sizes', 
     await page.getByText('Write an answer', { exact: false }).click();
     await page.getByLabel('Your answer (optional)').fill('A draft kept when the viewport changes');
     const reveal = page.getByRole('button', { name: 'Show answer' });
+    const missed = page.getByRole('button', { name: 'I don’t know', exact: true });
     if ((height >= 768 || width === 375) && textSize === '100%') await expect(reveal).toBeInViewport({ ratio: 1 });
-    if (width === 375 && textSize === '100%') {
-      await expect(page.getByRole('button', { name: 'I don’t know yet', exact: true })).toBeInViewport({ ratio: 1 });
+    if (width <= 390) {
+      await page.evaluate(() => document.fonts.ready);
+      const [revealBounds, missedBounds] = await Promise.all([reveal.boundingBox(), missed.boundingBox()]);
+      if (textSize === '100%') {
+        expect(revealBounds!.height).toBe(48);
+        expect(missedBounds!.height).toBe(48);
+        expect(missedBounds!.y).toBe(revealBounds!.y);
+        if (width === 375) await expect(missed).toBeInViewport({ ratio: 1 });
+      } else {
+        expect(missedBounds!.y).toBeGreaterThanOrEqual(revealBounds!.y + revealBounds!.height);
+      }
     }
     await page.screenshot({
       path: info.outputPath(`review-front-${width}.png`),
@@ -282,13 +318,25 @@ withVisibleScrollbars('Saved recall stays usable across widths and text sizes', 
     await expect(
       page.getByRole('paragraph').filter({ hasText: 'A draft kept when the viewport changes' }),
     ).toBeVisible();
+    const recapLabel = page.getByText('Your answer', { exact: true });
+    await expect(recapLabel).toHaveCSS('color', 'rgb(24, 100, 171)');
+    const recapBeforeFlip = await recapLabel.elementHandle();
     await expect(page.getByRole('button', { name: /^Good:/ })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-    const ratingButtons = page.getByRole('group', { name: 'Rate your answer' }).locator('button');
+    const ratings = page.getByRole('group', { name: 'Rate your answer' });
+    const ratingsBeforeFlip = await ratings.elementHandle();
+    const ratingButtons = ratings.locator('button');
     if ([768, 1024, 1366].includes(width)) {
-      const first = (await ratingButtons.first().boundingBox())!;
-      const last = (await ratingButtons.last().boundingBox())!;
-      expect(last.y).toBe(first.y);
+      const [bounds, first, last] = await Promise.all([
+        ratings.boundingBox(),
+        ratingButtons.first().boundingBox(),
+        ratingButtons.last().boundingBox(),
+      ]);
+      if (bounds!.width >= 38 * 16) {
+        expect(last!.y).toBe(first!.y);
+      } else {
+        expect(last!.y).toBeGreaterThan(first!.y);
+      }
     }
     await page.screenshot({ path: info.outputPath(`review-${width}.png`) });
     for (const name of [/^Good:/, /^Missed:/, /^Hard:/, /^Easy:/]) {
@@ -299,20 +347,29 @@ withVisibleScrollbars('Saved recall stays usable across widths and text sizes', 
     const backToQuestion = page.getByRole('button', { name: 'Back to question' });
     await backToQuestion.focus();
     await expect(backToQuestion).toHaveCSS('outline-style', 'solid');
-    await expect(backToQuestion).toHaveCSS('outline-color', 'rgb(255, 255, 255)');
+    await expect(backToQuestion).toHaveCSS('outline-color', 'rgb(24, 100, 171)');
     await backToQuestion.press('Enter');
     await expect(page.getByRole('heading', { name: 'Test question', exact: true })).toBeFocused();
-    await expect(page.getByRole('button', { name: /^Good:/ })).toHaveCount(0);
-    await expect(page.getByRole('textbox', { name: 'Your answer', exact: true })).toHaveValue(
-      'A draft kept when the viewport changes',
-    );
+    expect(await recapBeforeFlip.evaluate((label) => label.isConnected)).toBe(true);
+    await expect(recapLabel).toBeVisible();
+    expect(await ratingsBeforeFlip.evaluate((group) => group.isConnected)).toBe(true);
+    await expect(ratings).toBeVisible();
+    await expect(page.getByText('A draft kept when the viewport changes', { exact: true })).toBeVisible();
+    await expect(recapLabel).toHaveCSS('color', 'rgb(24, 100, 171)');
+    await expect(page.getByRole('textbox')).toHaveCount(0);
     expect(await settledCardHeight(rotatingCard)).toBe(revealedHeight);
     const backToAnswer = page.getByRole('button', { name: 'Back to answer' });
     await backToAnswer.focus();
     await expect(backToAnswer).toHaveCSS('outline-style', 'solid');
-    await expect(backToAnswer).toHaveCSS('outline-color', 'rgb(255, 255, 255)');
+    await expect(backToAnswer).toHaveCSS('outline-color', 'rgb(47, 42, 138)');
     await backToAnswer.press('Space');
     await expect(page.getByRole('heading', { name: 'Test answer', exact: true })).toBeFocused();
+    expect(await recapBeforeFlip.evaluate((label) => label.isConnected)).toBe(true);
+    await expect(recapLabel).toBeVisible();
+    await recapBeforeFlip.dispose();
+    expect(await ratingsBeforeFlip.evaluate((group) => group.isConnected)).toBe(true);
+    await expect(ratings).toBeVisible();
+    await ratingsBeforeFlip.dispose();
     expect(await settledCardHeight(rotatingCard)).toBe(revealedHeight);
     const measured = await frame.evaluate((stop) => stop());
     expect(measured.final, `card frame at ${width} × ${height} / ${textSize}`).toEqual(measured.initial);
@@ -400,9 +457,9 @@ test('a stale tab refreshes after another tab saves without claiming a second re
   await second.getByRole('button', { name: /^Hard:/ }).click();
   await expect(second.getByRole('status')).toContainText('another tab');
   await expect(second.getByRole('heading', { name: '0 cards reviewed', exact: true })).toBeFocused();
-  await expect(second.getByText('This topic is caught up.', { exact: true })).toBeVisible();
+  await expect(second.getByText('Review complete for Published test set', { exact: true })).toBeVisible();
   await second.getByRole('link', { name: 'Back to Today' }).click();
-  await expect(second.getByRole('heading', { name: 'All caught up', exact: true })).toBeVisible();
+  await expect(second.getByRole('heading', { name: 'Nice work today!', exact: true })).toBeVisible();
 });
 
 test('Today resumes a fresh review after Finish for now and a reload', async ({ page, pilot }, info) => {
@@ -439,7 +496,7 @@ test('Today resumes a fresh review after Finish for now and a reload', async ({ 
   await page.getByRole('button', { name: /^Good:/ }).click();
   await expect(page.getByRole('heading', { name: '1 card reviewed', exact: true })).toBeVisible();
   await page.getByRole('link', { name: 'Back to Today' }).click();
-  await expect(page.getByRole('heading', { name: 'All caught up' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Nice work today!' })).toBeVisible();
   await expect(continuation).toHaveCount(0);
 });
 

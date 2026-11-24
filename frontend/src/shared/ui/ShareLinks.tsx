@@ -1,32 +1,48 @@
 import { Link2, Share2 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 const shareButton =
-  'pressable inline-flex min-h-12 items-center justify-center gap-2 rounded-control px-3 py-2 text-support font-semibold text-accent';
+  'pressable inline-flex min-h-12 min-w-0 flex-[1_1_7rem] items-center justify-center gap-2 rounded-control border px-3 py-2 text-center text-support font-semibold wrap-anywhere';
+const quiet = 'border-line bg-surface text-accent';
+const copiedStyle = 'border-success/25 bg-success-soft text-success';
+const CONFIRMATION_MS = 2000;
 
 type ShareLinksProps = {
   title: string;
   path: string;
 };
 
-type CopyResult = 'not-copied' | 'copied' | 'failed';
+type CopyResult = { copied: boolean };
 
 /**
  * Share and Copy link for a public page. The link carries nothing about the visitor. Share opens
  * the phone's share sheet and appears only where the browser has one; Copy link always appears.
  */
 export function ShareLinks({ title, path }: Readonly<ShareLinksProps>) {
-  const [copyResult, setCopyResult] = useState<CopyResult>('not-copied');
+  const [copyResult, setCopyResult] = useState<CopyResult>();
+  const copying = useRef(false);
   const link = new URL(path, window.location.origin).href;
   const canShare = typeof navigator.share === 'function';
+  const copied = copyResult?.copied === true;
+  const failed = copyResult?.copied === false;
+
+  useEffect(() => {
+    if (!copyResult?.copied) return;
+    const timer = window.setTimeout(() => setCopyResult(undefined), CONFIRMATION_MS);
+    return () => window.clearTimeout(timer);
+  }, [copyResult]);
 
   async function copyLink() {
+    if (copying.current) return;
+    copying.current = true;
     try {
       await navigator.clipboard.writeText(link);
-      setCopyResult('copied');
+      setCopyResult({ copied: true });
     } catch {
       // The clipboard is missing outside HTTPS and can be blocked by the browser.
-      setCopyResult('failed');
+      setCopyResult({ copied: false });
+    } finally {
+      copying.current = false;
     }
   }
 
@@ -40,31 +56,32 @@ export function ShareLinks({ title, path }: Readonly<ShareLinksProps>) {
 
   return (
     <div className="min-w-0">
-      <div className="flex flex-wrap gap-x-3 gap-y-1">
+      <div className="flex flex-wrap gap-2 pt-2.5">
         {canShare && (
-          <button type="button" onClick={share} className={shareButton}>
+          <button type="button" onClick={share} className={`${shareButton} ${quiet}`}>
             <Share2 aria-hidden="true" size={20} strokeWidth={2} className="shrink-0" />
             Share
           </button>
         )}
-        <button type="button" onClick={copyLink} className={shareButton}>
+        <button
+          type="button"
+          onClick={copyLink}
+          aria-label={copied ? 'Copied. Copy link again' : undefined}
+          className={`${shareButton} ${copied ? copiedStyle : quiet}`}
+        >
           <Link2 aria-hidden="true" size={20} strokeWidth={2} className="shrink-0" />
-          Copy link
+          {copied ? 'Copied' : 'Copy link'}
         </button>
       </div>
-      <output className="mt-2 block wrap-anywhere px-3 text-support text-muted empty:mt-0">
+      <output className={failed ? 'mt-2 block wrap-anywhere text-support text-muted' : 'sr-only'}>
         {copyMessage(copyResult, link)}
       </output>
     </div>
   );
 }
 
-function copyMessage(result: CopyResult, link: string): string {
-  if (result === 'copied') {
-    return 'Link copied.';
-  }
-  if (result === 'failed') {
-    return `Couldn't copy the link. Here it is: ${link}`;
-  }
-  return '';
+function copyMessage(result: CopyResult | undefined, link: string): string {
+  if (!result) return '';
+  if (result.copied) return 'Link copied.';
+  return `Couldn't copy the link. Here it is: ${link}`;
 }

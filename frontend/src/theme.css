@@ -1,0 +1,78 @@
+/* Open Color 1.9.1 (MIT): https://github.com/yeun/open-color/tree/v1.9.1 */
+:root {
+  --oc-white: #ffffff;
+  --oc-gray-0: #f8f9fa;
+  --oc-gray-1: #f1f3f5;
+  --oc-gray-3: #dee2e6;
+  --oc-gray-6: #868e96;
+  --oc-gray-7: #495057;
+  --oc-gray-9: #212529;
+  --oc-violet-0: #f3f0ff;
+  --oc-violet-1: #e5dbff;
+  --oc-violet-9: #5f3dc4;
+  --oc-indigo-2: #bac8ff;
+  --oc-blue-0: #e7f5ff;
+  --oc-blue-2: #a5d8ff;
+  --oc-blue-9: #1864ab;
+  --oc-red-1: #ffe3e3;
+  --oc-red-6: #fa5252;
+  --oc-red-9: #c92a2a;
+  --oc-orange-2: #ffd8a8;
+  --oc-orange-9: #d9480f;
+  --oc-green-9: #2b8a3e;
+  --oc-lime-2: #d8f5a2;
+  --oc-lime-9: #5c940d;
+  --oc-teal-0: #e6fcf5;
+  --oc-teal-1: #c3fae8;
+  --oc-teal-9: #087f5b;
+  --revue-ivory: #faf9f6;
+  --revue-indigo: #3730a3;
+  --revue-indigo-deep: #2f2a8a;
+  --revue-coral: #ff7676;
+}
+
+@theme {
+  --color-page: var(--revue-ivory);
+  --color-surface: var(--oc-white);
+  --color-subtle: var(--oc-gray-1);
+  --color-line: var(--oc-gray-3);
+  --color-ink: var(--oc-gray-9);
+  --color-muted: var(--oc-gray-7);
+  --color-field: var(--oc-gray-0);
+  --color-field-edge: var(--oc-gray-6);
+  --color-scrim: var(--oc-gray-9);
+  --color-elevation: var(--oc-gray-9);
+
+  --color-accent: var(--revue-indigo);
+  --color-accent-strong: var(--revue-indigo-deep);
+  --color-accent-soft: var(--oc-violet-0);
+  --color-on-accent: var(--oc-white);
+  --color-saved-set: var(--oc-blue-9);
+  --color-saved-set-soft: var(--oc-blue-0);
+  --color-on-saved-set: var(--oc-white);
+  --color-topic: var(--oc-teal-9);
+  --color-topic-soft: var(--oc-teal-0);
+  --color-review-question-edge: var(--oc-indigo-2);
+  --color-review-answer-edge: var(--oc-blue-2);
+  --color-personal-deck: var(--oc-violet-9);
+  --color-personal-deck-soft: var(--oc-violet-1);
+  --color-highlight: var(--revue-coral);
+  --color-highlight-soft: var(--oc-red-1);
+  --color-highlight-strong: var(--oc-red-9);
+  --color-due: var(--revue-coral);
+  --color-destructive: var(--oc-red-9);
+  --color-destructive-edge: var(--oc-red-6);
+  --color-success: var(--oc-teal-9);
+  --color-success-soft: var(--oc-teal-0);
+  --color-study-day-complete: var(--oc-green-9);
+  --color-on-study-day-complete: var(--oc-white);
+
+  --color-missed: var(--oc-red-9);
+  --color-missed-soft: var(--oc-red-1);
+  --color-hard: var(--oc-orange-9);
+  --color-hard-soft: var(--oc-orange-2);
+  --color-good: var(--oc-lime-9);
+  --color-good-soft: var(--oc-lime-2);
+  --color-easy: var(--oc-teal-9);
+  --color-easy-soft: var(--oc-teal-1);
+}

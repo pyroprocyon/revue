@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useOutletContext } from 'react-router';
 import { ReviewFailure, type RatingRequest, type ReviewGateway, type ReviewSelection } from '../application/reviews';
 import { untilNextStudyDay } from '../../../shared/product/studyRules';
-import { deckKeys, pendingLoginKey, reviewKeys } from '../../../shared/cache/queryKeys';
+import { deckKeys, libraryKeys, pendingLoginKey, reviewKeys } from '../../../shared/cache/queryKeys';
 
 const ReviewContext = createContext<ReviewGateway | null>(null);
 export function ReviewProvider({ gateway, children }: Readonly<{ gateway: ReviewGateway; children: ReactNode }>) {
@@ -51,7 +51,7 @@ export function useTodayOverview(pausedTopic: string | null) {
   const fallback = useTodayQueue(undefined, needsFallback);
   return {
     query,
-    overview: query.data ?? (needsFallback ? fallback.data : undefined),
+    overview: query.data ?? (pausedTopic !== null ? fallback.data : undefined),
     loading: query.isPending || (needsFallback && fallback.isPending),
     signedOut: sessionExpired(query.error) || (needsFallback && sessionExpired(fallback.error)),
   };
@@ -65,14 +65,20 @@ export function useSubmitRating() {
   return async (cardId: string, input: RatingRequest) => {
     const today = { queryKey: reviewKeys.today(username) };
     const deckPages = { queryKey: deckKeys.allCardPages(username) };
+    const savedPages = { queryKey: libraryKeys.cardPagesOf(username) };
     queryClient.removeQueries(today);
     try {
       return await gateway.rate(cardId, input);
     } finally {
       // A visit to Today or a deck may have started a read before this rating committed.
-      await Promise.all([queryClient.cancelQueries(today), queryClient.cancelQueries(deckPages)]);
+      await Promise.all([
+        queryClient.cancelQueries(today),
+        queryClient.cancelQueries(deckPages),
+        queryClient.cancelQueries(savedPages),
+      ]);
       void queryClient.invalidateQueries(today);
       void queryClient.invalidateQueries(deckPages);
+      void queryClient.invalidateQueries(savedPages);
     }
   };
 }

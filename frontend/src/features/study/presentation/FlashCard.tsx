@@ -1,30 +1,31 @@
-import { Lightbulb } from 'lucide-react';
+import { ArrowRight, BookOpenText, Lightbulb, Repeat2 } from 'lucide-react';
 import { useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { primaryButton } from '../../../shared/ui/buttonStyles';
 import { CardSource } from '../../../shared/ui/CardSource';
 import { FocusRequestContext } from '../../../shared/ui/FocusRequestContext';
+import { ReviewDetail } from './ReviewDetail';
 
 // A two-sided card, like a paper flashcard: the question on the front, the answer on the back.
 // Checking the answer is deliberate; tapping the card surface never flips it. After reveal,
 // explicit buttons let the student reread either side. Both sides share one grid cell.
 
 type FlashCardProps = {
-  card: { question: string; answer: string; explanation: string | null; source: string | null };
+  card: { question: string; answer: string; source: string | null };
   publisherName: string | null;
   ratingControls: ReactNode;
-  questionInput?: ReactNode;
-  answerDetails?: ReactNode;
-  answerExtras?: ReactNode;
+  answerRecap?: ReactNode;
+  cardDetails?: ReactNode;
+  questionDetails?: ReactNode;
   renderRevealActions?: (reveal: () => void) => ReactNode;
   showRecallHint?: boolean;
-  position?: { index: number; total: number };
+  position: { index: number; total: number };
 };
 
 const sideSwitch =
   'pressable -mr-2 min-h-12 rounded-control px-2 text-label font-semibold text-accent pointer-coarse:active:transform-none!';
 
 const sideText =
-  'mx-auto w-full max-w-lg text-title font-bold tracking-tight text-balance whitespace-pre-wrap outline-none sm:text-[2rem] sm:leading-tight';
+  'mx-auto w-full max-w-lg text-title font-bold tracking-tight text-center text-balance whitespace-pre-wrap outline-none sm:text-[2rem] sm:leading-tight';
 
 // Longer saved answers step down on short phones, so the ratings stay on screen for typical cards.
 const LONG_ANSWER_LENGTH = 60;
@@ -42,24 +43,31 @@ function sideTextStyle(text: string, compactOnShortPhones: boolean) {
   return compactOnShortPhones && text.trim().length > LONG_ANSWER_LENGTH ? compactLongAnswer : sideText;
 }
 
-/** Focusing a tall side can leave the screen partway down it, so bring the side's start into view. */
-function showSideStart(heading: HTMLElement | null) {
-  const reading = heading?.closest('.review-reading');
-  if (reading) {
-    reading.scrollTop = 0;
-    return;
+function keepSideTextInView(heading: HTMLElement | null) {
+  if (!heading) return;
+  const frame = heading.closest('.review-card-frame');
+  if (!frame) return;
+  const header = frame.closest('.study-layout')?.querySelector('.phone-page-header');
+  const visibleTop =
+    header && getComputedStyle(header).position === 'sticky' ? header.getBoundingClientRect().bottom : 0;
+  const visibleBottom = window.visualViewport?.height ?? window.innerHeight;
+  const frameTop = frame.getBoundingClientRect().top;
+  const textTop = frameTop + heading.offsetTop;
+  const textBottom = textTop + heading.offsetHeight;
+  const textFitsFromFrameTop = textBottom - frameTop <= visibleBottom - visibleTop;
+  const targetTop = textFitsFromFrameTop ? frameTop : textTop - 8;
+  if (targetTop < visibleTop || textBottom > visibleBottom) {
+    window.scrollBy({ top: targetTop - visibleTop, behavior: 'instant' });
   }
-  const top = heading?.getBoundingClientRect().top ?? 0;
-  if (top < 0 || top > window.innerHeight) heading?.closest('section')?.scrollIntoView({ block: 'start' });
 }
 
 export function FlashCard({
   card,
   publisherName,
   ratingControls,
-  questionInput,
-  answerDetails,
-  answerExtras,
+  answerRecap,
+  cardDetails,
+  questionDetails,
   renderRevealActions,
   showRecallHint = true,
   position,
@@ -69,19 +77,28 @@ export function FlashCard({
   const recallHintId = useId();
   const questionRef = useRef<HTMLHeadingElement>(null);
   const answerRef = useRef<HTMLHeadingElement>(null);
-  const hintVisible = showRecallHint && !answerShown;
-  const recallHintDescription = hintVisible ? recallHintId : undefined;
+  const recallHintDescription = showRecallHint && !answerShown ? recallHintId : undefined;
   const requestFocus = useContext(FocusRequestContext);
-  const savedReview = position !== undefined;
-  const rereadingQuestion = savedReview && answerShown;
-  const layout = savedReview
-    ? { container: 'active-review-card', frame: 'review-card-frame', rotating: 'absolute inset-0' }
-    : { container: 'sm:min-h-[30rem]', frame: 'flex flex-1 flex-col perspective-[2000px]', rotating: '' };
-
+  const source = card.source && (
+    <ReviewDetail label="Source" icon={BookOpenText}>
+      <CardSource source={card.source} />
+    </ReviewDetail>
+  );
+  const beforeReveal = recallHintDescription ? (
+    <p
+      id={recallHintDescription}
+      className="flex min-h-12 items-center gap-2 rounded-control border border-line bg-accent-soft px-3 py-2 text-label font-semibold text-accent"
+    >
+      <Lightbulb aria-hidden="true" className="size-7 shrink-0 rounded-inset bg-surface p-1.5" />
+      Say the answer to yourself.
+    </p>
+  ) : (
+    questionDetails
+  );
   useEffect(() => {
     const heading = (showingBack ? answerRef : questionRef).current;
     requestFocus(heading);
-    showSideStart(heading);
+    keepSideTextInView(heading);
   }, [showingBack, requestFocus]);
 
   function revealAnswer() {
@@ -89,44 +106,35 @@ export function FlashCard({
     setShowingBack(true);
   }
 
-  const questionActions = rereadingQuestion ? null : (
-    <QuestionActions
-      hintId={recallHintDescription}
-      revealed={answerShown}
-      renderRevealActions={renderRevealActions}
-      onReveal={revealAnswer}
-    />
-  );
-  const reviewActions = showingBack ? ratingControls : questionActions;
-  const attribution = (
-    <p className={`text-support text-muted ${savedReview ? '' : 'mt-2'}`}>{attributionText(publisherName)}</p>
-  );
-  const reviewAnswerFooter = answerShown ? (
-    <div className="text-left">
-      {answerExtras}
-      {attribution}
-    </div>
-  ) : null;
-
   return (
-    <div className={`flex flex-1 animate-fade-in flex-col ${layout.container}`}>
-      <div className={layout.frame}>
+    <div className="active-review-card flex flex-1 animate-fade-in flex-col">
+      <div className="review-card-frame perspective-[2000px]">
         <div
           data-card-frame
-          className={`grid flex-1 transform-3d transition-transform duration-(--card-flip) ease-[ease-in-out] ${layout.rotating} ${showingBack ? 'rotate-y-180' : 'rotate-y-0'}`}
+          className={`grid flex-1 transform-3d transition-transform duration-(--card-flip) ease-[ease-in-out] ${showingBack ? 'rotate-y-180' : 'rotate-y-0'}`}
         >
           <CardSide
             label="Question"
+            progress={`Card ${position.index + 1} of ${position.total}`}
             hidden={showingBack}
-            position={position}
             headerAction={
-              rereadingQuestion && (
-                <button type="button" onClick={revealAnswer} className={sideSwitch}>
-                  Back to answer
-                </button>
-              )
+              <button
+                type="button"
+                onClick={revealAnswer}
+                className={`${sideSwitch}${answerShown ? '' : ' invisible'}`}
+                aria-hidden={!answerShown}
+                inert={!answerShown}
+              >
+                <Repeat2 aria-hidden="true" className="size-4 shrink-0" />
+                Back to answer
+              </button>
             }
-            footer={savedReview ? null : questionActions}
+            footer={
+              <div className="review-credit">
+                <p>{attributionText(publisherName)}</p>
+                {source}
+              </div>
+            }
           >
             <h2
               ref={questionRef}
@@ -136,151 +144,86 @@ export function FlashCard({
             >
               {card.question}
             </h2>
-            {questionInput}
           </CardSide>
           <CardSide
             label="Answer"
             hidden={!showingBack}
-            position={position}
             back
             headerAction={
               <button type="button" onClick={() => setShowingBack(false)} className={sideSwitch}>
+                <Repeat2 aria-hidden="true" className="size-4 shrink-0" />
                 Back to question
               </button>
             }
-            footer={savedReview ? reviewAnswerFooter : answerShown && ratingControls}
+            footer={source && <div className="review-credit">{source}</div>}
           >
-            {answerShown && (
-              <>
-                <h2 ref={answerRef} tabIndex={-1} className={sideTextStyle(card.answer, savedReview)}>
-                  {card.answer}
-                </h2>
-                {!savedReview && card.explanation && (
-                  <p className="mt-4 text-body text-muted text-pretty whitespace-pre-wrap">{card.explanation}</p>
-                )}
-                {answerDetails}
-                {!savedReview && card.source && <CardSource source={card.source} />}
-                {!savedReview && attribution}
-              </>
-            )}
+            <h2 ref={answerRef} tabIndex={-1} className={sideTextStyle(card.answer, true)}>
+              {card.answer}
+            </h2>
           </CardSide>
         </div>
       </div>
-      {savedReview && reviewActions && (
-        <div
-          key={showingBack ? 'answer' : 'question'}
-          className={`mt-3 short-phone:mt-2 sm:mt-4 ${answerShown ? 'animate-card-side-actions' : ''}`}
-        >
-          {reviewActions}
-        </div>
-      )}
+      <div
+        className={`review-card-controls mt-3 flex flex-col gap-2 empty:hidden short-phone:mt-2 sm:mt-4 ${answerShown ? 'animate-card-side-actions focus-within:opacity-100!' : ''}`}
+      >
+        {answerShown ? (
+          <>
+            {answerRecap}
+            {cardDetails}
+          </>
+        ) : (
+          beforeReveal
+        )}
+      </div>
+      <div className="review-dock mt-2 empty:hidden">
+        {answerShown
+          ? ratingControls != null && (
+              <div className="animate-card-side-actions focus-within:opacity-100!">{ratingControls}</div>
+            )
+          : (renderRevealActions?.(revealAnswer) ?? (
+              <button
+                type="button"
+                onClick={revealAnswer}
+                aria-describedby={recallHintDescription}
+                className={`${primaryButton} w-full pointer-coarse:active:transform-none!`}
+              >
+                Show answer
+                <ArrowRight aria-hidden="true" className="size-5 shrink-0" />
+              </button>
+            ))}
+      </div>
     </div>
   );
 }
 
 const attributionText = (publisherName: string | null) =>
-  publisherName === null ? 'Personal card' : `Published by ${publisherName} · Not yet checked`;
-
-type QuestionActionsProps = {
-  hintId: string | undefined;
-  revealed: boolean;
-  renderRevealActions?: (reveal: () => void) => ReactNode;
-  onReveal: () => void;
-};
-
-function QuestionActions({ hintId, revealed, renderRevealActions, onReveal }: Readonly<QuestionActionsProps>) {
-  return (
-    <div>
-      {hintId && (
-        <div
-          id={hintId}
-          className="mb-3 flex items-start gap-3 rounded-control bg-highlight-soft/60 p-3 text-left sm:p-4"
-        >
-          <span
-            aria-hidden="true"
-            className="grid size-9 shrink-0 place-items-center rounded-inset bg-surface/80 text-accent"
-          >
-            <Lightbulb className="size-4" />
-          </span>
-          <div className="min-w-0">
-            <p className="text-label font-semibold">Try to remember</p>
-            <p className="mt-0.5 text-support text-pretty text-muted">Even a few words are a good start.</p>
-          </div>
-        </div>
-      )}
-      {!revealed && renderRevealActions ? (
-        renderRevealActions(onReveal)
-      ) : (
-        <button
-          type="button"
-          onClick={onReveal}
-          aria-describedby={hintId}
-          className={`${primaryButton} w-full pointer-coarse:active:transform-none!`}
-        >
-          {revealed ? 'Back to answer' : 'Check answer'}
-        </button>
-      )}
-    </div>
-  );
-}
+  publisherName === null ? 'Personal card' : `Published by ${publisherName}`;
 
 type CardSideProps = {
   label: string;
   hidden: boolean;
-  position: FlashCardProps['position'];
+  progress?: string;
   back?: boolean;
-  headerAction?: ReactNode;
+  headerAction: ReactNode;
   footer: ReactNode;
   children: ReactNode;
 };
 
-function CardSide({ label, hidden, position, back = false, headerAction, footer, children }: Readonly<CardSideProps>) {
-  if (position) {
-    return (
-      <section
-        inert={hidden}
-        aria-hidden={hidden}
-        className={`review-face ${back ? 'review-back rotate-y-180' : 'review-front'}`}
-      >
-        <div className="review-strip">
-          <p>
-            {back && (
-              <>
-                <span>Answer</span> ·{' '}
-              </>
-            )}
-            Card {position.index + 1} of {position.total}
-          </p>
-          {headerAction || (
-            <span className="review-segments" aria-hidden="true">
-              {Array.from({ length: position.total }, (_, i) => (
-                <i key={i} data-reviewed={i < position.index || undefined} />
-              ))}
-            </span>
-          )}
-        </div>
-        <section className="review-reading" aria-label={label}>
-          <div className="review-copy">
-            {children}
-            {footer}
-          </div>
-        </section>
-      </section>
-    );
-  }
-  const labelColor = back ? 'bg-accent-soft text-accent' : 'bg-subtle text-muted';
+function CardSide({ label, hidden, progress, back = false, headerAction, footer, children }: Readonly<CardSideProps>) {
   return (
     <section
       inert={hidden}
       aria-hidden={hidden}
-      className={`col-start-1 row-start-1 flex min-w-0 flex-col wrap-anywhere rounded-card bg-surface px-compact-gutter py-4 text-center backface-hidden sm:p-6 shadow-card ${back ? 'rotate-y-180' : ''}`}
+      className={`review-face ${back ? 'review-back rotate-y-180' : 'review-front'}`}
     >
-      <div className="flex min-h-12 flex-wrap items-center justify-between gap-x-3">
-        <p className={`rounded-full px-3 py-1 text-left text-label font-semibold ${labelColor}`}>{label}</p>
+      <div className="review-strip">
+        <p className="review-side-label">{progress ?? label}</p>
         {headerAction}
       </div>
-      <div className="mx-auto flex w-full max-w-xl flex-1 flex-col justify-center py-6">{children}</div>
-      {footer !== null && <div className="border-t border-line pt-4">{footer}</div>}
+      <section className="review-reading" aria-label={label}>
+        <div className="review-copy">{children}</div>
+      </section>
+      {footer}
     </section>
   );
 }

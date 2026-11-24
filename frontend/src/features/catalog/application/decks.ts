@@ -37,7 +37,7 @@ export const DECK_TITLE_MAX_LENGTH = 50;
 export const CARD_SEARCH_MAX_LENGTH = 200;
 export const CARD_FIELD_MAX_LENGTH = {
   question: 500,
-  answer: 500,
+  answer: 300,
   explanation: 2000,
   memoryHook: 300,
   source: 500,

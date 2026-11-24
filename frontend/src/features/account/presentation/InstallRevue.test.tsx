@@ -1,9 +1,9 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { expect, it } from 'vitest';
-import { HomeScreenHelp } from './HomeScreenHelp';
+import { InstallRevue } from './InstallRevue';
 
 it('lets a visitor choose their phone and switch between setup instructions', () => {
-  render(<HomeScreenHelp />);
+  render(<InstallRevue />);
   fireEvent.click(screen.getByRole('button', { name: 'Install Revue' }));
   const iphone = screen.getByRole('button', { name: 'iPhone' });
   const android = screen.getByRole('button', { name: 'Android' });

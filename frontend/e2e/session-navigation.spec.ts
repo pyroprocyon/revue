@@ -96,7 +96,7 @@ test('a guest sees the homepage at once while the session check is still pending
   try {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'Review before it’s due.' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Browse sets' }).filter({ visible: true })).toHaveCount(1);
+    await expect(page.getByRole('link', { name: 'Browse reviewers' }).filter({ visible: true })).toHaveCount(1);
     await expect(page.getByRole('status')).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Create account' }).filter({ visible: true })).toHaveCount(0);
     const sample = page.getByRole('figure', { name: 'Sample card' });
@@ -167,13 +167,15 @@ for (const { width, enlarged } of [
       await page.goto('/sets/philippine-history/try');
       if (enlarged) await page.addStyleTag({ content: 'html { font-size: 200%; }' });
       for (let card = 0; card < 5; card++) {
-        await page.getByRole('button', { name: 'Check answer' }).click();
+        await page.getByRole('button', { name: 'Show answer' }).click();
         await page.getByRole('button', { name: /^Good:/ }).click();
       }
       const heading = page.getByRole('heading', { name: 'You practiced 5 cards.' });
       await expect(heading).toBeFocused();
-      const another = page.getByRole('link', { name: 'Try another set' });
-      const back = page.getByRole('link', { name: 'Back to the set' });
+      await page.evaluate(() => document.fonts.ready);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+      const another = page.getByRole('link', { name: 'Browse reviewers' });
+      const back = page.getByRole('link', { name: 'View topic details' });
       await expect(another).toHaveClass(/bg-surface/);
       await expect(back).toHaveClass(/bg-surface/);
       await page.screenshot({ path: info.outputPath('trial-completion-pending.png'), fullPage: true });

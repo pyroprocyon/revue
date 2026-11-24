@@ -1,24 +1,41 @@
-import { queryOptions } from '@tanstack/react-query';
+import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query';
 import { PublicCatalogBusy, type PublicContentReader } from './publicContent';
 
-const BUSY_CATALOG_RETRIES = 2;
-const BUSY_CATALOG_RETRY_DELAY_MS = 1_000;
+export const publicCatalogRetry = {
+  retry: (failures: number, error: Error) => error instanceof PublicCatalogBusy && failures < 2,
+  retryDelay: 1_000,
+};
 
 export const publicContentKeys = {
-  sets: ['public-sets'] as const,
+  onboarding: ['onboarding-reviewers'] as const,
+  subjects: ['published-subjects'] as const,
+  topics: ['published-topics'] as const,
   set: (key: string) => ['public-sets', key] as const,
   trial: (key: string) => ['public-sets', key, 'demo-cards'] as const,
 };
 
 export function publicContentQueries(reader: PublicContentReader) {
   return {
-    publicSetsQuery: queryOptions({ queryKey: publicContentKeys.sets, queryFn: () => reader.list() }),
-    publicSetsPageQuery: (after?: string) =>
-      queryOptions({
-        queryKey: after ? [...publicContentKeys.sets, 'page', after] : publicContentKeys.sets,
-        queryFn: () => reader.list(after),
-        retry: (failures, error) => error instanceof PublicCatalogBusy && failures < BUSY_CATALOG_RETRIES,
-        retryDelay: BUSY_CATALOG_RETRY_DELAY_MS,
+    onboardingSetsQuery: queryOptions({
+      queryKey: publicContentKeys.onboarding,
+      queryFn: ({ signal }) => reader.onboarding(signal),
+      staleTime: 60_000,
+      ...publicCatalogRetry,
+    }),
+    publishedSubjectsQuery: queryOptions({
+      queryKey: publicContentKeys.subjects,
+      queryFn: ({ signal }) => reader.subjects(signal),
+      staleTime: 60_000,
+      ...publicCatalogRetry,
+    }),
+    publishedTopicsQuery: (subject: string, search: string) =>
+      infiniteQueryOptions({
+        queryKey: [...publicContentKeys.topics, subject, search],
+        initialPageParam: undefined as string | undefined,
+        queryFn: ({ pageParam, signal }) => reader.topics(subject, search, pageParam, signal),
+        getNextPageParam: (last) => last.nextCursor ?? undefined,
+        staleTime: 60_000,
+        ...publicCatalogRetry,
       }),
     publicSetQuery: (key: string, kind: 'key' | 'share' = 'key') =>
       queryOptions({
