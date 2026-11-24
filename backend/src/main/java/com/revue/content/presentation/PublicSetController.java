@@ -1,8 +1,11 @@
 package com.revue.content.presentation;
 
+import com.revue.content.application.PublicSetQueries;
 import com.revue.content.application.PublicSetService;
 import com.revue.content.application.PublicSetSummary;
 import com.revue.content.application.TrialCards;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
 import org.springframework.http.CacheControl;
@@ -37,20 +40,38 @@ class PublicSetController {
     @GetMapping
     ResponseEntity<List<PublicSetSummary>> list(
         @RequestParam(required = false) @Nullable String after,
-        @RequestParam(defaultValue = "20") int limit) {
+        @RequestParam(defaultValue = "20") int limit,
+        @RequestParam(defaultValue = "false") boolean published,
+        @RequestParam(required = false) @Nullable String subject,
+        @RequestParam(defaultValue = "") String q) {
         try {
-            var page = publicSets.list(after, limit);
+            String search = q.strip();
+            var page = publicSets.list(after, limit, published, subject, search);
             var response = ResponseEntity.ok().cacheControl(CacheControl.noStore());
             if (page.nextCursor() != null) {
                 response.header("X-Next-Cursor", page.nextCursor());
                 response.header(
                     "Link",
-                    "</api/v1/public-sets?limit=" + limit + "&after=" + page.nextCursor() + ">; rel=\"next\"");
+                    "</api/v1/public-sets?limit=" + limit + "&after=" + page.nextCursor()
+                        + (published ? "&published=true" : "")
+                        + (subject == null ? "" : "&subject=" + URLEncoder.encode(subject, StandardCharsets.UTF_8))
+                        + (search.isEmpty() ? "" : "&q=" + URLEncoder.encode(search, StandardCharsets.UTF_8))
+                        + ">; rel=\"next\"");
             }
             return response.body(page.items());
         } catch (IllegalArgumentException _) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid catalog page");
         }
+    }
+
+    @GetMapping("/catalog/subjects")
+    ResponseEntity<List<PublicSetQueries.Subject>> subjects() {
+        return ok(publicSets.subjects());
+    }
+
+    @GetMapping("/catalog/onboarding")
+    ResponseEntity<List<PublicSetSummary>> onboarding() {
+        return ok(publicSets.onboarding());
     }
 
     @GetMapping("/{setKey}")

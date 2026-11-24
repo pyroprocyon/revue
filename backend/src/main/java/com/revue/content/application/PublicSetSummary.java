@@ -9,6 +9,7 @@ public record PublicSetSummary(
     String title,
     String description,
     String publisherName,
+    String subject,
     long cardCount,
     boolean trialAvailable,
     String shareCode,
