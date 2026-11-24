@@ -226,7 +226,7 @@ describe('session-dependent navigation', () => {
 
     const { router } = renderApp(destination);
     await screen.findByRole('heading', { name: 'Welcome back' });
-    expect(fetcher.mock.calls.some(([path]) => path.startsWith('/api/v1/me/saved-sets'))).toBe(false);
+    expect(fetcher.mock.calls.map(([path]) => path)).toEqual(['/api/v1/me']);
     expect(new URLSearchParams(router.state.location.search).get('returnTo')).toBe(destination);
     fireEvent.change(screen.getByLabelText('Username'), { target: { value: profile.username } });
     fireEvent.change(screen.getByLabelText('Password'), { target: { value: crypto.randomUUID() } });
