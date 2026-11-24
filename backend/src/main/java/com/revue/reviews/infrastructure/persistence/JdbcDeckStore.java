@@ -3,26 +3,19 @@ package com.revue.reviews.infrastructure.persistence;
 import com.revue.AfterCommit;
 import com.revue.reviews.application.DeckProblem;
 import com.revue.reviews.application.DeckStore;
-import com.revue.reviews.application.ReviewStore;
 import com.revue.reviews.domain.CardText;
 import com.revue.reviews.domain.DeckTitle;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 /** PostgreSQL personal decks and cards. The service's learner lock serializes one owner's changes. */
@@ -39,11 +32,11 @@ public class JdbcDeckStore implements DeckStore {
         """;
     private static final String CARDS_OF_DECK = "select id from cards where deck_id = ?";
     private final JdbcTemplate jdbc;
-    private final NamedParameterJdbcTemplate named;
+    private final JdbcCardBrowser browser;
 
     public JdbcDeckStore(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
-        this.named = new NamedParameterJdbcTemplate(jdbc);
+        this.browser = new JdbcCardBrowser(jdbc);
     }
 
     @Override
@@ -205,55 +198,7 @@ public class JdbcDeckStore implements DeckStore {
 
     @Override
     public Optional<CardBatch> cardBatch(UUID owner, long deckId, CardQuery query) {
-        var parameters = new MapSqlParameterSource().addValue("owner", owner)
-            .addValue("deck", deckId)
-            .addValue("search", query.search())
-            .addValue("after", query.afterCardId())
-            .addValue("limit", query.limit())
-            .addValue("dueOnly", query.dueOnly())
-            .addValue("today", query.today())
-            .addValue("newCardLimit", ReviewStore.DAILY_NEW_CARD_LIMIT);
-        return named.query("""
-            with owned_deck as materialized (
-                select d.id as deck_id, d.title, d.archived, lower(cast(:search as text)) as search_term,
-                    (select count(*) from cards where deck_id = d.id) as card_count
-                from decks d where d.owner_id = :owner and d.id = :deck
-            ), studied as materialized (
-                select c.id, s.version, s.next_review_date,
-                    coalesce(not d.archived and s.version > 0 and s.next_review_date <= cast(:today as date), false)
-                        as due
-                from owned_deck d
-                join cards c on c.deck_id = d.deck_id
-                left join schedules s on s.user_id = :owner and s.card_id = c.id
-            ), progress as (
-                select count(*) filter (where due) as due_cards,
-                    count(*) filter (where coalesce(version, 0) = 0) as new_cards,
-                    min(next_review_date) filter (where version > 0 and next_review_date > cast(:today as date))
-                        as next_review_date
-                from studied
-            ), allowance as (
-                select greatest(0, :newCardLimit - count(*)) as new_cards_left_today from review_logs
-                where user_id = :owner and local_review_date = cast(:today as date) and expected_schedule_version = 0
-            )
-            select d.deck_id, d.title, d.archived, d.card_count, p.due_cards,
-                case when d.archived then 0 else p.new_cards end as new_cards, a.new_cards_left_today,
-                case when d.archived then null else p.next_review_date end as next_review_date,
-                c.id, c.question, c.answer, c.explanation, c.memory_hook, c.source, c.content_version, c.due
-            from owned_deck d
-            cross join progress p
-            cross join allowance a
-            left join lateral (
-                select c.id, c.question, c.answer, c.explanation, c.memory_hook, c.source, c.content_version,
-                    st.due
-                from cards c join studied st on st.id = c.id
-                where c.deck_id = d.deck_id and c.id > :after
-                    and (d.search_term = '' or strpos(lower(c.question), d.search_term) > 0
-                        or strpos(lower(c.answer), d.search_term) > 0)
-                    and (not cast(:dueOnly as boolean) or st.due)
-                order by c.id limit :limit
-            ) c on true
-            order by c.id
-            """, parameters, JdbcDeckStore::toCardBatch);
+        return browser.deck(owner, deckId, query);
     }
 
     @Override
@@ -264,6 +209,9 @@ public class JdbcDeckStore implements DeckStore {
         }
         if (!Objects.equals(expectedVersion, current.get().contentVersion())) {
             throw new DeckProblem(DeckProblem.Kind.STALE_CARD);
+        }
+        if (text.answer().length() > CardText.MAX_ANSWER && !text.answer().equals(current.get().answer())) {
+            throw new DeckProblem(DeckProblem.Kind.INVALID_TEXT);
         }
         Card edited = jdbc.queryForObject(
             """
@@ -355,34 +303,7 @@ public class JdbcDeckStore implements DeckStore {
             row.getBoolean(ARCHIVED));
     }
 
-    private static Optional<CardBatch> toCardBatch(ResultSet rows) throws SQLException {
-        if (!rows.next()) {
-            return Optional.empty();
-        }
-        Deck deck = new Deck(
-            rows.getString("deck_id"),
-            rows.getString("title"),
-            rows.getLong("card_count"),
-            rows.getBoolean(ARCHIVED));
-        Progress progress = new Progress(
-            rows.getLong("due_cards"),
-            rows.getLong("new_cards"),
-            rows.getLong("new_cards_left_today"),
-            rows.getObject("next_review_date", LocalDate.class));
-        List<Card> cards = new ArrayList<>();
-        Set<String> due = new HashSet<>();
-        do {
-            if (rows.getString("id") != null) {
-                cards.add(toCard(rows, 0));
-                if (rows.getBoolean("due")) {
-                    due.add(rows.getString("id"));
-                }
-            }
-        } while (rows.next());
-        return Optional.of(new CardBatch(deck, progress, cards, Set.copyOf(due)));
-    }
-
-    private static Card toCard(ResultSet row, int index) throws SQLException {
+    static Card toCard(ResultSet row, int index) throws SQLException {
         return new Card(
             row.getString("id"),
             row.getString("question"),

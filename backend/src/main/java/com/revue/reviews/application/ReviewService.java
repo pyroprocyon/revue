@@ -39,6 +39,23 @@ public class ReviewService {
         this.clock = clock;
     }
 
+    @Transactional(readOnly = true)
+    public int dailyNewCardLimit() {
+        return store.dailyNewCardLimit(learners.current());
+    }
+
+    public int setDailyNewCardLimit(int limit) {
+        if (limit != ReviewStore.DEFAULT_DAILY_NEW_CARD_LIMIT && limit != ReviewStore.MAX_DAILY_NEW_CARD_LIMIT) {
+            throw new ReviewProblem(ReviewProblem.Kind.INVALID_NEW_CARD_LIMIT);
+        }
+        UUID learner = learners.lockCurrent();
+        int previousLimit = store.dailyNewCardLimit(learner);
+        if (limit != previousLimit) {
+            store.saveDailyNewCardLimit(learner, previousLimit, limit);
+        }
+        return limit;
+    }
+
     /** Builds Today and at most five cards without consuming the daily allowance. */
     public ReviewStore.Queue queue(
         int limit,
@@ -84,7 +101,7 @@ public class ReviewService {
         if (state.due() != null && state.due().isAfter(today)) {
             throw new ReviewProblem(ReviewProblem.Kind.NOT_DUE);
         }
-        if (state.version() == 0 && facts.introduced() >= ReviewStore.DAILY_NEW_CARD_LIMIT) {
+        if (state.version() == 0 && facts.newCardsLeft() == 0) {
             throw new ReviewProblem(ReviewProblem.Kind.DAILY_LIMIT);
         }
         if (!DailyReviewScheduler.PROFILE.equals(state.schedulerId())) {

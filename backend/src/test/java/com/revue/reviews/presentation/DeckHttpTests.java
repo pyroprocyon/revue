@@ -219,6 +219,30 @@ class DeckHttpTests {
     }
 
     @Test
+    void shortensNewAnswersWithoutBlockingEditsToOtherFieldsOnLegacyCards() throws Exception {
+        var owner = new Browser();
+        String cardsPath = owner.createDeck("Cell biology") + "/cards";
+        var added = body(owner.send(post(cardsPath), card("Question", "Answer")));
+        String cardId = added.get("id").asString();
+        String path = "/api/v1/cards/" + cardId;
+        String legacyAnswer = "a".repeat(450);
+        jdbc.update("update cards set answer = ? where id = ?", legacyAnswer, Long.parseLong(cardId));
+
+        assertThat(owner.send(post(cardsPath), card("Second question", "a".repeat(301))).getResponse().getStatus())
+            .isEqualTo(422);
+        var kept = owner.send(patch(path).header("X-Content-Version", 1), card("Edited question", legacyAnswer));
+        assertThat(kept.getResponse().getStatus()).isEqualTo(200);
+        assertThat(body(kept).get("answer").asString()).isEqualTo(legacyAnswer);
+        var stillTooLong = owner
+            .send(patch(path).header("X-Content-Version", 2), card("Edited question", "b".repeat(301)));
+        assertThat(stillTooLong.getResponse().getStatus()).isEqualTo(422);
+        var shortened = owner
+            .send(patch(path).header("X-Content-Version", 2), card("Edited question", "b".repeat(300)));
+        assertThat(shortened.getResponse().getStatus()).isEqualTo(200);
+        assertThat(body(shortened).get("answer").asString()).hasSize(300);
+    }
+
+    @Test
     void nullCharactersAreRejectedInDeckNamesAndEveryCardFieldWithoutChangingData(CapturedOutput output)
         throws Exception {
         var owner = new Browser();
@@ -420,10 +444,10 @@ class DeckHttpTests {
             select c.id from cards c join decks d on d.id = c.deck_id
             where d.owner_id = ? and d.title = 'Studied deck' order by c.id
             """, Long.class, owner.id);
-        assertThat(owner.rate(studied.getFirst(), "GOOD").getResponse().getStatus()).isEqualTo(200);
+        assertThat(owner.rate(studied.getFirst(), 0).getResponse().getStatus()).isEqualTo(200);
         assertThat(newCardsLeftToday(owner, otherDeck)).isEqualTo(9);
         for (long cardId : studied.subList(1, 10)) {
-            assertThat(owner.rate(cardId, "GOOD").getResponse().getStatus()).isEqualTo(200);
+            assertThat(owner.rate(cardId, 0).getResponse().getStatus()).isEqualTo(200);
         }
         var atLimit = body(owner.send(get(otherDeck))).get("progress");
         assertThat(atLimit.get("newCardsLeftToday").asInt()).isZero();

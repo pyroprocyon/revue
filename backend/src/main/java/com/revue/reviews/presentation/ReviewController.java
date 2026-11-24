@@ -14,17 +14,37 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import tools.jackson.databind.JsonNode;
 
 /** Authenticated, private daily-study endpoints with existing session and CSRF enforcement. */
 @RestController
 public class ReviewController {
+    private static final String STUDY_SETTINGS_PATH = "/api/v1/me/study-settings";
     private final ReviewService reviews;
 
     public ReviewController(ReviewService reviews) {
         this.reviews = reviews;
+    }
+
+    @GetMapping(STUDY_SETTINGS_PATH)
+    StudySettings studySettings() {
+        return new StudySettings(reviews.dailyNewCardLimit());
+    }
+
+    @PutMapping(STUDY_SETTINGS_PATH)
+    StudySettings updateStudySettings(@RequestBody JsonNode settings) {
+        var limit = settings.path("dailyNewCardLimit");
+        if (!limit.isIntegralNumber() || !limit.canConvertToInt()) {
+            throw new ReviewProblem(ReviewProblem.Kind.INVALID_NEW_CARD_LIMIT);
+        }
+        return new StudySettings(reviews.setDailyNewCardLimit(limit.asInt()));
+    }
+
+    record StudySettings(int dailyNewCardLimit) {
     }
 
     @GetMapping("/api/v1/cards/due")
@@ -58,7 +78,8 @@ public class ReviewController {
     @ExceptionHandler(ReviewProblem.class)
     ResponseEntity<ProblemDetail> problem(ReviewProblem failure) {
         HttpStatus status = switch (failure.kind()) {
-            case INVALID_RATING, INVALID_LIMIT, INVALID_TOPIC -> HttpStatus.UNPROCESSABLE_CONTENT;
+            case INVALID_RATING, INVALID_LIMIT, INVALID_NEW_CARD_LIMIT, INVALID_TOPIC ->
+                HttpStatus.UNPROCESSABLE_CONTENT;
             case UNAVAILABLE -> HttpStatus.NOT_FOUND;
             case UNSUPPORTED_SCHEDULER -> HttpStatus.SERVICE_UNAVAILABLE;
             default -> HttpStatus.CONFLICT;

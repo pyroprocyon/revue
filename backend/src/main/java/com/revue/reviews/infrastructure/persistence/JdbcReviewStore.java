@@ -28,12 +28,26 @@ import tools.jackson.databind.json.JsonMapper;
 public class JdbcReviewStore implements ReviewStore {
     private static final Logger LOG = LoggerFactory.getLogger(JdbcReviewStore.class);
     private static final String LEARNER_PARAMETER = "learner";
+    private static final String OPERATION_ID = "operation.id";
+    static final String DEFAULT_LIMIT_PARAMETER = "defaultNewCardLimit";
+    private static final String NEW_CARD_LIMIT = """
+        select coalesce(
+            (select daily_new_card_limit from study_settings where user_id = :learner), :defaultNewCardLimit)
+        """;
+    static final String NEW_CARD_ALLOWANCE = """
+        select greatest(0, (
+        """ + NEW_CARD_LIMIT + """
+        ) - (
+            select count(*) from review_logs
+            where user_id = :learner and local_review_date = :today and expected_schedule_version = 0
+        )) as remaining
+        """;
     private static final String STUDY_CARDS = """
         with study as (
         select c.id, c.retired_at, c.position, s.title as collection_title, s.publisher_name, s.created_at as collection_created,
             'set-' || s.id as topic_id
         from saved_sets saved join sets s on s.id = saved.set_id join cards c on c.set_id = s.id
-        where saved.user_id = :learner
+        where saved.user_id = :learner and not saved.reviews_paused
         union all
         select c.id, c.retired_at, c.position, d.title, null, d.created_at, 'deck-' || d.id
         from decks d join cards c on c.deck_id = d.id
@@ -60,9 +74,8 @@ public class JdbcReviewStore implements ReviewStore {
         )
         select p.*, sc.scheduler_id as current_profile, sc.scheduler_state, sc.version, sc.next_review_date as due,
             case when sc.version = 0 then (
-                select count(*) from review_logs where user_id = :learner and local_review_date = :today
-                    and expected_schedule_version = 0
-            ) else 0 end as introduced
+        """ + NEW_CARD_ALLOWANCE + """
+            ) else 0 end as new_cards_left
         from (values (1)) anchor(n) left join previous p on true left join current_schedule sc on true
         """;
     private static final String LOCKED_STUDY_CARD = STUDY_CARDS + """
@@ -87,8 +100,7 @@ public class JdbcReviewStore implements ReviewStore {
         ), eligible as (
             select * from library where retired_at is null
         ), allowance as (
-            select greatest(0, :newCardLimit - count(*)) as remaining from review_logs
-            where user_id = :learner and local_review_date = :today and expected_schedule_version = 0
+        """ + NEW_CARD_ALLOWANCE + """
         ), totals as (
             select (select count(*) from library) as total_cards, count(*) as available_cards,
                 count(*) filter (where unscheduled) > 0 as missing_schedules,
@@ -146,6 +158,35 @@ public class JdbcReviewStore implements ReviewStore {
     }
 
     @Override
+    public int dailyNewCardLimit(UUID learner) {
+        return named.queryForObject(
+            NEW_CARD_LIMIT,
+            Map.of(LEARNER_PARAMETER, learner, DEFAULT_LIMIT_PARAMETER, DEFAULT_DAILY_NEW_CARD_LIMIT),
+            Integer.class);
+    }
+
+    @Override
+    public void saveDailyNewCardLimit(UUID learner, int previousLimit, int limit) {
+        jdbc.update("""
+            insert into study_settings(user_id, daily_new_card_limit) values (?, ?)
+            on conflict (user_id) do update set daily_new_card_limit = excluded.daily_new_card_limit
+            """, learner, limit);
+        AfterCommit.log(() -> {
+            var event = LOG.atInfo();
+            if (MDC.get(OPERATION_ID) == null) {
+                event.addKeyValue(OPERATION_ID, UUID.randomUUID());
+            }
+            event.addKeyValue("event.name", "study.daily_new_card_limit_changed")
+                .addKeyValue("event.outcome", "success")
+                .addKeyValue("entity.type", "study_settings")
+                .addKeyValue("actor.id", learner)
+                .addKeyValue("state.from", previousLimit)
+                .addKeyValue("state.to", limit)
+                .log("Daily new card limit changed");
+        });
+    }
+
+    @Override
     public void initialize(UUID learner, String profile, String initialState, @Nullable String topic) {
         named.update(
             INITIALIZE,
@@ -169,7 +210,7 @@ public class JdbcReviewStore implements ReviewStore {
             .addValue("topic", topic, java.sql.Types.VARCHAR)
             .addValue("pausedTopic", pausedTopic, java.sql.Types.VARCHAR)
             .addValue("includeNew", includeNew)
-            .addValue("newCardLimit", DAILY_NEW_CARD_LIMIT);
+            .addValue(DEFAULT_LIMIT_PARAMETER, DEFAULT_DAILY_NEW_CARD_LIMIT);
         return named.query(QUEUE, parameters, rows -> {
             rows.next();
             boolean missingSchedules = rows.getBoolean("missing_schedules");
@@ -238,7 +279,17 @@ public class JdbcReviewStore implements ReviewStore {
     public RatingState ratingState(UUID learner, long cardId, UUID requestId, LocalDate today) {
         return named.queryForObject(
             RATING_STATE,
-            Map.of(LEARNER_PARAMETER, learner, "card", cardId, "request", requestId, "today", today),
+            Map.of(
+                LEARNER_PARAMETER,
+                learner,
+                "card",
+                cardId,
+                "request",
+                requestId,
+                "today",
+                today,
+                DEFAULT_LIMIT_PARAMETER,
+                DEFAULT_DAILY_NEW_CARD_LIMIT),
             (row, _) -> {
                 Logged previous = row.getObject("request_id") == null ? null : logged(row, requestId);
                 String profile = row.getString("current_profile");
@@ -249,7 +300,7 @@ public class JdbcReviewStore implements ReviewStore {
                         row.getString("scheduler_state"),
                         row.getLong("version"),
                         row.getObject("due", LocalDate.class));
-                return new RatingState(previous, schedule, row.getInt("introduced"));
+                return new RatingState(previous, schedule, row.getInt("new_cards_left"));
             });
     }
 
@@ -308,8 +359,8 @@ public class JdbcReviewStore implements ReviewStore {
     public void saved(UUID learner, Rating input, Result result) {
         AfterCommit.log(() -> {
             var event = LOG.atInfo();
-            if (MDC.get("operation.id") == null) {
-                event.addKeyValue("operation.id", input.requestId());
+            if (MDC.get(OPERATION_ID) == null) {
+                event.addKeyValue(OPERATION_ID, input.requestId());
             }
             event.addKeyValue("event.name", "review.saved")
                 .addKeyValue("event.outcome", "success")

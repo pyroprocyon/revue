@@ -11,7 +11,12 @@ import org.jspecify.annotations.Nullable;
 
 /** Persistence port for bounded queues and immutable rating results. */
 public interface ReviewStore {
-    int DAILY_NEW_CARD_LIMIT = 10;
+    int DEFAULT_DAILY_NEW_CARD_LIMIT = 10;
+    int MAX_DAILY_NEW_CARD_LIMIT = 20;
+
+    int dailyNewCardLimit(UUID learner);
+
+    void saveDailyNewCardLimit(UUID learner, int previousLimit, int limit);
 
     /** Exact original inputs, used for idempotent replay. */
     record Rating(
@@ -118,7 +123,7 @@ public interface ReviewStore {
     }
 
     /** Replay and scheduling facts from the same snapshot under the learner lock. */
-    record RatingState(@Nullable Logged previous, @Nullable Schedule schedule, int introduced) {
+    record RatingState(@Nullable Logged previous, @Nullable Schedule schedule, int newCardsLeft) {
     }
 
     /** Adds only missing initial schedules for cards in saved sets and in the learner's own decks. */

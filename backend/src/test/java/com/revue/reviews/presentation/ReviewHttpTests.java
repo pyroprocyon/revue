@@ -6,6 +6,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
 import com.revue.StructuredEvents;
 import com.revue.TestcontainersConfiguration;
@@ -44,6 +45,7 @@ import tools.jackson.databind.json.JsonMapper;
 @Import(TestcontainersConfiguration.class)
 @ExtendWith(OutputCaptureExtension.class)
 class ReviewHttpTests {
+    private static final String STUDY_SETTINGS_PATH = "/api/v1/me/study-settings";
     @Autowired
     MockMvc mvc;
     @Autowired
@@ -61,6 +63,92 @@ class ReviewHttpTests {
     void setTime() {
         now.set(Instant.parse("2026-11-13T12:00:00.123456789Z"));
         when(clock.instant()).thenAnswer(_ -> now.get());
+    }
+
+    @Test
+    void dailyNewCardLimitIsPrivateValidatedAndLoggedOnlyWhenChanged(CapturedOutput output) throws Exception {
+        var learner = new Browser();
+        assertThat(mvc.perform(get(STUDY_SETTINGS_PATH)).andReturn().getResponse().getStatus()).isEqualTo(401);
+        assertThat(body(learner.send(get(STUDY_SETTINGS_PATH))).path("dailyNewCardLimit").asInt()).isEqualTo(10);
+        for (String invalid : List.of("{}", "{\"dailyNewCardLimit\":15}", "{\"dailyNewCardLimit\":20.5}")) {
+            assertThat(
+                learner.send(put(STUDY_SETTINGS_PATH).contentType("application/json").content(invalid))
+                    .getResponse()
+                    .getStatus())
+                .isEqualTo(422);
+        }
+        assertThat(
+            mvc.perform(newCardLimit(20).cookie(learner.cookies.values().toArray(Cookie[]::new)))
+                .andReturn()
+                .getResponse()
+                .getStatus())
+            .isEqualTo(403);
+        assertThat(body(learner.send(newCardLimit(20))).path("dailyNewCardLimit").asInt()).isEqualTo(20);
+        assertThat(body(learner.send(newCardLimit(20))).path("dailyNewCardLimit").asInt()).isEqualTo(20);
+        assertThat(body(learner.send(get(STUDY_SETTINGS_PATH))).path("dailyNewCardLimit").asInt()).isEqualTo(20);
+        var other = new Browser();
+        assertThat(body(other.send(get(STUDY_SETTINGS_PATH))).path("dailyNewCardLimit").asInt()).isEqualTo(10);
+        var changes = StructuredEvents.named(output, "study.daily_new_card_limit_changed");
+        assertThat(changes).hasSize(1);
+        assertThat(changes.getFirst().at("/state/from").asInt()).isEqualTo(10);
+        assertThat(changes.getFirst().at("/state/to").asInt()).isEqualTo(20);
+    }
+
+    @Test
+    void changingTheLimitPreservesIntroducedCardsAndSharesRemainingAllowanceAcrossTheLibrary() throws Exception {
+        var learner = new Browser();
+        long set = publication(20);
+        learner.save(set);
+        var deck = body(
+            learner.send(
+                post("/api/v1/decks").contentType("application/json").content("{\"title\":\"Personal practice\"}")));
+        String deckCards = "/api/v1/decks/" + deck.path("id").asString() + "/cards";
+        final var personal = body(
+            learner.send(
+                post(deckCards).contentType("application/json")
+                    .content("{\"question\":\"Question\",\"answer\":\"Answer\"}")));
+        String queue = "/api/v1/cards/due";
+        assertThat(body(learner.send(get(queue))).path("newCards").asInt()).isEqualTo(10);
+        learner.send(newCardLimit(20));
+        assertThat(body(learner.send(get(queue))).path("newCards").asInt()).isEqualTo(20);
+        String setCards = "/api/v1/me/saved-sets/" + set + "/cards";
+        assertNewCardsLeft(learner, 20, deckCards, setCards);
+
+        var replay = rating("GOOD", 0);
+        long personalCard = personal.path("id").asLong();
+        assertThat(learner.rate(personalCard, replay).getResponse().getStatus()).isEqualTo(200);
+        var cards = jdbc.queryForList("select id from cards where set_id = ? order by position", Long.class, set);
+        for (long id : cards.subList(0, 10)) {
+            assertThat(learner.rate(id, rating("GOOD", 0)).getResponse().getStatus()).isEqualTo(200);
+        }
+        assertNewCardsLeft(learner, 9, deckCards, setCards);
+        learner.send(newCardLimit(10));
+        assertThat(body(learner.send(get(queue))).path("newCards").asInt()).isZero();
+        assertNewCardsLeft(learner, 0, deckCards, setCards);
+        assertThat(body(learner.rate(cards.get(10), rating("GOOD", 0))).path("reason").asString())
+            .isEqualTo("DAILY_LIMIT");
+        assertThat(learner.rate(personalCard, replay).getResponse().getStatus()).isEqualTo(200);
+
+        learner.send(newCardLimit(20));
+        for (long id : cards.subList(10, 19)) {
+            assertThat(learner.rate(id, rating("GOOD", 0)).getResponse().getStatus()).isEqualTo(200);
+        }
+        assertThat(body(learner.rate(cards.getLast(), rating("GOOD", 0))).path("reason").asString())
+            .isEqualTo("DAILY_LIMIT");
+        now.set(Instant.parse("2026-11-13T16:00:00Z"));
+        assertNewCardsLeft(learner, 20, deckCards, setCards);
+        assertThat(body(learner.send(get(queue))).path("newCards").asInt()).isOne();
+    }
+
+    private void assertNewCardsLeft(Browser learner, int expected, String... collections) throws Exception {
+        for (String cards : collections) {
+            assertThat(body(learner.send(get(cards))).at("/progress/newCardsLeftToday").asInt()).isEqualTo(expected);
+        }
+    }
+
+    private MockHttpServletRequestBuilder newCardLimit(int limit) {
+        return put(STUDY_SETTINGS_PATH).contentType("application/json")
+            .content("{\"dailyNewCardLimit\":%d}".formatted(limit));
     }
 
     @Test
