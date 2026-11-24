@@ -13,7 +13,7 @@ export function HowItWorksPage() {
       top={<HomeLink />}
       actions={
         <Link to={SETS_PATH} className={`${primaryButton} w-full sm:w-auto`}>
-          Browse sets
+          Browse reviewers
         </Link>
       }
     >

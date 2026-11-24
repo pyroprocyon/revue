@@ -21,7 +21,7 @@ const HOW_IT_WORKS_SECTION = 'how-it-works';
 export function LandingPage() {
   const { hash } = useLocation();
   const session = usePublicSession();
-  const { publicSetsQuery } = usePublicContentQueries();
+  const { onboardingSetsQuery } = usePublicContentQueries();
   const queryClient = useQueryClient();
   const scrollToGuide = useCallback(
     (section: HTMLElement | null) => {
@@ -31,13 +31,13 @@ export function LandingPage() {
     [hash],
   );
 
-  // Most visitors tap "Browse sets" next, so the list of sets loads now and opens at once.
+  // Most visitors tap "Browse reviewers" next, so the list of sets loads now and opens at once.
   useEffect(() => {
     if (session !== 'signed-out') return;
-    void queryClient.query(publicSetsQuery).catch(() => {
+    void queryClient.query(onboardingSetsQuery).catch(() => {
       // The set list owns error feedback when the visitor opens it.
     });
-  }, [queryClient, publicSetsQuery, session]);
+  }, [queryClient, onboardingSetsQuery, session]);
 
   // A missing hint allows immediate guest entry; unreadable storage must wait for the session.
   if (session === 'checking' && shouldWaitForSession()) return <SessionCheckScreen />;
@@ -152,7 +152,7 @@ function AccountActions({ className }: Readonly<{ className: string }>) {
 function BrowseSetsButton() {
   return (
     <Link to={SETS_PATH} className={`${primaryButton} w-full lg:min-h-14 lg:w-auto lg:gap-3 lg:px-6 lg:shadow-control`}>
-      <span className="text-lg/6 lg:text-xl/7">Browse sets</span>
+      <span className="text-lg/6 lg:text-xl/7">Browse reviewers</span>
       <ArrowRight aria-hidden="true" className="shrink-0" size={20} />
     </Link>
   );

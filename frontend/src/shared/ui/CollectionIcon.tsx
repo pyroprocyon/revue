@@ -1,7 +1,9 @@
 import { BookOpen, CirclePause, Layers2 } from 'lucide-react';
+import { FlashcardsIcon } from './FlashcardsIcon';
 
 const icons = {
   saved: { Icon: BookOpen, color: 'saved-set-icon' },
+  topic: { Icon: FlashcardsIcon, color: 'saved-set-icon' },
   personal: { Icon: Layers2, color: 'personal-deck-icon' },
   paused: { Icon: CirclePause, color: 'paused-deck-icon' },
 };

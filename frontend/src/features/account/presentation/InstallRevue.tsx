@@ -1,6 +1,6 @@
-import { ChevronDown, Download, Share, Smartphone } from 'lucide-react';
+import { ChevronDown, Download, Share } from 'lucide-react';
 import { useState } from 'react';
-import { installRevue, useInstallOffer } from '../homeScreenInstall';
+import { installRevue, useInstallOffer } from './homeScreenInstall';
 
 type Phone = 'iPhone' | 'Android';
 
@@ -9,7 +9,7 @@ function phoneFromAgent(agent: string): Phone | undefined {
   if (/Android/.test(agent)) return 'Android';
 }
 
-const steps = 'max-w-[51ch] list-decimal space-y-2 ps-6 marker:font-semibold marker:text-accent';
+const steps = 'max-w-[51ch] list-decimal space-y-2 ps-5 marker:font-semibold marker:text-saved-set';
 
 function PhoneInstructions({ phone }: Readonly<{ phone: Phone }>) {
   if (phone === 'iPhone') {
@@ -17,8 +17,11 @@ function PhoneInstructions({ phone }: Readonly<{ phone: Phone }>) {
       <>
         <ol className={steps}>
           <li>
-            Open Revue in Safari. Tap <Share aria-hidden="true" className="inline size-4 align-text-bottom" />{' '}
-            <strong>Share</strong> in the toolbar or page menu.
+            Open Revue in Safari. Tap{' '}
+            <strong className="inline-block">
+              <Share aria-hidden="true" className="inline size-4 align-text-bottom" /> Share
+            </strong>{' '}
+            in the toolbar or page menu.
           </li>
           <li>
             Choose <strong>Add to Home Screen</strong>.
@@ -47,7 +50,7 @@ function PhoneInstructions({ phone }: Readonly<{ phone: Phone }>) {
   );
 }
 
-export function HomeScreenHelp() {
+export function InstallRevue() {
   const offer = useInstallOffer();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState(false);
@@ -75,27 +78,23 @@ export function HomeScreenHelp() {
   }
 
   return (
-    <div className="text-accent-strong">
+    <div className="help-install-card @container/help mt-3 max-w-[54rem] rounded-[1.25rem] border p-1.5 text-saved-set">
       <button
         type="button"
         onClick={() => void openSetup()}
         aria-expanded={offer ? undefined : open}
         aria-disabled={offer === 'prompting'}
-        className="help-directory-row pressable px-3.5 @max-[16rem]/help:px-2 lg:px-[1.375rem]"
+        className="help-directory-row pressable"
       >
-        <Smartphone
+        <Download
           aria-hidden="true"
-          className="size-9 shrink-0 rounded-xl bg-accent-soft p-2 text-accent-strong @max-[16rem]/help:hidden"
+          className="size-9 shrink-0 rounded-xl bg-saved-set-soft p-2 @max-[16rem]/help:hidden"
         />
         <span className="flex-1">Install Revue</span>
-        {offer ? (
-          <Download aria-hidden="true" className="size-5 shrink-0" />
-        ) : (
-          <ChevronDown aria-hidden="true" className={`size-4 shrink-0 ${open ? 'rotate-180' : ''}`} />
-        )}
+        {!offer && <ChevronDown aria-hidden="true" className={`size-4 shrink-0 ${open ? 'rotate-180' : ''}`} />}
       </button>
       {open && !offer && (
-        <div className="mx-3.5 @max-[16rem]/help:mx-2 space-y-3 border-b border-line pt-3 pb-4 text-support text-ink lg:mx-[1.375rem]">
+        <div className="help-install-steps mt-1.5 space-y-3 rounded-[0.875rem] border bg-surface p-3 text-support text-ink @max-[16rem]/help:p-2">
           {error && (
             <output className="block">The installer couldn’t open. You can use the browser menu instead.</output>
           )}

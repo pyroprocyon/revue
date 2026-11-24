@@ -82,14 +82,13 @@ export function CardScreen({
       ref={dialog}
       aria-label={label}
       onCancel={(event) => {
-        // React passes a nested dialog's cancel up to this one; a delete confirmation handles its own Escape.
         event.preventDefault();
         const formIsSaving = event.currentTarget.querySelector('form[aria-busy="true"]') !== null;
         if (event.target === event.currentTarget && !formIsSaving) onBack();
       }}
-      className="m-0 h-dvh max-h-none w-full max-w-none bg-page p-0 text-ink backdrop:bg-transparent open:flex open:flex-col"
+      className="workspace-sheet m-0 h-dvh max-h-none w-full max-w-none bg-page p-0 text-ink backdrop:bg-transparent open:flex open:flex-col"
     >
-      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-line px-3 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2">
+      <div className="page-gutters flex shrink-0 flex-wrap items-center gap-2 border-b border-line pt-[calc(max(0.5rem,env(safe-area-inset-top))_+_var(--page-top-gutter))] pb-2">
         {formActionsInBar ? (
           <div ref={setBarSlot} className="contents" />
         ) : (
@@ -98,16 +97,16 @@ export function CardScreen({
               type="button"
               aria-label={`Back to ${backLabel.toLowerCase()}`}
               onClick={onBack}
-              className="pressable -ml-1 inline-flex min-h-12 items-center gap-1 rounded-control px-2 text-label font-semibold text-accent"
+              className="pressable header-link -ml-2"
             >
-              <ChevronLeft aria-hidden="true" className="size-5 shrink-0" />
-              {backLabel}
+              <ChevronLeft aria-hidden="true" />
+              <span className="min-w-0 wrap-anywhere">{backLabel}</span>
             </button>
             {topAction && <div className="ml-auto">{topAction}</div>}
           </>
         )}
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-compact-gutter pt-5 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+      <div className="page-gutters min-h-0 flex-1 overflow-y-auto pt-5 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
         <CardScreenBar value={bar}>{children}</CardScreenBar>
       </div>
     </dialog>

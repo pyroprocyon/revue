@@ -1,8 +1,6 @@
 import type { ReactNode } from 'react';
 
-export const contentGutters =
-  'pl-[max(var(--spacing-compact-gutter),env(safe-area-inset-left))] pr-[max(var(--spacing-compact-gutter),env(safe-area-inset-right))]';
-export const readingColumn = `mx-auto w-full max-w-page ${contentGutters}`;
+export const readingColumn = 'page-gutters reading-column mx-auto w-full max-w-page';
 
 export function SkipToContent() {
   return (

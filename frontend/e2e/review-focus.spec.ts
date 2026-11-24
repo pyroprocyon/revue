@@ -1,8 +1,52 @@
 import { test, expect } from './fixtures';
+import type { Locator } from '@playwright/test';
+import type { StudyCard } from '../src/features/study/application/reviews';
 
-test('optional review details open without moving the card and close when the session pauses', async ({
-  page,
-}, info) => {
+async function expectCenteredOnAnswerFace(face: Locator, answer: Locator) {
+  const [faceBounds, answerBounds] = await Promise.all([face.boundingBox(), answer.boundingBox()]);
+  const faceCenter = faceBounds!.y + faceBounds!.height / 2;
+  const answerCenter = answerBounds!.y + answerBounds!.height / 2;
+  expect(Math.abs(answerCenter - faceCenter)).toBeLessThan(1);
+}
+
+test('expanding the optional answer keeps the phone review dock in place', async ({ page }) => {
+  const card = {
+    id: '23',
+    question: 'Question 1 about Human physiology',
+    answer: 'Answer 1 for Human physiology.',
+    explanation: null,
+    memoryHook: null,
+    source: 'Study notes',
+    setTitle: 'Human physiology',
+    publisherName: 'Revue',
+    contentVersion: 1,
+    version: 0,
+  };
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.route('**/api/v1/me', (route) => route.fulfill({ json: { username: 'focus_learner' } }));
+  await page.route('**/api/v1/cards/due?*', (route) =>
+    route.fulfill({
+      json: { totalCards: 1, availableCards: 1, dueCards: 1, newCards: 0, nextReviewDate: null, cards: [card] },
+    }),
+  );
+  await page.goto('/review/set-1');
+  const toggle = page.locator('.review-draft-toggle');
+  const dock = page.locator('.review-dock');
+  const input = page.getByRole('textbox', { name: 'Your answer (optional)' });
+  await expect(dock).toBeVisible();
+  await page.evaluate(() => document.fonts.ready);
+  const closed = (await dock.boundingBox())!;
+  await toggle.click();
+  await expect(input).toBeVisible();
+  const open = (await dock.boundingBox())!;
+  expect(Math.abs(open.x - closed.x)).toBeLessThan(1);
+  expect(Math.abs(open.y - closed.y)).toBeLessThan(1);
+  await toggle.press('Enter');
+  await expect(input).toBeHidden();
+  expect(Math.abs((await dock.boundingBox())!.y - closed.y)).toBeLessThan(1);
+});
+
+test('card details stay open across flips and Source remains available on both sides', async ({ page }, info) => {
   const memoryTipText = 'Picture an arrow through a membrane.';
   const explanation = 'Water moves across the membrane.\n\n'.repeat(45).trim();
   const draft = 'This is my longer recall draft.\n\n'.repeat(20).trim();
@@ -36,8 +80,11 @@ test('optional review details open without moving the card and close when the se
     return route.fulfill({ status: 404 });
   });
   const cardFrame = page.locator('[data-card-frame]');
-  const tip = page.getByRole('button', { name: 'Tip to remember', exact: true });
-  const tipDialog = page.getByRole('dialog', { name: 'Tip to remember' });
+  const questionLabel = cardFrame.locator('.review-front .review-strip p');
+  const summary = page.locator('summary').filter({ hasText: 'Card details' });
+  const details = summary.locator('..');
+  const source = cardFrame.getByRole('button', { name: 'Source', exact: true });
+  const sourceDialog = page.getByRole('dialog', { name: 'Source' });
   try {
     for (const [width, height, enlarged] of [
       [375, 667, false],
@@ -50,65 +97,52 @@ test('optional review details open without moving the card and close when the se
       await page.emulateMedia({ reducedMotion: enlarged ? 'reduce' : 'no-preference' });
       await page.goto('/review/set-1');
       if (enlarged) await page.evaluate(() => (document.documentElement.style.fontSize = '200%'));
+      await expect(questionLabel).toHaveText('Card 1 of 1');
       await page.getByText('Write an answer', { exact: false }).click();
       await page.getByRole('textbox', { name: 'Your answer (optional)' }).fill(draft);
-      await expect(tip).toHaveCount(0);
+      await expect(summary).toHaveCount(0);
+      await expect(source).toBeVisible();
+      await expect(page.getByText('Published by Revue', { exact: true })).toBeVisible();
+      await source.press('Enter');
+      await expect(sourceDialog.getByRole('link', { name: 'Biology notes' })).toBeVisible();
+      await sourceDialog.getByRole('button', { name: 'Done' }).press('Enter');
+      await expect(source).toBeFocused();
       await page.getByRole('button', { name: 'Show answer' }).press('Enter');
       await expect(page.getByRole('heading', { name: card.answer, exact: true })).toBeFocused();
+      await expect(source).toBeVisible();
       await expect(page.getByText(memoryTipText, { exact: true })).not.toBeVisible();
       await expect(page.getByRole('link', { name: 'Biology notes' })).toHaveCount(0);
       await cardFrame.evaluate((element) =>
         Promise.allSettled(element.getAnimations().map((animation) => animation.finished)),
       );
+      const answerFace = cardFrame.locator('.review-back');
+      const answer = page.getByRole('heading', { name: card.answer, exact: true });
+      await expect(answerFace.locator('.review-strip p')).toHaveText('Answer');
+      await expect(answerFace).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+      await expect(answerFace).toHaveCSS('box-shadow', /rgb\(165, 216, 255\).*1\.5px inset/);
+      await expect(answerFace.locator('.review-strip')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+      await expect(answer).toHaveCSS('color', 'rgb(33, 37, 41)');
+      await expect(source).toHaveCSS('color', 'rgb(24, 100, 171)');
+      await expect(answerFace.getByRole('button', { name: 'Back to question' })).toHaveCSS(
+        'color',
+        'rgb(24, 100, 171)',
+      );
+      await expectCenteredOnAnswerFace(answerFace, answer);
+      await source.press('Enter');
+      await expect(sourceDialog.getByRole('link', { name: 'Biology notes' })).toBeVisible();
+      await sourceDialog.getByRole('button', { name: 'Done' }).press('Enter');
+      await expect(source).toBeFocused();
 
-      const ratings = page.locator('fieldset').filter({ hasText: 'Rate your answer' });
-      const cardLayout = () =>
-        Promise.all([
-          cardFrame.evaluate((element) => element.clientHeight),
-          ratings.evaluate((element) => element.getBoundingClientRect().top + window.scrollY),
-        ]);
-      const layout = await cardLayout();
-      if (enlarged) {
-        const answer = page.getByRole('region', { name: 'Answer', exact: true });
-        await answer.evaluate((area) => {
-          window.scrollTo({ top: 0, behavior: 'instant' });
-          area.scrollTop = area.scrollHeight;
-        });
-        await answer.hover();
-        const easy = ratings.getByRole('button', { name: /^Easy:/ });
-        await expect(easy).not.toBeInViewport();
-        await page.mouse.wheel(0, height * 2);
-        await expect(easy).toBeInViewport();
-      }
-      const placement = await page.evaluate(() => {
-        const answerSide = document.querySelectorAll('[data-card-frame] > section')[1];
-        const tipButton = [...answerSide.querySelectorAll('button')].find(
-          (button) => button.textContent === 'Tip to remember',
-        );
-        const answerText = document.createRange();
-        answerText.selectNodeContents(answerSide.querySelector('h2')!);
-        const [faceBox, labelBox, answerBox, tipBox] = [
-          answerSide,
-          answerSide.querySelector('p'),
-          answerText,
-          tipButton,
-        ].map((element) => element!.getBoundingClientRect());
-        return {
-          answerInset: answerBox.left - faceBox.left,
-          tipOffLabel: Math.abs(tipBox.left - labelBox.left),
-          tipBelowAnswer: tipBox.top >= answerBox.bottom,
-          tipHeight: tipBox.height,
-        };
-      });
-      expect(placement.answerInset).toBeGreaterThan(0);
-      expect(placement.tipOffLabel).toBeLessThanOrEqual(1);
-      expect(placement.tipBelowAnswer).toBe(true);
-      expect(placement.tipHeight).toBeGreaterThanOrEqual(48);
-      await tip.press('Enter');
-      await expect(tipDialog.getByText(memoryTipText, { exact: true })).toBeVisible();
-      expect(await cardLayout()).toEqual(layout);
-      await page.keyboard.press('Escape');
-      await expect(tip).toBeFocused();
+      const frame = (await cardFrame.boundingBox())!;
+      const disclosure = (await summary.boundingBox())!;
+      expect(disclosure.y).toBeGreaterThanOrEqual(frame.y + frame.height);
+      expect(disclosure.height).toBeGreaterThanOrEqual(48);
+      await summary.press('Enter');
+      await expect(page.getByText(memoryTipText, { exact: true })).toBeVisible();
+      await expect(page.getByText(explanation, { exact: true })).toBeVisible();
+      expect(await cardFrame.evaluate((element) => element.clientHeight)).toBe(Math.round(frame.height));
+      await summary.press('Enter');
+      await expect(page.getByText(memoryTipText, { exact: true })).not.toBeVisible();
 
       const compare = page.getByRole('button', { name: 'Compare with your answer' });
       const comparison = page.getByRole('dialog', { name: 'Compare with your answer' });
@@ -118,32 +152,36 @@ test('optional review details open without moving the card and close when the se
       await comparison.getByRole('button', { name: 'Done' }).press('Enter');
       await expect(compare).toBeFocused();
 
-      const details = page.getByRole('dialog', { name: 'Explanation' });
-      await page.getByRole('button', { name: 'Explanation' }).press('Enter');
-      await expect(details.getByRole('link', { name: 'Biology notes' })).toHaveAttribute(
+      await summary.press('Enter');
+      await expect(details).toHaveJSProperty('open', true);
+      const openDetails = await details.elementHandle();
+      await page.getByRole('button', { name: 'Back to question' }).press('Enter');
+      await expect(questionLabel).toBeVisible();
+      await expect(questionLabel).toHaveText('Card 1 of 1');
+      await expect(page.getByText(memoryTipText, { exact: true })).toBeVisible();
+      expect(await openDetails.evaluate((element) => element.isConnected)).toBe(true);
+      await source.press('Enter');
+      await expect(sourceDialog.getByRole('link', { name: 'Biology notes' })).toHaveAttribute(
         'href',
         'https://example.org/biology',
       );
-      await details.evaluate((element) => {
-        element.scrollTop = element.scrollHeight;
-      });
-      await expect(details.getByRole('button', { name: 'Done' })).toBeInViewport({ ratio: 1 });
-      if (enlarged) {
-        const titleFits = await details.getByRole('heading', { name: 'Explanation' }).evaluate((title) => {
-          const lineHeight = Number.parseFloat(getComputedStyle(title).lineHeight);
-          return title.getBoundingClientRect().height <= lineHeight * 2 + 1;
-        });
-        expect(titleFits).toBe(true);
-        await page.screenshot({ path: info.outputPath('review-details-320-enlarged.png') });
-      }
-      await details.getByRole('button', { name: 'Done' }).press('Enter');
+      await expect(sourceDialog.getByRole('button', { name: 'Done' })).toBeInViewport({ ratio: 1 });
+      await sourceDialog.getByRole('button', { name: 'Done' }).press('Enter');
+      await expect(source).toBeFocused();
+      await page.getByRole('button', { name: 'Back to answer' }).press('Enter');
+      await expect(answer).toBeFocused();
+      await expect(page.getByText(explanation, { exact: true })).toBeVisible();
+      expect(await openDetails.evaluate((element) => element.isConnected)).toBe(true);
+      await openDetails.dispose();
+      await summary.press('Enter');
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-      expect(await cardLayout()).toEqual(layout);
       await page.screenshot({ path: info.outputPath(`compact-review-${width}.png`), fullPage: true });
     }
 
-    await tip.press('Enter');
-    await expect(tipDialog).toBeVisible();
+    await summary.press('Enter');
+    await expect(details).toHaveJSProperty('open', true);
+    await source.press('Enter');
+    await expect(sourceDialog).toBeVisible();
     pauseSession = true;
     await page.clock.setFixedTime(new Date((await page.evaluate(() => Date.now())) + 30_000));
     const sessionRequest = page.waitForRequest('**/api/v1/me');
@@ -152,9 +190,10 @@ test('optional review details open without moving the card and close when the se
       window.dispatchEvent(new Event('focus'));
     });
     await sessionRequest;
-    await expect(tipDialog).toHaveCount(0);
+    await expect(sourceDialog).toHaveCount(0);
+    await expect(details).toHaveJSProperty('open', false);
     resumeSession();
-    await expect(tip).toBeFocused();
+    await expect(source).toBeFocused();
   } finally {
     resumeSession();
   }
@@ -205,18 +244,28 @@ test('small phones compact long answers so every rating fits, and larger screens
     card = cards[answer];
     await page.setViewportSize({ width, height });
     await page.goto('/review/set-1');
+    const frame = page.locator('.review-card-frame');
+    await expect(frame).toBeVisible();
+    const questionFrame = await frame.boundingBox();
     await page.getByRole('button', { name: 'Show answer' }).click();
     const heading = page.getByRole('heading', { name: card.answer, exact: true });
     await expect(heading).toBeFocused();
     await expect(heading).toHaveCSS('font-size', fontSize);
-    if (!fitsScreen) continue;
-    await page
-      .locator('[data-card-frame]')
-      .evaluate((element) => Promise.allSettled(element.getAnimations().map((animation) => animation.finished)));
-    const [tipBox, explanationBox] = await Promise.all(
-      ['Tip to remember', 'Explanation'].map(async (name) => (await page.getByRole('button', { name }).boundingBox())!),
+    const cardFrame = page.locator('[data-card-frame]');
+    await cardFrame.evaluate((element) =>
+      Promise.allSettled(element.getAnimations().map((animation) => animation.finished)),
     );
-    expect(explanationBox.y).toBeCloseTo(tipBox.y, 0);
+    await expectCenteredOnAnswerFace(cardFrame.locator('.review-back'), heading);
+    if (width === 768) {
+      expect(questionFrame!.height).toBeGreaterThan(380);
+      expect(await frame.boundingBox()).toEqual(questionFrame);
+      const controls = (await page.locator('.review-card-controls').boundingBox())!;
+      const gap = controls.y - (questionFrame!.y + questionFrame!.height);
+      expect(gap).toBeGreaterThanOrEqual(16);
+      expect(gap).toBeLessThanOrEqual(24);
+    }
+    if (!fitsScreen) continue;
+    await expect(page.locator('summary').filter({ hasText: 'Card details' })).toBeInViewport({ ratio: 1 });
     expect(await page.evaluate(() => window.scrollY)).toBe(0);
     for (const rating of [/^Missed:/, /^Hard:/, /^Good:/, /^Easy:/]) {
       await expect(page.getByRole('button', { name: rating })).toBeInViewport({ ratio: 1 });
@@ -225,7 +274,7 @@ test('small phones compact long answers so every rating fits, and larger screens
   }
 });
 
-test('worst-case cards keep ratings near, read as paragraphs and open at their start', async ({ page }, info) => {
+test('worst-case cards keep ratings reachable, read as paragraphs and open at their start', async ({ page }, info) => {
   const sentence = 'Water moves across the membrane toward the side with more dissolved particles. ';
   const shared = {
     id: '23',
@@ -238,7 +287,12 @@ test('worst-case cards keep ratings near, read as paragraphs and open at their s
     version: 0,
   };
   const longQuestion = sentence.repeat(6).trim();
-  let card = { ...shared, question: longQuestion, answer: 'It swells and bursts.' };
+  let card: StudyCard = {
+    ...shared,
+    question: longQuestion,
+    answer: 'It swells and bursts.',
+    explanation: sentence.repeat(12).trim(),
+  };
   await page.route('**/api/**', (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path === '/api/v1/me') return route.fulfill({ json: { username: 'worst_case_learner' } });
@@ -253,8 +307,19 @@ test('worst-case cards keep ratings near, read as paragraphs and open at their s
   await page.setViewportSize({ width: 375, height: 667 });
   await page.goto('/review/set-1');
   await page.getByRole('button', { name: 'Show answer' }).click();
+  const dock = page.locator('.review-dock');
+  await expect(dock).toBeInViewport({ ratio: 1 });
+  const dockBottom = () => dock.evaluate((element) => element.getBoundingClientRect().bottom);
+  const bottom = await dockBottom();
+  await page.getByText('Card details', { exact: true }).click();
+  await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' }));
+  expect(await page.evaluate(() => scrollY)).toBeGreaterThan(0);
+  expect(await dockBottom()).toBeCloseTo(bottom);
+  await expect(page.getByRole('link', { name: 'Finish for now' })).toBeInViewport({ ratio: 1 });
   for (const rating of [/^Missed:/, /^Hard:/, /^Good:/, /^Easy:/]) {
-    await expect(page.getByRole('button', { name: rating })).toBeInViewport({ ratio: 1 });
+    const button = page.getByRole('button', { name: rating });
+    await button.scrollIntoViewIfNeeded();
+    await expect(button).toBeInViewport({ ratio: 1 });
   }
 
   card = { ...shared, question: longQuestion, answer: sentence.repeat(12).trim() };
@@ -273,15 +338,83 @@ test('worst-case cards keep ratings near, read as paragraphs and open at their s
     await expect(page.getByText('Answer', { exact: true })).toBeInViewport();
     await page.screenshot({ path: info.outputPath(`review-paragraph-${width}.png`) });
     await page.getByRole('button', { name: 'Back to question' }).click();
-    const draft = page.getByRole('textbox', { name: 'Your answer', exact: true });
-    await expect.poll(() => draft.evaluate((field) => field.scrollTop)).toBe(0);
+    await expect(page.getByRole('textbox')).toHaveCount(0);
+    const compare = page.getByRole('button', { name: 'Compare with your answer' });
+    await compare.click();
+    const comparison = page.getByRole('dialog', { name: 'Compare with your answer' });
+    await expect(comparison.getByText(sentence.repeat(20).trim(), { exact: true })).toBeVisible();
+    expect(await comparison.evaluate((dialog) => dialog.scrollTop)).toBe(0);
+    await comparison.getByRole('button', { name: 'Done' }).press('Enter');
+    await expect(compare).toBeFocused();
   }
 
   card = { ...shared, question: '2 + 6?', answer: '8' };
   await page.setViewportSize({ width: 320, height: 568 });
   await page.goto('/review/set-1');
+  const frame = page.locator('.review-card-frame');
+  await expect(frame).toHaveCSS('height', '276px');
   await page.evaluate(() => (document.documentElement.style.fontSize = '200%'));
-  await expect(page.locator('.review-card-frame')).toHaveCSS('height', '276px');
+  const enlargedHeight = await frame.evaluate((element) => element.clientHeight);
+  await page.getByRole('button', { name: 'Show answer' }).click();
+  expect(await frame.evaluate((element) => element.clientHeight)).toBe(enlargedHeight);
+});
+
+test('long answers size both faces before reveal and scroll with the page', async ({ page }) => {
+  const sentence = 'Water moves across the membrane toward the side with more dissolved particles. ';
+  const card = {
+    id: '23',
+    question: sentence.repeat(2).trim(),
+    answer: sentence.repeat(5).trim(),
+    explanation: null,
+    memoryHook: null,
+    source: null,
+    setTitle: 'Biology review',
+    publisherName: null,
+    contentVersion: 1,
+    version: 0,
+  };
+  await page.route('**/api/**', (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === '/api/v1/me') return route.fulfill({ json: { username: 'enlarged_text_learner' } });
+    if (path.split('?')[0] === '/api/v1/cards/due')
+      return route.fulfill({
+        json: { totalCards: 1, availableCards: 1, dueCards: 1, newCards: 0, nextReviewDate: null, cards: [card] },
+      });
+    return route.fulfill({ status: 404 });
+  });
+  const frame = page.locator('.review-card-frame');
+  const showAnswer = page.getByRole('button', { name: 'Show answer' });
+  const scrollsInside = (side: 'Question' | 'Answer') =>
+    page.getByRole('region', { name: side, exact: true }).evaluate((area) => area.scrollHeight > area.clientHeight + 1);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+
+  for (const [width, height, textSize] of [
+    [320, 568, '100%'],
+    [375, 667, '100%'],
+    [320, 568, '200%'],
+    [390, 844, '200%'],
+    [768, 1024, '100%'],
+    [1440, 900, '200%'],
+  ] as const) {
+    await page.setViewportSize({ width, height });
+    await page.goto('/review/set-1');
+    await page.evaluate((size) => (document.documentElement.style.fontSize = size), textSize);
+    await expect(showAnswer).toBeVisible();
+    await expect(page.getByRole('heading', { name: card.answer })).toHaveCount(0);
+    const initialHeight = await frame.evaluate((element) => element.clientHeight);
+    expect(initialHeight).toBeGreaterThan(276);
+    expect(await scrollsInside('Question'), `question at ${width} px`).toBe(false);
+    await showAnswer.click();
+    expect(await scrollsInside('Answer'), `answer at ${width} px`).toBe(false);
+    expect(await frame.evaluate((element) => element.clientHeight)).toBe(initialHeight);
+    const rating = page.getByRole('button', { name: /^Good:/ });
+    await rating.scrollIntoViewIfNeeded();
+    await expect(rating).toBeInViewport({ ratio: 1 });
+    await page.getByRole('button', { name: 'Back to question' }).click();
+    expect(await frame.evaluate((element) => element.clientHeight)).toBe(initialHeight);
+    await page.getByRole('button', { name: 'Back to answer' }).click();
+    expect(await frame.evaluate((element) => element.clientHeight)).toBe(initialHeight);
+  }
 });
 
 // Controlled API timing exercises browser focus and inert behavior in the production frontend.

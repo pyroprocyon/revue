@@ -1,6 +1,6 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { historySet, natureSet } from '../../../test/fixtures';
+import { historyCards, historySet, natureSet } from '../../../test/fixtures';
 import { jsonResponse, renderApp, stubFetch } from '../../../test/renderApp';
 
 const SET_PAGE = '/sets/philippine-history';
@@ -28,7 +28,7 @@ describe('Set preview', () => {
   it('shows unavailable for an unknown short share code', async () => {
     stubFetch(404);
     renderApp('/s/unknown');
-    expect(await screen.findByRole('heading', { name: "This set isn't available right now." })).toBeDefined();
+    expect(await screen.findByRole('heading', { name: "This reviewer isn't available right now." })).toBeDefined();
   });
 
   it('shows the set, its publisher and checking status, and the way into its trial', async () => {
@@ -39,10 +39,10 @@ describe('Set preview', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Philippine History' })).toBeDefined();
     expect(screen.getByText('Five moments from Mactan to Malolos.')).toBeDefined();
     expect(screen.getByText('Published by Revue')).toBeDefined();
-    expect(screen.getByText('Not yet checked')).toBeDefined();
+    expect(screen.queryByText('Not yet checked')).toBeNull();
     expect(screen.getByText('5 cards')).toBeDefined();
     expect(screen.getByRole('link', { name: 'Try 5 cards' }).getAttribute('href')).toBe(`${SET_PAGE}/try`);
-    expect(screen.getByRole('link', { name: 'All sets' }).getAttribute('href')).toBe('/sets');
+    expect(screen.getByRole('link', { name: 'All reviewers' }).getAttribute('href')).toBe('/sets');
     expect(fetchMock).toHaveBeenCalledWith(SET_API, expect.anything());
   });
 
@@ -51,7 +51,7 @@ describe('Set preview', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn((path: string) =>
-        path === '/api/v1/public-sets'
+        path === '/api/v1/public-sets/catalog/onboarding'
           ? Promise.resolve(jsonResponse(200, [historySet, natureSet]))
           : new Promise(() => {}),
       ),
@@ -61,7 +61,7 @@ describe('Set preview', () => {
     fireEvent.click(await screen.findByRole('link', { name: /^Philippine History/ }));
 
     expect(screen.getByRole('heading', { level: 1, name: 'Philippine History' })).toBeDefined();
-    expect(screen.queryByText('Loading the set…')).toBeNull();
+    expect(screen.queryByText('Loading the reviewer…')).toBeNull();
   });
 
   it('turns off the trial and says why when fewer than five cards are available', async () => {
@@ -72,17 +72,58 @@ describe('Set preview', () => {
     const tryButton = await screen.findByRole('button', { name: 'Try 5 cards' });
     expect((tryButton as HTMLButtonElement).disabled).toBe(true);
     expect(screen.queryByRole('link', { name: 'Try 5 cards' })).toBeNull();
-    expect(screen.getByText('The trial needs 5 cards, and this set has 4 cards right now.')).toBeDefined();
+    expect(screen.getByText('The trial needs 5 cards, and this reviewer has 4 cards right now.')).toBeDefined();
     expect(fetchMock).not.toHaveBeenCalledWith(`${SET_API}/demo-cards`, expect.anything());
   });
 
-  it('loads the trial cards in the background, so the trial opens without waiting', async () => {
-    const fetchMock = stubFetch(200, historySet);
-
+  it('shows the first trial question and groups the trial and Library actions', async () => {
+    const fetchMock = vi.fn(async (path: string) => {
+      if (path === `${SET_API}/demo-cards`) return jsonResponse(200, historyCards);
+      if (path === '/api/v1/sets/1/save') return jsonResponse(200, { saved: false });
+      return jsonResponse(200, { ...historySet, saveAllowed: true });
+    });
+    vi.stubGlobal('fetch', fetchMock);
     renderApp(SET_PAGE);
-    await screen.findByRole('heading', { level: 1, name: 'Philippine History' });
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(`${SET_API}/demo-cards`, expect.anything()));
+    const sample = await screen.findByRole('heading', { name: 'Sample question' });
+    expect(sample).toBeDefined();
+    expect(screen.getByText(historyCards.cards[0]!.question)).toBeDefined();
+    expect(screen.queryByText(historyCards.cards[0]!.answer)).toBeNull();
+    expect(screen.queryByText(historyCards.cards[1]!.question)).toBeNull();
+    expect(screen.getByRole('link', { name: 'Try 5 cards' }).getAttribute('href')).toBe(`${SET_PAGE}/try`);
+    const actions = within(screen.getByRole('group', { name: 'Reviewer actions' }));
+    expect(await actions.findByRole('button', { name: 'Save to Library' })).toBeDefined();
+    const warning = screen.getByText('Trial progress and ratings aren’t saved.');
+    expect(actions.getByRole('link', { name: 'Try 5 cards' }).getAttribute('aria-describedby')).toBe(warning.id);
+    expect(actions.queryByText(warning.textContent!)).toBeNull();
+  });
+
+  it('retries the sample when the catalog is busy', async () => {
+    let attempts = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (path: string) => {
+        if (path !== `${SET_API}/demo-cards`) return jsonResponse(200, historySet);
+        return ++attempts === 1 ? jsonResponse(503) : jsonResponse(200, historyCards);
+      }),
+    );
+    renderApp(SET_PAGE);
+
+    expect(await screen.findByRole('heading', { name: 'Sample question' }, { timeout: 2_500 })).toBeDefined();
+    expect(attempts).toBe(2);
+  });
+
+  it('keeps the trial link available when the sample request fails', async () => {
+    const trialPath = `${SET_API}/demo-cards`;
+    const fetchMock = vi.fn(async (path: string) =>
+      path === trialPath ? jsonResponse(500) : jsonResponse(200, historySet),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    renderApp(SET_PAGE);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(trialPath, expect.anything()));
+    expect(screen.getByRole('link', { name: 'Try 5 cards' })).toBeDefined();
+    expect(screen.queryByRole('heading', { name: 'Sample question' })).toBeNull();
   });
 
   it('says the set is unavailable when the server does not offer it, and points to the others', async () => {
@@ -90,8 +131,8 @@ describe('Set preview', () => {
 
     renderApp(SET_PAGE);
 
-    expect(await screen.findByRole('heading', { name: "This set isn't available right now." })).toBeDefined();
-    expect(screen.getByRole('link', { name: 'See all sets' }).getAttribute('href')).toBe('/sets');
+    expect(await screen.findByRole('heading', { name: "This reviewer isn't available right now." })).toBeDefined();
+    expect(screen.getByRole('link', { name: 'See all reviewers' }).getAttribute('href')).toBe('/sets');
     expect(screen.queryByText('Try 5 cards')).toBeNull();
   });
 
@@ -117,10 +158,23 @@ describe('Set preview', () => {
     addToNavigator('clipboard', { writeText });
 
     renderApp(SET_PAGE);
-    fireEvent.click(await screen.findByRole('button', { name: 'Copy link' }));
+    const copy = await screen.findByRole('button', { name: 'Copy link' });
+    vi.useFakeTimers();
+    try {
+      copy.focus();
+      await act(async () => {
+        fireEvent.click(copy);
+      });
+      expect(screen.getByRole('button', { name: 'Copied. Copy link again' })).toBe(copy);
+      expect(screen.getByText('Link copied.').className).toBe('sr-only');
+      expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/s/1`);
 
-    expect(await screen.findByText('Link copied.')).toBeDefined();
-    expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/s/1`);
+      act(() => vi.advanceTimersByTime(2000));
+      expect(screen.getByRole('button', { name: 'Copy link' })).toBe(copy);
+      expect(document.activeElement).toBe(copy);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('shows the link to copy by hand when the clipboard is unavailable', async () => {

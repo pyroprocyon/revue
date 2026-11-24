@@ -1,10 +1,21 @@
 export const pendingLoginKey = ['account', 'pending-login'] as const;
 
+const savedSetCardsOf = (username: string) => ['library', 'cards', username] as const;
+const savedSetCards = (username: string, setId: string) => [...savedSetCardsOf(username), setId] as const;
+
 export const libraryKeys = {
   all: ['library'] as const,
   lists: ['library', 'list'] as const,
   listsOf: (username: string) => ['library', 'list', username] as const,
-  page: (username: string, after?: string) => ['library', 'list', username, after] as const,
+  page: (username: string, after?: string, group?: 'active' | 'paused') =>
+    ['library', 'list', username, after, group] as const,
+  savedKeyLists: ['library', 'saved-keys'] as const,
+  savedKeys: (username: string) => ['library', 'saved-keys', username] as const,
+  detail: (username: string, id: string) => ['library', 'detail', username, id] as const,
+  cardPagesOf: savedSetCardsOf,
+  cardPages: savedSetCards,
+  cardPage: (username: string, setId: string, query: { after?: string; search?: string; dueOnly?: boolean }) =>
+    [...savedSetCards(username, setId), query.search, query.dueOnly ?? false, query.after] as const,
   membership: (setId: string) => ['library', 'membership', setId] as const,
 };
 

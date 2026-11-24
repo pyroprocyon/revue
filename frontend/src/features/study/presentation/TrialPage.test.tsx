@@ -7,7 +7,7 @@ import { publicContentKeys } from '../../catalog/application/publicContentQuerie
 import { historyCards, historySet } from '../../../test/fixtures';
 import { jsonResponse, renderApp, stubApi, stubFetch } from '../../../test/renderApp';
 
-const recallHintText = /Even a few words are a good start/;
+const recallHintText = /Say the answer to yourself/;
 
 function click(name: string) {
   fireEvent.click(screen.getByRole('button', { name }));
@@ -19,7 +19,7 @@ function rate(label: string) {
 }
 
 function showAnswerAndRate(label: string) {
-  click('Check answer');
+  click('Show answer');
   rate(label);
 }
 
@@ -36,26 +36,32 @@ describe('Five-card trial', () => {
 
     expect(screen.getByText('Card 1 of 5')).toBeDefined();
     expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Question 1?' }));
-    expect(screen.queryByText('Answer 1.')).toBeNull();
-    expect(screen.queryByText(/^Source:/)).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Answer 1.' })).toBeNull();
+    expect(screen.queryByRole('dialog', { name: 'Source' })).toBeNull();
     expect(screen.queryByRole('group', { name: 'Rate your answer' })).toBeNull();
-    const checkAnswer = screen.getByRole('button', { name: 'Check answer', description: recallHintText });
+    const checkAnswer = screen.getByRole('button', { name: 'Show answer', description: recallHintText });
     expect(screen.getByRole('heading', { name: 'Question 1?', description: recallHintText })).toBeDefined();
-    expect(within(checkAnswer.closest('section')!).getAllByRole('button')).toHaveLength(1);
+    expect(within(checkAnswer.closest('.review-dock')!).getAllByRole('button')).toHaveLength(1);
     expect(screen.queryByRole('button', { name: 'Flip card' })).toBeNull();
   });
 
   it('flips to the answer, its note and source, and the four ratings', async () => {
     await openTrial();
 
-    click('Check answer');
+    click('Show answer');
 
     const answer = screen.getByRole('heading', { name: 'Answer 1.' });
     expect(document.activeElement).toBe(answer);
     expect(screen.queryByRole('heading', { name: 'Question 1?' })).toBeNull();
-    expect(screen.getByText('Note 1.')).toBeDefined();
-    expect(screen.getByText('Source: Grade 6 book, page 45')).toBeDefined();
-    expect(screen.getByText('Published by Revue · Not yet checked')).toBeDefined();
+    expect(screen.getByText('Card details').closest('details')).toHaveProperty(
+      'textContent',
+      'Card detailsExplanationNote 1.',
+    );
+    click('Source');
+    expect(
+      within(screen.getByRole('dialog', { name: 'Source' })).getByText('Source: Grade 6 book, page 45'),
+    ).toBeDefined();
+    expect(screen.getByText('Published by Revue')).toBeDefined();
     const ratings = within(screen.getByRole('group', { name: 'Rate your answer' }))
       .getAllByRole('button')
       .map((button) => button.getAttribute('aria-label'));
@@ -71,11 +77,14 @@ describe('Five-card trial', () => {
     await openTrial();
     showAnswerAndRate('Good');
 
-    click('Check answer');
+    click('Show answer');
 
     expect(screen.getByRole('heading', { name: 'Answer 2.' })).toBeDefined();
-    expect(screen.getByText('Source: Class notes, page 2')).toBeDefined();
-    expect(screen.getByText('Published by Revue · Not yet checked')).toBeDefined();
+    click('Source');
+    expect(
+      within(screen.getByRole('dialog', { name: 'Source' })).getByText('Source: Class notes, page 2'),
+    ).toBeDefined();
+    expect(screen.getByText('Published by Revue')).toBeDefined();
     expect(screen.queryByText(/^Note/)).toBeNull();
   });
 
@@ -84,21 +93,22 @@ describe('Five-card trial', () => {
     showAnswerAndRate('Good');
     showAnswerAndRate('Good');
 
-    click('Check answer');
+    click('Show answer');
 
+    click('Source');
     expect(screen.getByRole('link', { name: 'Class handout' }).getAttribute('href')).toBe(
       'https://example.com/handout-3',
     );
   });
 
-  it('flips back to reread the question, and the ratings wait on the back', async () => {
+  it('flips back to reread the question, and the ratings stay available', async () => {
     await openTrial();
-    click('Check answer');
+    click('Show answer');
 
     click('Back to question');
 
     expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Question 1?' }));
-    expect(screen.queryByRole('group', { name: 'Rate your answer' })).toBeNull();
+    expect(screen.getByRole('group', { name: 'Rate your answer' })).toBeDefined();
 
     fireEvent.click(screen.getByRole('heading', { name: 'Question 1?' }));
     expect(screen.queryByRole('heading', { name: 'Answer 1.' })).toBeNull();
@@ -116,9 +126,9 @@ describe('Five-card trial', () => {
 
     fireEvent.click(question);
 
-    expect(screen.queryByText('Answer 1.')).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Answer 1.' })).toBeNull();
     fireEvent.click(question.closest('section')!);
-    expect(screen.queryByText('Answer 1.')).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Answer 1.' })).toBeNull();
     expect(screen.queryByRole('group', { name: 'Rate your answer' })).toBeNull();
   });
 
@@ -129,9 +139,9 @@ describe('Five-card trial', () => {
 
     expect(screen.getByText('Card 2 of 5')).toBeDefined();
     expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Question 2?' }));
-    expect(screen.queryByText('Answer 2.')).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Answer 2.' })).toBeNull();
     expect(screen.getByText(recallHintText)).toBeDefined();
-    expect(screen.getByRole('button', { name: 'Check answer' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Show answer' })).toBeDefined();
   });
 
   it('keeps the current answer and earlier ratings when a background refresh fails and recovers', async () => {
@@ -140,7 +150,7 @@ describe('Five-card trial', () => {
     const queryKey = publicContentKeys.trial('philippine-history');
     await screen.findByRole('heading', { name: 'Question 1?' });
     showAnswerAndRate('Missed');
-    click('Check answer');
+    click('Show answer');
 
     fetchMock.mockResolvedValue(jsonResponse(503));
     act(() => {
@@ -189,7 +199,7 @@ describe('Five-card trial', () => {
     renderApp(['/sets/philippine-history', '/sets/philippine-history/try']);
     await screen.findByRole('heading', { name: 'Question 1?' });
 
-    click('Philippine History');
+    click('Exit trial');
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Philippine History' })).toBeDefined();
   });
@@ -202,7 +212,7 @@ describe('Five-card trial', () => {
     renderApp('/sets/philippine-history/try');
     await screen.findByRole('heading', { name: 'Question 1?' });
 
-    click('Philippine History');
+    click('Exit trial');
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Philippine History' })).toBeDefined();
   });
@@ -236,8 +246,10 @@ describe('Five-card trial', () => {
     expect(screen.getAllByRole('listitem')).toHaveLength(5);
     expect(screen.getByText('1 card')).toBeDefined();
     expect(screen.getByText(/This practice wasn’t saved./)).toBeDefined();
-    expect(screen.getByRole('link', { name: 'Try another set' }).getAttribute('href')).toBe('/sets');
-    expect(screen.getByRole('link', { name: 'Back to the set' }).getAttribute('href')).toBe('/sets/philippine-history');
+    expect(screen.getByRole('link', { name: 'Browse reviewers' }).getAttribute('href')).toBe('/sets');
+    expect(screen.getByRole('link', { name: 'View topic details' }).getAttribute('href')).toBe(
+      '/sets/philippine-history',
+    );
     expect(fetchMock).toHaveBeenCalledTimes(initialRequests);
     expect(fetchMock).toHaveBeenCalledWith('/api/v1/public-sets/philippine-history/demo-cards', expect.anything());
   });
@@ -265,7 +277,9 @@ describe('Five-card trial', () => {
     renderApp('/sets/philippine-history/try');
 
     expect(await screen.findByRole('heading', { name: "The 5-card trial isn't available right now." })).toBeDefined();
-    expect(screen.getByRole('link', { name: 'Back to the set' }).getAttribute('href')).toBe('/sets/philippine-history');
+    expect(screen.getByRole('link', { name: 'View topic details' }).getAttribute('href')).toBe(
+      '/sets/philippine-history',
+    );
   });
   it('keeps the starting questions, answers, credit and ratings when refreshed cards change', async () => {
     const fetchMock = stubFetch(200, historyCards);
@@ -273,7 +287,7 @@ describe('Five-card trial', () => {
     const queryKey = publicContentKeys.trial('philippine-history');
     await screen.findByRole('heading', { name: 'Question 1?' });
     showAnswerAndRate('Missed');
-    click('Check answer');
+    click('Show answer');
 
     const replacement = {
       ...historyCards,
@@ -294,7 +308,7 @@ describe('Five-card trial', () => {
     await waitFor(() => expect(view.queryClient.getQueryData(queryKey)).toEqual(replacement));
 
     expect(screen.getByRole('heading', { name: 'Answer 2.' })).toBeDefined();
-    expect(screen.getByText('Published by Revue · Not yet checked')).toBeDefined();
+    expect(screen.getByText('Published by Revue')).toBeDefined();
     rate('Easy');
     for (let card = 3; card <= 5; card++) showAnswerAndRate('Good');
     expect(within(screen.getByRole('list', { name: 'Tomorrow' })).getByText('Question 1?')).toBeDefined();
@@ -317,7 +331,7 @@ describe('Five-card trial', () => {
       await queryClient.refetchQueries({ queryKey: publicContentKeys.trial('philippine-history') });
     });
     expect(await screen.findByRole('heading', { name: "The 5-card trial isn't available right now." })).toBeDefined();
-    expect(screen.queryByRole('button', { name: 'Check answer' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Show answer' })).toBeNull();
   });
 
   it('uses its supplied reader without a catalog provider and starts fresh when the set changes', async () => {

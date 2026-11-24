@@ -1,12 +1,9 @@
 import { useContext, useLayoutEffect, useRef } from 'react';
 import type { useDeckCards } from './useDecks';
 import { FocusRequestContext } from '../../../shared/ui/FocusRequestContext';
+import { LoadingStatus } from '../../../shared/ui/LoadingFeedback';
+import { WhenSlow } from '../../../shared/ui/WhenSlow';
 import { secondaryButton } from '../../../shared/ui/buttonStyles';
-
-function moreCardsLabel(cards: ReturnType<typeof useDeckCards>) {
-  if (cards.isFetchingNextPage) return 'Loading more cards…';
-  return cards.isFetchNextPageError ? 'Try again' : 'Show more cards';
-}
 
 export function MoreCards({
   cards,
@@ -64,8 +61,13 @@ export function MoreCards({
             void cards.fetchNextPage({ cancelRefetch: false });
           }}
         >
-          {moreCardsLabel(cards)}
+          {cards.isFetchNextPageError ? 'Try again' : 'Show more cards'}
         </button>
+      )}
+      {cards.isFetchingNextPage && (
+        <WhenSlow>
+          <LoadingStatus>Loading more cards…</LoadingStatus>
+        </WhenSlow>
       )}
     </div>
   );

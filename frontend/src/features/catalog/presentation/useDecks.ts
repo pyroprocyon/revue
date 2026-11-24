@@ -1,4 +1,4 @@
-import { useListRefetchOnMount } from './LibraryProvider';
+import { useLibraryGateway, useListRefetchOnMount } from './LibraryProvider';
 import {
   infiniteQueryOptions,
   useInfiniteQuery,
@@ -17,7 +17,7 @@ import {
   type DeckFailureReason,
 } from '../application/decks';
 import { useDeckGateway } from './DeckProvider';
-import { deckKeys, pendingLoginKey, reviewKeys } from '../../../shared/cache/queryKeys';
+import { deckKeys, libraryKeys, pendingLoginKey, reviewKeys } from '../../../shared/cache/queryKeys';
 import { untilNextStudyDay } from '../../../shared/product/studyRules';
 
 export function useDecks(username: string, enabled: boolean) {
@@ -34,11 +34,28 @@ export function useDecks(username: string, enabled: boolean) {
 
 function useDeckCardOptions(username: string, deckId: string, query: DeckCardQuery) {
   const gateway = useDeckGateway();
+  return cardPageOptions(deckKeys.cardPage(username, deckId, query), deckId, query, gateway.cards);
+}
+
+export function useSavedSetCards(username: string, setId: string, query: DeckCardQuery, enabled: boolean) {
+  const gateway = useLibraryGateway();
+  return useInfiniteQuery({
+    ...cardPageOptions(libraryKeys.cardPage(username, setId, query), setId, query, gateway.cards),
+    enabled,
+  });
+}
+
+function cardPageOptions(
+  queryKey: readonly unknown[],
+  id: string,
+  query: DeckCardQuery,
+  read: (id: string, query: DeckCardQuery, signal?: AbortSignal) => Promise<DeckCardPage>,
+) {
   return infiniteQueryOptions({
-    queryKey: deckKeys.cardPage(username, deckId, query),
+    queryKey,
     initialPageParam: query.after,
     queryFn: async ({ pageParam, signal }) => ({
-      ...(await gateway.cards(deckId, { ...query, after: pageParam }, signal)),
+      ...(await read(id, { ...query, after: pageParam }, signal)),
       search: query.search ?? '',
     }),
     getNextPageParam: (last) => last.nextCursor ?? undefined,

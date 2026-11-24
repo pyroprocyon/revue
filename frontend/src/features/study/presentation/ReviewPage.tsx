@@ -1,7 +1,7 @@
 import { useContext, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, Navigate, useLocation, useParams, useOutletContext } from 'react-router';
-import { ArrowRight, Check, Layers, LoaderCircle } from 'lucide-react';
+import { ArrowRight, CalendarClock, Layers, Trophy } from 'lucide-react';
 import {
   ReviewFailure,
   type RatingRequest,
@@ -20,6 +20,7 @@ import { cardNoun } from '../../../shared/ui/cardCount';
 import { primaryButton, secondaryButton } from '../../../shared/ui/buttonStyles';
 import { TODAY_PATH, isReviewTopic, signInPath } from '../../../shared/navigation/paths';
 import { WhenSlow } from '../../../shared/ui/WhenSlow';
+import { LoadingPlaceholder, LoadingStatus } from '../../../shared/ui/LoadingFeedback';
 import { FocusRequestContext } from '../../../shared/ui/FocusRequestContext';
 import { useFocusOnMount } from '../../../shared/ui/useFocusOnMount';
 import { NavigationLink } from '../../../shared/ui/NavigationLink';
@@ -34,17 +35,15 @@ function TopicReview({ selection }: Readonly<{ selection: ReviewSelection }>) {
   const [finished, setFinished] = useState<{ count: number; note: string; title: string } | null>(null);
   const reviewed = useRef(new Set<string>());
   return (
-    <div className="pb-4 sm:pb-6">
+    <div className="review-flow pb-4 sm:pb-6">
       {finished ? (
-        <>
-          <ReviewHeading title={finished.title} finished />
-          <ReviewCompletion
-            selection={selection}
-            count={finished.count}
-            note={finished.note}
-            onContinue={() => setFinished(null)}
-          />
-        </>
+        <ReviewCompletion
+          selection={selection}
+          count={finished.count}
+          title={finished.title}
+          note={finished.note}
+          onContinue={() => setFinished(null)}
+        />
       ) : (
         <LoadBatch
           selection={selection}
@@ -56,23 +55,21 @@ function TopicReview({ selection }: Readonly<{ selection: ReviewSelection }>) {
   );
 }
 
-function ReviewHeading({ title, finished = false }: Readonly<{ title?: string; finished?: boolean }>) {
+function ReviewHeading({ title }: Readonly<{ title?: string }>) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-x-3">
       <h1
         className={
           title
-            ? 'min-w-0 flex-[1_1_8rem] text-label font-bold wrap-anywhere'
+            ? 'min-w-0 flex-[1_1_8rem] text-lg leading-tight font-bold wrap-anywhere sm:text-section'
             : 'text-title font-extrabold tracking-tight'
         }
       >
         {title ?? 'Review'}
       </h1>
-      {!finished && (
-        <NavigationLink to={TODAY_PATH} back className="text-label">
-          Finish for now
-        </NavigationLink>
-      )}
+      <NavigationLink to={TODAY_PATH} back>
+        Finish for now
+      </NavigationLink>
     </div>
   );
 }
@@ -94,9 +91,9 @@ function LoadBatch({ selection, onFinish, onConfirmed }: Readonly<BatchCallbacks
   if (query.isPending) {
     feedback = (
       <WhenSlow>
-        <div className={statusPanel}>
-          <ReviewStatus text="Loading your cards…" />
-        </div>
+        <LoadingPlaceholder kind="study" className="mt-3">
+          Loading your cards…
+        </LoadingPlaceholder>
       </WhenSlow>
     );
   } else if (query.isError) {
@@ -106,7 +103,12 @@ function LoadBatch({ selection, onFinish, onConfirmed }: Readonly<BatchCallbacks
       </div>
     );
   } else {
-    return <NoCardsReady dailyNewCardLimitReached={selection.includeNew && (query.data.unintroducedCards ?? 0) > 0} />;
+    return (
+      <NoCardsReady
+        topicTitle={query.data.topicTitle}
+        dailyNewCardLimitReached={selection.includeNew && (query.data.unintroducedCards ?? 0) > 0}
+      />
+    );
   }
   return (
     <>
@@ -116,20 +118,30 @@ function LoadBatch({ selection, onFinish, onConfirmed }: Readonly<BatchCallbacks
   );
 }
 
-function NoCardsReady({ dailyNewCardLimitReached }: Readonly<{ dailyNewCardLimitReached: boolean }>) {
+function NoCardsReady({
+  topicTitle,
+  dailyNewCardLimitReached,
+}: Readonly<{ topicTitle?: string | null; dailyNewCardLimitReached: boolean }>) {
   const heading = useFocusOnMount<HTMLHeadingElement>();
   return (
-    <div className="review-result result-panel mt-4">
-      <h1 {...heading} className="text-title font-bold outline-none">
-        {dailyNewCardLimitReached ? 'You’ve reached today’s new-card limit.' : 'No cards are ready in this topic.'}
-      </h1>
-      <p className="mt-2 text-body text-muted">
-        {dailyNewCardLimitReached
-          ? 'This topic’s new cards are ready to start tomorrow.'
-          : 'You can finish for now and return when more are due.'}
-      </p>
-      <Link className={`${primaryButton} mt-4`} to={TODAY_PATH}>
-        Finish for now
+    <div className="review-pause review-result screen-enter gap-4 text-center">
+      <span className="grid size-14 place-items-center rounded-control bg-saved-set-soft text-saved-set">
+        <CalendarClock aria-hidden="true" className="size-6" />
+      </span>
+      <div className="w-full max-w-[38ch] min-w-0 wrap-anywhere">
+        {topicTitle && <p className="mb-1 text-support font-semibold text-saved-set">{topicTitle}</p>}
+        <h1 {...heading} className="text-title font-extrabold tracking-tight text-balance outline-none">
+          {dailyNewCardLimitReached ? 'Daily new-card limit reached' : 'No cards ready right now'}
+        </h1>
+        <p className="mt-2 text-body text-pretty text-muted">
+          {dailyNewCardLimitReached
+            ? 'You can start this topic’s new cards tomorrow.'
+            : 'Come back when more cards are due.'}
+        </p>
+      </div>
+      <Link className={`${primaryButton} max-w-full`} to={TODAY_PATH}>
+        <span className="min-w-0 wrap-anywhere">Back to Today</span>
+        <ArrowRight aria-hidden="true" className="size-5 shrink-0" />
       </Link>
     </div>
   );
@@ -227,7 +239,7 @@ function ReviewBatch({ cards, onFinish, onConfirmed }: Readonly<{ cards: StudyCa
         card={card}
         position={{ index, total: batch.length }}
         renderControls={(mode) => {
-          if (status === 'saving') return <ReviewStatus text="Saving your rating…" />;
+          if (status === 'saving') return <LoadingStatus className="min-h-12">Saving your rating…</LoadingStatus>;
           if (status === 'unknown')
             return (
               <div className="rounded-control bg-highlight-soft/60 p-4 text-left">
@@ -263,15 +275,6 @@ function ReviewBatch({ cards, onFinish, onConfirmed }: Readonly<{ cards: StudyCa
   );
 }
 
-function ReviewStatus({ text }: Readonly<{ text: string }>) {
-  return (
-    <output className="inline-flex min-h-12 items-center gap-3 text-body text-muted">
-      <LoaderCircle aria-hidden="true" className="size-5 shrink-0 animate-spin" />
-      {text}
-    </output>
-  );
-}
-
 function conflictMessage(error: ReviewFailure) {
   if (error.kind === 'unavailable')
     return 'This card is no longer available. Your remaining cards have been refreshed.';
@@ -285,9 +288,10 @@ function conflictMessage(error: ReviewFailure) {
 function ReviewCompletion({
   selection,
   count,
+  title,
   note,
   onContinue,
-}: Readonly<{ selection: ReviewSelection; count: number; note: string; onContinue: () => void }>) {
+}: Readonly<{ selection: ReviewSelection; count: number; title: string; note: string; onContinue: () => void }>) {
   const query = useTodayQueue(selection);
   const learnerWide = useTodayQueue();
   const { username } = useOutletContext<{ username: string }>();
@@ -296,48 +300,83 @@ function ReviewCompletion({
   useEffect(() => {
     if (query.isSuccess && !query.isFetching && unfinished === 0) forgetReview(username, selection.topic);
   }, [query.isSuccess, query.isFetching, unfinished, username, selection.topic]);
-  const heading = useRef<HTMLHeadingElement>(null);
-  const requestFocus = useContext(FocusRequestContext);
-  const loaded = query.isSuccess;
-  useEffect(() => {
-    if (loaded) requestFocus(heading.current);
-  }, [loaded, requestFocus]);
-  const Icon = count > 0 ? Check : Layers;
+  const celebrated = count > 0;
   return (
-    <section className="review-result result-panel mt-3">
-      {query.isPending && (
-        <WhenSlow>
-          <ReviewStatus text="Checking your remaining cards…" />
-        </WhenSlow>
-      )}
-      {query.isError && <QueueError error={query.error} retry={() => void query.refetch()} busy={query.isFetching} />}
-      {query.isSuccess && (
-        <>
-          {note && <output className="mb-4 block text-body text-muted">{note}</output>}
-          <span className="mb-6 grid size-14 place-items-center rounded-control bg-accent-soft text-accent">
-            <Icon aria-hidden="true" className="size-7" />
-          </span>
-          <h2 ref={heading} tabIndex={-1} className="text-title font-bold outline-none">
-            {count} {cardNoun(count)} reviewed
-          </h2>
-          <p className="mt-3 text-body text-muted">{remainingText(remaining, query.data.availableCards)}</p>
-          {remaining === 0 && learnerWide.isSuccess && !learnerWide.isFetching && (
+    <section className={`review-result screen-enter mt-3 ${celebrated ? 'review-completion' : 'result-panel'}`}>
+      <ReviewCompletionSummary
+        count={count}
+        status={query.isSuccess ? remainingText(remaining, query.data.availableCards, title) : title}
+      />
+      <div className={celebrated ? 'review-completion-follow' : 'mt-4 space-y-4'}>
+        <div className="review-completion-feedback space-y-3 empty:hidden">
+          {note && <output className="block text-body text-muted">{note}</output>}
+          {query.isPending && (
+            <WhenSlow>
+              <LoadingStatus>Checking your remaining cards…</LoadingStatus>
+            </WhenSlow>
+          )}
+          {query.isError && (
+            <QueueError error={query.error} retry={() => void query.refetch()} busy={query.isFetching} />
+          )}
+          {query.isSuccess && remaining === 0 && learnerWide.isSuccess && !learnerWide.isFetching && (
             <AfterThisTopic today={learnerWide.data} finishedTopic={selection.topic} />
           )}
-        </>
-      )}
-      <div className="mt-8 flex flex-wrap gap-3">
-        {query.isSuccess && remaining > 0 && (
-          <button type="button" onClick={onContinue} className={primaryButton}>
-            {remaining >= REVIEW_BATCH_SIZE ? `Continue with ${REVIEW_BATCH_SIZE}` : reviewAction(remaining)}
-            <ArrowRight aria-hidden="true" className="size-5 shrink-0" />
-          </button>
-        )}
-        <Link to={TODAY_PATH} className={remaining > 0 ? secondaryButton : primaryButton}>
-          Back to Today
-        </Link>
+        </div>
+        <div className={celebrated ? 'review-completion-actions review-dock' : 'flex flex-wrap gap-3'}>
+          {query.isSuccess && remaining > 0 && (
+            <button type="button" onClick={onContinue} className={primaryButton}>
+              <span className="min-w-0 wrap-anywhere">
+                {remaining >= REVIEW_BATCH_SIZE ? `Continue with ${REVIEW_BATCH_SIZE}` : reviewAction(remaining)}
+              </span>
+              <ArrowRight aria-hidden="true" className="size-5 shrink-0" />
+            </button>
+          )}
+          <Link to={TODAY_PATH} className={remaining > 0 ? secondaryButton : primaryButton}>
+            <span className="min-w-0 wrap-anywhere">Back to Today</span>
+            {celebrated && <ArrowRight aria-hidden="true" className="size-5 shrink-0" />}
+          </Link>
+        </div>
       </div>
     </section>
+  );
+}
+
+function ReviewCompletionSummary({ count, status }: Readonly<{ count: number; status: string }>) {
+  const heading = useFocusOnMount<HTMLHeadingElement>();
+  const celebrated = count > 0;
+  const CountHeading = celebrated ? 'h2' : 'h1';
+  return (
+    <div className={celebrated ? 'review-completion-summary' : undefined}>
+      {celebrated ? (
+        <div className="review-celebration" aria-hidden="true">
+          <span className="review-celebration-mark">
+            <Trophy className="size-[1.875rem]" strokeWidth={1.9} />
+          </span>
+          <div className="review-confetti">
+            <span />
+            <span />
+            <span />
+            <span />
+            <span />
+            <span />
+          </div>
+        </div>
+      ) : (
+        <span className="mb-6 grid size-14 place-items-center rounded-control bg-accent-soft text-accent">
+          <Layers aria-hidden="true" className="size-7" />
+        </span>
+      )}
+      <div className="min-w-0 wrap-anywhere">
+        {celebrated && <h1 className="mb-1 text-title font-extrabold tracking-tight sm:text-title-lg">Nice work!</h1>}
+        <CountHeading
+          {...heading}
+          className={celebrated ? 'text-body font-medium outline-none' : 'text-title font-bold outline-none'}
+        >
+          {count} {cardNoun(count)} reviewed
+        </CountHeading>
+        <p className={celebrated ? 'review-completion-status' : 'mt-3 text-body text-muted'}>{status}</p>
+      </div>
+    </div>
   );
 }
 
@@ -352,20 +391,22 @@ function AfterThisTopic({ today, finishedTopic }: Readonly<{ today: StudyQueue; 
     .reduce((total, topic) => total + topic.dueCards, 0);
   if (dueElsewhere > 0) {
     return (
-      <p className="mt-4 text-label font-semibold text-accent">
+      <p className="review-completion-next text-label font-semibold text-accent">
         {dueElsewhere === 1 ? '1 card is due in another topic.' : `${dueElsewhere} cards are due in other topics.`}
       </p>
     );
   }
   if (today.dueCards > 0 || today.newCards > 0 || !today.nextReviewDate) return null;
   return (
-    <p className="mt-4 text-label font-semibold text-accent">Next review: {nextReviewText(today.nextReviewDate)}</p>
+    <p className="review-completion-next text-label font-semibold text-accent">
+      Next review: {nextReviewText(today.nextReviewDate)}
+    </p>
   );
 }
 
-function remainingText(remaining: number, available: number) {
-  if (remaining > 0) return `${remaining} ${remaining === 1 ? 'card remains' : 'cards remain'}.`;
-  return available > 0 ? 'This topic is caught up.' : 'No cards are available in this topic right now.';
+function remainingText(remaining: number, available: number, title: string) {
+  if (remaining > 0) return `${remaining} ${remaining === 1 ? 'card remains' : 'cards remain'} in ${title}`;
+  return available > 0 ? `Review complete for ${title}` : `No cards are available in ${title} right now.`;
 }
 
 function QueueError({ error, retry, busy }: Readonly<{ error: Error; retry: () => void; busy: boolean }>) {

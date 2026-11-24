@@ -1,7 +1,7 @@
 import { Search, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type SubmitEvent } from 'react';
 import { CARD_SEARCH_MAX_LENGTH } from '../application/decks';
-import { useDeckDraftGuard, useHasUnsavedDeckChanges } from './UnsavedDeckChanges';
+import { useReadDeckDrafts, useHasUnsavedDeckChanges } from './UnsavedDeckChanges';
 
 const SEARCH_DELAY_MS = 300;
 
@@ -20,7 +20,7 @@ export function DeckSearch({
   const [composing, setComposing] = useState(false);
   const field = useRef<HTMLInputElement>(null);
   const timer = useRef<number | undefined>(undefined);
-  const guard = useDeckDraftGuard();
+  const hasCurrentDrafts = useReadDeckDrafts();
   const hasDrafts = useHasUnsavedDeckChanges();
   const value = input.value.trim();
   if (input.term !== term) {
@@ -42,10 +42,10 @@ export function DeckSearch({
   useEffect(() => {
     if (value === term || composing || hasDrafts) return;
     timer.current = window.setTimeout(() => {
-      if (!guard.hasDrafts()) applySearch(value);
+      if (!hasCurrentDrafts?.()) applySearch(value);
     }, SEARCH_DELAY_MS);
     return () => window.clearTimeout(timer.current);
-  }, [applySearch, composing, guard, hasDrafts, term, value]);
+  }, [applySearch, composing, hasCurrentDrafts, hasDrafts, term, value]);
 
   function search(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();

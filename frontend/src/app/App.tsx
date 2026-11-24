@@ -22,7 +22,7 @@ import { TermsPage } from '../features/account/presentation/TermsPage';
 import { PrivacyPage } from '../features/account/presentation/PrivacyPage';
 import { httpPublicContent } from '../features/catalog/infrastructure/httpPublicContent';
 import { PublicContentProvider } from '../features/catalog/presentation/PublicContentProvider';
-import { useEffect } from 'react';
+import { useEffect, useLayoutEffect } from 'react';
 import { GuestRoute, PublicSessionLayout } from './PublicSessionLayout';
 import { Route, Routes, useLocation, useNavigate } from 'react-router';
 import { LandingPage } from './pages/LandingPage';
@@ -30,6 +30,7 @@ import { HowItWorksPage } from './pages/HowItWorksPage';
 import { HelpPage } from './pages/HelpPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { SetPage } from '../features/catalog/presentation/SetPage';
+import { PublishedPage } from '../features/catalog/presentation/PublishedPage';
 import { SetsPage } from '../features/catalog/presentation/SetsPage';
 import { TrialPage } from '../features/study/presentation/TrialPage';
 import {
@@ -39,6 +40,7 @@ import {
   START_TOPIC_ROUTE,
   HELP_PATH,
   LIBRARY_PATH,
+  PUBLISHED_PATH,
   NEW_DECK_PATH,
   DECK_ROUTE,
   HOME_PATH,
@@ -93,6 +95,7 @@ export function App() {
                       <Route path={DECK_ROUTE} element={<DeckPage />} />
                     </Route>
                   </Route>
+                  <Route path={PUBLISHED_PATH} element={<PublishedPage />} />
                   <Route path={ACCOUNT_PATH} element={<AccountPage />} />
                 </Route>
                 <Route element={<AccountLayout focused />}>
@@ -125,11 +128,11 @@ function SignupPage() {
  */
 function ScrollOnNavigation() {
   const { pathname, hash } = useLocation();
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (hash !== '') {
       document.getElementById(hash.slice(1))?.scrollIntoView();
     } else {
-      window.scrollTo(0, 0);
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     }
   }, [pathname, hash]);
   return null;

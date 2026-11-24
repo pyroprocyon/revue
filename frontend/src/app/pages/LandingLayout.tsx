@@ -10,7 +10,7 @@ export function LandingLayout({
   const column = `${readingColumn} lg:max-w-wide`;
   return (
     <div className="@container/landing">
-      <div className="landing-screen flex h-dvh flex-col px-1 lg:h-auto lg:min-h-dvh lg:px-2 lg:pt-4">
+      <div className="landing-screen flex h-[var(--page-height)] flex-col lg:h-auto lg:min-h-[var(--page-height)] lg:pt-4">
         <SkipToContent />
         <header
           className={`${column} flex min-h-14 shrink-0 flex-wrap items-center gap-x-3 pt-[env(safe-area-inset-top)]`}

@@ -119,7 +119,7 @@ async function refetchTodayOnFocus() {
 async function rateTheOnlyCard() {
   fireEvent.click(await screen.findByRole('button', { name: 'Show answer' }));
   fireEvent.click(screen.getByRole('button', { name: /^Good:/ }));
-  expect(await screen.findByText('This topic is caught up.')).toBeDefined();
+  expect(await screen.findByText('Review complete for Plant life')).toBeDefined();
 }
 
 describe('saved daily study', () => {
@@ -150,13 +150,63 @@ describe('saved daily study', () => {
     const { fetcher } = api({
       ...ready,
       continuation: { topicTitle: 'Plant life', dueCards: 0, newCards: 2, unintroducedCards: 3 },
+      topics: [
+        { id: 'set-1', title: 'Plant life', dueCards: 1 },
+        { id: 'set-2', title: 'Chemistry', dueCards: 1 },
+      ],
     });
     renderApp('/today');
     await screen.findByRole('link', { name: 'Continue' });
     expect(screen.getByText('2 cards remain.')).toBeDefined();
+    const next = screen.getByRole('region', { name: 'Up next' });
+    expect(within(next).getByRole('heading', { name: 'Chemistry' })).toBeDefined();
+    expect(within(next).getByRole('link', { name: 'Review 1 card' })).toHaveProperty('pathname', '/review/set-2');
     expect(fetcher.mock.calls.map(([path]) => path).filter((path) => path.startsWith('/api/v1/cards/due'))).toEqual([
       '/api/v1/cards/due?summaryOnly=true&pausedTopic=set-1',
     ]);
+  });
+
+  it('keeps Continue and Up next visible while Today refreshes on return from Library', async () => {
+    localStorage.setItem('revue.paused-review.learner', 'set-1');
+    const otherTopic = { id: 'set-2', title: 'Chemistry', dueCards: 1 };
+    const paused = { topicTitle: 'Plant life', dueCards: 0, newCards: 2 };
+    const queue = { ...ready, continuation: paused, topics: [otherTopic] };
+    const { fetcher } = api(queue);
+    renderApp('/today');
+    await screen.findByRole('link', { name: 'Continue' });
+
+    const workspace = within(screen.getByRole('navigation', { name: 'Your workspace' }));
+    fireEvent.click(workspace.getByRole('link', { name: 'Library' }));
+    await screen.findByRole('heading', { name: 'Library' });
+    const respond = fetcher.getMockImplementation()!;
+    let finishRefresh!: (response: Response) => void;
+    const refresh = new Promise<Response>((resolve) => {
+      finishRefresh = resolve;
+    });
+    const fetchRefresh = vi.fn(() => refresh);
+    fetcher.mockImplementation((path, init) =>
+      path.includes('pausedTopic=set-1') ? fetchRefresh() : respond(path, init),
+    );
+
+    fireEvent.click(workspace.getByRole('link', { name: 'Today' }));
+    await waitFor(() => expect(fetchRefresh).toHaveBeenCalledOnce());
+    const continuation = screen.getByRole('link', { name: 'Continue' });
+    expect(screen.getByText('2 cards remain.')).toBeDefined();
+    const next = screen.getByRole('region', { name: 'Up next' });
+    expect(within(next).getByRole('link', { name: 'Review 1 card' })).toBeDefined();
+
+    await act(async () => {
+      finishRefresh(
+        jsonResponse(200, {
+          ...queue,
+          continuation: { ...paused, newCards: 1 },
+          topics: [{ ...otherTopic, dueCards: 2 }],
+        }),
+      );
+    });
+    await screen.findByText('1 card remains.');
+    expect(screen.getByRole('link', { name: 'Continue' })).toBe(continuation);
+    expect(within(next).getByRole('link', { name: 'Review 2 cards' })).toBeDefined();
   });
 
   it('keeps other due topics available when the combined summary fails', async () => {
@@ -204,8 +254,13 @@ describe('saved daily study', () => {
     const next = await screen.findByRole('region', { name: 'Up next' });
     expect(within(next).getByRole('link', { name: 'Review 1 card' }).getAttribute('href')).toBe('/review/set-1');
     expect(screen.queryByRole('link', { name: 'Start with 5' })).toBeNull();
-    fireEvent.click(screen.getByText('Other topics'));
-    fireEvent.click(screen.getByRole('button', { name: 'Biology quiz' }));
+    fireEvent.click(within(next).getByText('Other topics'));
+    expect(within(next).queryByRole('button', { name: 'Plant life' })).toBeNull();
+    fireEvent.click(within(next).getByRole('button', { name: 'Biology quiz' }));
+    expect(within(next).queryByRole('button', { name: 'Biology quiz' })).toBeNull();
+    fireEvent.click(within(next).getByRole('button', { name: 'Plant life' }));
+    expect(document.activeElement).toBe(within(next).getByRole('link', { name: 'Review 1 card' }));
+    fireEvent.click(within(next).getByRole('button', { name: 'Biology quiz' }));
     const start = screen.getByRole('link', { name: 'Start with 5' });
     expect(document.activeElement).toBe(start);
     expect(start.getAttribute('href')).toBe('/review/deck-2');
@@ -232,6 +287,27 @@ describe('saved daily study', () => {
     await screen.findByRole('heading', { name: '2 days studied' });
     expect(screen.getByRole('heading', { name: 'All caught up' })).toBeDefined();
     expect(screen.getAllByRole('listitem', { name: /, studied$/ })).toHaveLength(2);
+  });
+
+  it.each(['2026-11-14', null])('celebrates completed reviews with next date %s', async (nextReviewDate) => {
+    api({ ...done, nextReviewDate, studyDays: [{ date: '2026-11-13', studied: true }] });
+    renderApp('/today');
+    const celebration = await screen.findByRole('region', { name: 'Nice work today!' });
+    expect(within(celebration).getByText('Today’s reviews are complete.')).toBeDefined();
+    if (nextReviewDate) {
+      expect(within(celebration).getByText('Saturday, Nov 14').getAttribute('datetime')).toBe(nextReviewDate);
+    } else {
+      expect(within(celebration).queryByText('Next review')).toBeNull();
+    }
+  });
+
+  it('celebrates completed scheduled reviews while new cards are available in Library', async () => {
+    api({ ...done, newCards: 2, unintroducedCards: 3, studyDays: [{ date: '2026-11-13', studied: true }] });
+    renderApp('/today');
+    const celebration = await screen.findByRole('region', { name: 'Nice work today!' });
+    expect(within(celebration).getByText(/^Scheduled reviews complete\./)).toBeDefined();
+    expect(within(celebration).getByRole('link', { name: 'Open Library' }).getAttribute('href')).toBe('/library');
+    expect(within(celebration).queryByText('Next review')).toBeNull();
   });
 
   it('keeps the continuation for tomorrow when the daily new-card allowance is exhausted', async () => {
@@ -332,14 +408,18 @@ describe('saved daily study', () => {
   it('explains that new cards wait for tomorrow when Start finds the daily limit used up', async () => {
     api({ ...done, newCards: 0, unintroducedCards: 4, topicTitle: 'Plant life' });
     renderApp('/review/set-1/start');
-    expect(await screen.findByRole('heading', { name: 'You’ve reached today’s new-card limit.' })).toBeDefined();
-    expect(screen.getByText('This topic’s new cards are ready to start tomorrow.')).toBeDefined();
+    expect(await screen.findByRole('heading', { name: 'Daily new-card limit reached' })).toBeDefined();
+    expect(screen.getByText('Plant life', { exact: true })).toBeDefined();
+    expect(screen.getByText('You can start this topic’s new cards tomorrow.')).toBeDefined();
   });
 
   it('says no cards are ready when a due review finds none', async () => {
     api({ ...done, newCards: 0, unintroducedCards: 4, topicTitle: 'Plant life' });
     renderApp('/review/set-1');
-    expect(await screen.findByRole('heading', { name: 'No cards are ready in this topic.' })).toBeDefined();
+    expect(await screen.findByRole('heading', { name: 'No cards ready right now' })).toBeDefined();
+    expect(screen.getByText('Plant life', { exact: true })).toBeDefined();
+    fireEvent.click(screen.getByRole('link', { name: 'Back to Today' }));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Your review' })).toBeDefined();
   });
 
   it('returns to sign-in when the tab-return session check reports an expired session', async () => {
@@ -392,10 +472,8 @@ describe('saved daily study', () => {
     expect(screen.getByRole('heading', { name: card.answer })).toBeDefined();
     expect(screen.getByRole('progressbar').getAttribute('value')).toBe('0');
     fireEvent.click(screen.getByRole('button', { name: 'Back to question' }));
-    expect(screen.getByRole('textbox', { name: 'Your answer' })).toHaveProperty(
-      'value',
-      'Keep this answer through a tab return',
-    );
+    expect(screen.getByText('Keep this answer through a tab return', { selector: 'p' })).toBeDefined();
+    expect(screen.queryByRole('textbox')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Back to answer' }));
     expect(inputs).toHaveLength(1);
 
@@ -457,14 +535,15 @@ describe('saved daily study', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Show answer' }));
     fireEvent.click(screen.getByRole('button', { name: /^Good:/ }));
     await screen.findByRole('heading', { name: '1 card reviewed' });
-    fireEvent.click(screen.getByRole('button', { name: 'Review 1 card' }));
+    expect(await screen.findByText('1 card remains in Plant life')).toBeDefined();
+    fireEvent.click(await screen.findByRole('button', { name: 'Review 1 card' }));
     await screen.findByRole('heading', { name: nextCard.question });
     expect(screen.getByRole('progressbar').getAttribute('value')).toBe('0');
     expect(screen.getByLabelText('Your answer (optional)')).toHaveProperty('value', '');
     fireEvent.click(screen.getByRole('button', { name: 'Show answer' }));
     fireEvent.click(screen.getByRole('button', { name: /^Good:/ }));
     await screen.findByRole('heading', { name: '2 cards reviewed' });
-    expect(screen.getByText('This topic is caught up.')).toBeDefined();
+    expect(await screen.findByText('Review complete for Plant life')).toBeDefined();
   });
 
   it.each(['loading', 'failed'])('keeps an exit when the completion queue is $0', async (state) => {
@@ -482,6 +561,7 @@ describe('saved daily study', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Good:/ }));
     if (state === 'loading') await screen.findByText('Checking your remaining cards…');
     else await screen.findByRole('alert');
+    expect(screen.getByRole('heading', { name: '1 card reviewed' })).toBeDefined();
     const exit = screen.getByRole('link', { name: 'Back to Today' });
     expect(screen.queryByRole('link', { name: 'Finish for now' })).toBeNull();
     fireEvent.click(exit);
@@ -491,7 +571,7 @@ describe('saved daily study', () => {
 
   it.each([
     { reveal: 'Show answer', mode: 'ANSWERED', rating: /^Good:/ },
-    { reveal: 'I don’t know yet', mode: 'SHOWN', rating: /^Finish batch$/ },
+    { reveal: 'I don’t know', mode: 'SHOWN', rating: /^Finish batch$/ },
   ])(
     'preserves the $mode attempt and shows the draft only after an answer attempt',
     async ({ reveal, mode, rating }) => {
@@ -501,24 +581,20 @@ describe('saved daily study', () => {
       fireEvent.change(screen.getByLabelText('Your answer (optional)'), { target: { value: 'My first recall' } });
       fireEvent.click(question);
       expect(screen.queryByRole('heading', { name: card.answer })).toBeNull();
+      expect(screen.queryByRole('button', { name: rating })).toBeNull();
       fireEvent.click(screen.getByRole('button', { name: reveal }));
       expect(document.activeElement).toBe(screen.getByRole('heading', { name: card.answer }));
       expect(screen.queryByRole('heading', { name: card.question })).toBeNull();
       expect(screen.queryByText('My first recall', { selector: 'p' }) !== null).toBe(mode === 'ANSWERED');
+      const ratingAction = screen.getByRole('button', { name: rating });
       fireEvent.click(screen.getByRole('button', { name: 'Back to question' }));
       expect(document.activeElement).toBe(question);
-      if (mode === 'ANSWERED') {
-        const field = screen.getByRole('textbox', { name: 'Your answer' });
-        expect(field).toHaveProperty('value', 'My first recall');
-        expect(field).toHaveProperty('readOnly', true);
-      } else {
-        expect(screen.queryByRole('textbox')).toBeNull();
-      }
-      expect(screen.queryByRole('button', { name: /^Good:/ })).toBeNull();
-      expect(screen.queryByRole('button', { name: 'I don’t know yet' })).toBeNull();
-      fireEvent.click(screen.getByRole('button', { name: 'Back to answer' }));
+      expect(screen.queryByText('My first recall', { selector: 'p' }) !== null).toBe(mode === 'ANSWERED');
+      expect(screen.queryByRole('textbox')).toBeNull();
+      expect(screen.getByRole('button', { name: rating })).toBe(ratingAction);
+      expect(screen.queryByRole('button', { name: 'I don’t know' })).toBeNull();
       expect(fetcher.mock.calls.filter(([path]) => path.includes('/reviews/'))).toHaveLength(0);
-      fireEvent.click(screen.getByRole('button', { name: rating }));
+      fireEvent.click(ratingAction);
       await screen.findByText('1 card reviewed');
       const input = fetcher.mock.calls.find(([path]) => path.includes('/reviews/'))?.[1]?.body;
       expect(JSON.parse(String(input))).toMatchObject({ attemptMode: mode });
@@ -526,7 +602,7 @@ describe('saved daily study', () => {
     },
   );
 
-  it('keeps the full answer and puts long drafts and optional details behind separate controls', async () => {
+  it('keeps the full answer and puts the draft comparison and card details below it', async () => {
     const detailCard = {
       ...card,
       explanation: 'Plants use water for photosynthesis.',
@@ -537,11 +613,16 @@ describe('saved daily study', () => {
     const draft = 'One long line to check. '.repeat(25);
     fireEvent.change(await screen.findByLabelText('Your answer (optional)'), { target: { value: draft } });
     fireEvent.click(screen.getByRole('button', { name: 'Show answer' }));
-    expect(screen.getByRole('heading', { name: 'Water' })).toBeDefined();
+    const answer = screen.getByRole('region', { name: 'Answer' });
+    expect(within(answer).getByRole('heading', { name: 'Water' })).toBeDefined();
     expect(screen.queryByRole('dialog')).toBeNull();
-    for (const name of ['Compare with your answer', 'Tip to remember', 'Explanation']) {
-      expect(screen.getByRole('button', { name })).toBeDefined();
-    }
+    const summary = screen.getByText('Card details', { selector: 'summary' });
+    expect(answer.contains(summary)).toBe(false);
+    expect(screen.getByRole('button', { name: 'Compare with your answer' })).toBeDefined();
+    expect(summary.closest('details')!.open).toBe(false);
+    summary.closest('details')!.open = true;
+    expect(screen.getByRole('heading', { name: 'Tip to remember' })).toBeDefined();
+    expect(screen.getByRole('heading', { name: 'Explanation' })).toBeDefined();
   });
 
   it.each(['/', '/sign-in', '/join', '/i', '/register'])('opens Today from the signed-in entry %s', async (path) => {
@@ -550,7 +631,7 @@ describe('saved daily study', () => {
     expect(await screen.findByRole('heading', { name: 'Your review' })).toBeDefined();
     expect(await screen.findByText('No cards to review yet')).toBeDefined();
     expect(screen.queryByText('All caught up')).toBeNull();
-    expect(screen.queryByRole('link', { name: 'Browse sets' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Browse reviewers' })).toBeNull();
     expect(screen.getByRole('link', { name: 'Revue' }).getAttribute('href')).toBe('/today');
     fireEvent.click(screen.getByRole('link', { name: 'Account' }));
     expect(await screen.findByRole('heading', { name: 'Your account' })).toBeDefined();
@@ -567,7 +648,7 @@ describe('saved daily study', () => {
     fireEvent.change(await screen.findByLabelText('Your answer (optional)'), {
       target: { value: 'private recall draft' },
     });
-    expect(screen.queryByText('Water')).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Water' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Show answer' }));
     fireEvent.click(screen.getByRole('button', { name: /^Good:/ }));
     expect(await screen.findByRole('alert')).toHaveProperty(
@@ -580,7 +661,7 @@ describe('saved daily study', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Back to answer' }));
     fireEvent.click(screen.getByRole('button', { name: 'Retry rating' }));
     expect(await screen.findByText('1 card reviewed')).toBeDefined();
-    expect(await screen.findByText('This topic is caught up.')).toBeDefined();
+    expect(await screen.findByText('Review complete for Plant life')).toBeDefined();
     expect(screen.queryByRole('link', { name: 'Finish for now' })).toBeNull();
     expect(screen.getAllByRole('link', { name: 'Back to Today' })).toHaveLength(1);
     expect(inputs).toHaveLength(2);
@@ -592,7 +673,7 @@ describe('saved daily study', () => {
   it('records seeing the answer first only as a miss and never rates on reveal', async () => {
     const { fetcher } = api(ready);
     renderApp('/review/set-1/start');
-    fireEvent.click(await screen.findByRole('button', { name: 'I don’t know yet' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'I don’t know' }));
     expect(screen.queryByRole('button', { name: /^Good:/ })).toBeNull();
     expect(fetcher.mock.calls.filter(([path]) => path.includes('/reviews/'))).toHaveLength(0);
     fireEvent.click(screen.getByRole('button', { name: 'Finish batch' }));
@@ -746,7 +827,7 @@ describe('saved daily study', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Show answer' }));
     fireEvent.click(screen.getByRole('button', { name: /^Good:/ }));
     expect(await screen.findByText('0 cards reviewed')).toBeDefined();
-    expect(await screen.findByText('This topic is caught up.')).toBeDefined();
+    expect(await screen.findByText('Review complete for Plant life')).toBeDefined();
     await waitFor(() => expect(screen.getByRole('status').textContent).toContain('another tab'));
   });
 
@@ -759,20 +840,27 @@ describe('saved daily study', () => {
     expect(screen.queryByRole('button', { name: 'Compare with your answer' })).toBeNull();
   });
 
-  it('names the details button Source when a card has a source but no explanation', async () => {
+  it('shows publisher credit on the question and Source inside either active face', async () => {
     api({ ...ready, cards: [{ ...card, explanation: null, source: 'Biology notes, page 12' }] });
     renderApp('/review/set-1/start');
-    fireEvent.click(await screen.findByRole('button', { name: 'Show answer' }));
-    expect(screen.getByRole('button', { name: 'Source' })).toBeDefined();
-    expect(screen.queryByRole('button', { name: 'Explanation' })).toBeNull();
+    const reveal = await screen.findByRole('button', { name: 'Show answer' });
+    expect(screen.getByText('Published by Revue').closest('.review-front')).not.toBeNull();
+    expect(screen.queryByText(/Not yet checked/)).toBeNull();
+    const source = screen.getByRole('button', { name: 'Source' });
+    expect(source.closest('.review-front')).not.toBeNull();
+    fireEvent.click(reveal);
+    expect(screen.getByRole('button', { name: 'Source' }).closest('.review-back')).not.toBeNull();
+    expect(screen.queryByText('Card details')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Back to question' }));
+    expect(screen.getByRole('button', { name: 'Source' })).toBe(source);
   });
 
   it('labels a personal card instead of crediting a publisher', async () => {
     api({ ...ready, cards: [{ ...card, publisherName: null, source: null }] });
     renderApp('/review/set-1/start');
-    fireEvent.click(await screen.findByRole('button', { name: 'Show answer' }));
     expect(await screen.findByText('Personal card')).toBeDefined();
     expect(screen.queryByText(/Published by/)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Source' })).toBeNull();
   });
 
   it('says when saved cards are not available to study', async () => {

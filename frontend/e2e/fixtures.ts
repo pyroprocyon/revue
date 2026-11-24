@@ -120,5 +120,5 @@ export { expect } from '@playwright/test';
 
 export async function signOut(page: Page) {
   await page.getByRole('button', { name: 'Sign out', exact: true }).click();
-  await page.getByRole('dialog', { name: 'Sign out of Revue?' }).getByRole('button', { name: 'Sign out' }).click();
+  await page.getByRole('region', { name: 'Sign out of Revue?' }).getByRole('button', { name: 'Sign out' }).click();
 }

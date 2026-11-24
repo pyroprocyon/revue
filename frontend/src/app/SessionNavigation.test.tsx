@@ -24,7 +24,7 @@ function pendingSession() {
         cards: [],
       });
     if (path === '/api/v1/public-sets/philippine-history/demo-cards') return jsonResponse(200, historyCards);
-    if (path === '/api/v1/public-sets') return jsonResponse(200, [historySet]);
+    if (path === '/api/v1/public-sets/catalog/onboarding') return jsonResponse(200, [historySet]);
     return jsonResponse(404);
   });
   vi.stubGlobal('fetch', fetcher);
@@ -151,7 +151,7 @@ describe('session-dependent navigation', () => {
   it.each([
     ['/privacy', 'Privacy notice', 'Back to sign in', 'Back to Today'],
     ['/terms', 'Terms', 'Back to sign in', 'Back to Today'],
-    ['/sets', 'Shared sets', 'Sign in', 'Account'],
+    ['/sets', 'Reviewers', 'Sign in', 'Account'],
     ['/missing-page', 'Page not found.', 'Go to the home page', 'Go to Today'],
   ])(
     'keeps public content readable without guessing the account action on %s',
@@ -174,12 +174,12 @@ describe('session-dependent navigation', () => {
       renderApp('/sets/philippine-history/try');
       await screen.findByRole('heading', { name: 'Question 1?' });
       for (let card = 0; card < 5; card++) {
-        fireEvent.click(screen.getByRole('button', { name: 'Check answer' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Show answer' }));
         fireEvent.click(screen.getByRole('button', { name: /^Good:/ }));
       }
       const heading = screen.getByRole('heading', { name: 'You practiced 5 cards.' });
-      const another = screen.getByRole('link', { name: 'Try another set' });
-      const back = screen.getByRole('link', { name: 'Back to the set' });
+      const another = screen.getByRole('link', { name: 'Browse reviewers' });
+      const back = screen.getByRole('link', { name: 'View topic details' });
       expect(another.className).toBe(secondaryButton);
       expect(back.className).toBe(secondaryButton);
       await session.finish(signedIn);

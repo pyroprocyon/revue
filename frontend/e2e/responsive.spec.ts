@@ -2,32 +2,51 @@ import type { Locator } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { test, expect } from './fixtures';
 
-test('small tablet practice preview keeps trial above the sharing controls', async ({ page }) => {
+test('practice preview pairs the trial with the sample on tablet and docks it on phones', async ({ page }) => {
   await page.addInitScript(() => {
     Object.defineProperty(navigator, 'share', { value: async () => {} });
   });
   await page.setViewportSize({ width: 640, height: 900 });
   await page.goto('/sets/philippine-history');
   const trial = page.getByRole('link', { name: 'Try 5 cards' });
-  const save = page.getByRole('link', { name: 'Sign in to save' });
+  const description = page.getByText(/from Mactan to Malolos/);
+  const sample = page.getByRole('heading', { name: 'Sample question' });
   const share = page.getByRole('button', { name: 'Share', exact: true });
   const copy = page.getByRole('button', { name: 'Copy link' });
   await expect(trial).toHaveAccessibleDescription('Trial progress and ratings aren’t saved.');
-  await expect(save).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Sign in to save' })).toHaveCount(0);
+  await expect(sample).toBeVisible();
   await page.evaluate(() => document.fonts.ready);
-  await page.getByText('Share set', { exact: true }).click();
-  const articleBox = (await page.getByRole('article').boundingBox())!;
-  const trialBox = (await trial.boundingBox())!;
-  const shareBox = (await share.boundingBox())!;
-  const copyBox = (await copy.boundingBox())!;
-  expect(trialBox.y).toBeGreaterThan(articleBox.y);
-  expect(trialBox.y + trialBox.height).toBeLessThanOrEqual(articleBox.y + articleBox.height);
-  expect(shareBox.y).toBeGreaterThan(trialBox.y + trialBox.height);
-  expect(copyBox.y).toBe(shareBox.y);
-  for (const box of [trialBox, shareBox, copyBox]) {
-    expect(box.width).toBeGreaterThanOrEqual(48);
-    expect(box.height).toBeGreaterThanOrEqual(48);
-  }
+
+  const tabletTrial = (await trial.boundingBox())!;
+  const tabletSample = (await sample.boundingBox())!;
+  const tabletDescription = (await description.boundingBox())!;
+  const introCard = (await page.locator('.set-detail-header').boundingBox())!;
+  const sampleCard = (await page.locator('.set-detail-sample').boundingBox())!;
+  expect(introCard.x).toBe(32);
+  expect(640 - sampleCard.x - sampleCard.width).toBe(32);
+  expect(tabletSample.x).toBeGreaterThan(tabletDescription.x + tabletDescription.width);
+  expect(tabletTrial.x).toBeGreaterThan(tabletDescription.x + tabletDescription.width);
+  expect(tabletTrial.y).toBeGreaterThan(tabletSample.y + tabletSample.height);
+
+  await page.setViewportSize({ width: 375, height: 667 });
+  await expect(trial).toBeInViewport({ ratio: 1 });
+  const sharing = (await share.boundingBox())!;
+  const copyLink = (await copy.boundingBox())!;
+  const phoneTrial = (await trial.boundingBox())!;
+  expect(copyLink.y).toBe(sharing.y);
+  expect(phoneTrial.y).toBeGreaterThan(sharing.y + sharing.height);
+  expect(phoneTrial.y + phoneTrial.height).toBeGreaterThan(600);
+  for (const control of [trial, share, copy]) await expectTouchTarget(control);
+
+  await page.setViewportSize({ width: 320, height: 568 });
+  await expect(trial.locator('..')).toHaveCSS('position', 'sticky');
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = '200%';
+  });
+  await expect(trial.locator('..')).toHaveCSS('position', 'static');
+  await copy.scrollIntoViewIfNeeded();
+  await expect(copy).toBeInViewport({ ratio: 1 });
 });
 
 test('Privacy and Terms pin the sign-in link only when the phone has room', async ({ page }) => {
@@ -55,10 +74,10 @@ test('Privacy and Terms pin the sign-in link only when the phone has room', asyn
   }
 });
 
-test('tablet trial keeps recall and rating controls within a compact card', async ({ page }) => {
+test('tablet trial keeps recall and rating controls close to the card', async ({ page }) => {
   await page.setViewportSize({ width: 768, height: 1024 });
   await page.goto('/sets/philippine-history/try');
-  const check = page.getByRole('button', { name: 'Check answer', exact: true });
+  const check = page.getByRole('button', { name: 'Show answer', exact: true });
   await expect(check).toBeVisible();
   await page.evaluate(() => document.fonts.ready);
   expect((await check.boundingBox())!.y).toBeLessThan(700);
@@ -79,7 +98,7 @@ test('landing action and study headings fit at 320 pixels with 200% text', async
   await expectWordOnOneLine(title, 'Review');
   await expectWordOnOneLine(title, 'before');
   await expectWordOnOneLine(page.getByText('Tomorrow', { exact: true }), 'Tomorrow');
-  const browse = page.getByRole('link', { name: 'Browse sets' });
+  const browse = page.getByRole('link', { name: 'Browse reviewers' });
   // Check the initial screen before click scrolls the link into view.
   await expect(browse).toBeInViewport({ ratio: 1 });
   await browse.click();
@@ -87,7 +106,7 @@ test('landing action and study headings fit at 320 pixels with 200% text', async
   await page.getByRole('link', { name: /^Philippine History/ }).click();
   await expectWordOnOneLine(page.getByRole('heading', { name: 'Philippine History' }), 'Philippine');
   await page.getByRole('link', { name: 'Try 5 cards' }).click();
-  await page.getByRole('button', { name: 'Check answer' }).click();
+  await page.getByRole('button', { name: 'Show answer' }).click();
   const answer = page.getByRole('heading', { name: 'Lapulapu, the chief of Mactan' });
   await expectWordOnOneLine(answer, 'Lapulapu,');
   await expectWordOnOneLine(answer, 'Mactan');
@@ -105,8 +124,11 @@ test('account help and trial source links offer a 48-pixel target', async ({ pag
   await page.goto('/register');
   await expectTouchTarget(page.getByRole('link', { name: 'Sign in', exact: true }));
   await page.goto('/sets/philippine-history/try');
-  await page.getByRole('button', { name: 'Check answer' }).click();
-  const source = page.getByRole('link', { name: 'NHCP historical marker' });
+  await page.getByRole('button', { name: 'Show answer' }).click();
+  const sourceButton = page.getByRole('button', { name: 'Source' });
+  await expectTouchTarget(sourceButton);
+  await sourceButton.click();
+  const source = page.getByRole('dialog', { name: 'Source' }).getByRole('link', { name: 'NHCP historical marker' });
   await expectTouchTarget(source);
   await expect(source).toBeInViewport({ ratio: 1 });
 });
@@ -118,8 +140,8 @@ test('invitation and guide text keep room for whole words at 320 pixels with 200
     document.documentElement.style.fontSize = '200%';
   });
   await expectWordOnOneLine(page.getByRole('heading', { name: 'You’ll need an invitation' }), 'invitation');
-  await page.getByRole('link', { name: 'Browse sets' }).click();
-  await expect(page.getByRole('heading', { name: 'Shared sets' })).toBeVisible();
+  await page.getByRole('link', { name: 'Browse reviewers' }).click();
+  await expect(page.getByRole('heading', { name: 'Reviewers' })).toBeVisible();
   await page.goto('/how-it-works');
   await page.evaluate(() => {
     document.documentElement.style.fontSize = '200%';
@@ -137,16 +159,21 @@ test('keyboard reveal and tabbing keep enlarged answers and ratings reachable wi
   for (const reducedMotion of ['no-preference', 'reduce'] as const) {
     await page.emulateMedia({ reducedMotion });
     await page.goto('/sets/philippine-history/try');
-    await page.evaluate(() => {
+    const show = page.getByRole('button', { name: 'Show answer', exact: true });
+    await expect(show).toBeVisible();
+    await page.evaluate(async () => {
       document.documentElement.style.fontSize = '200%';
+      await document.fonts.ready;
     });
-    await page.getByRole('button', { name: 'Check answer', exact: true }).focus();
+    await show.focus();
     await page.keyboard.press('Enter');
     const answer = page.getByRole('heading', { name: 'Lapulapu, the chief of Mactan' });
     await expect(answer).toBeFocused();
     await expect(answer).toBeInViewport({ ratio: 1 });
     await page.keyboard.press('Tab');
-    await expect(page.getByRole('link', { name: 'NHCP historical marker' })).toBeFocused();
+    await expect(page.getByRole('button', { name: 'Source' })).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(page.getByText('Card details', { exact: true })).toBeFocused();
     for (const rating of ['Missed', 'Hard', 'Good', 'Easy']) {
       await page.keyboard.press('Tab');
       const button = page.getByRole('button', { name: new RegExp(`^${rating}:`) });
@@ -180,7 +207,7 @@ test('rapid flip reversals start at the current angle on a narrow phone', async 
       return (Math.atan2(matrix.m31, matrix.m11) * 180) / Math.PI;
     }, progress);
 
-  await page.getByRole('button', { name: 'Check answer' }).press('Enter');
+  await page.getByRole('button', { name: 'Show answer' }).press('Enter');
   const turningToAnswer = await angleAt(0.7);
   expect(turningToAnswer).toBeGreaterThan(90);
   expect(turningToAnswer).toBeLessThan(178);
@@ -223,16 +250,16 @@ test('compact account controls remain reachable at supported widths', async ({ p
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
   }
   await expect(library).toHaveAttribute('href', '/library');
-  await expect(page.getByRole('link', { name: 'Browse sets', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Browse reviewers', exact: true })).toHaveCount(0);
   await expect(page.locator('a[href$="/try"]')).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: 'Try a practice set' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Try practice cards' })).toHaveCount(0);
   await signOut.press('Enter');
-  const dialog = page.getByRole('dialog', { name: 'Sign out of Revue?' });
-  await expect(dialog.getByRole('button', { name: 'Stay signed in' })).toBeFocused();
+  const prompt = page.getByRole('region', { name: 'Sign out of Revue?' });
+  await expect(prompt.getByRole('button', { name: 'Stay signed in' })).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(signOut).toBeFocused();
   await signOut.click();
-  await dialog.getByRole('button', { name: 'Sign out' }).click();
+  await prompt.getByRole('button', { name: 'Sign out' }).click();
   await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
 });
 
@@ -252,6 +279,7 @@ test('workspace navigation stays unique and reachable across layouts and enlarge
     [390, 844, '100%'],
     [640, 900, '100%'],
     [768, 1024, '100%'],
+    [1023, 900, '100%'],
     [1024, 768, '100%'],
     [1366, 900, '100%'],
     [320, 568, '200%'],
@@ -260,9 +288,13 @@ test('workspace navigation stays unique and reachable across layouts and enlarge
     await page.evaluate((size) => {
       document.documentElement.style.fontSize = size;
     }, textSize);
+    const tablet = width >= 640 && width < 1024;
+    const tabletHeaderPositions: number[][] = [];
+    const headingEdges: number[] = [];
     for (const [destination, title] of [
-      ['Account', 'Your account'],
       ['Library', 'Library'],
+      ['Browse', 'Reviewers'],
+      ['Account', 'Your account'],
       ['Help', 'Help'],
       ['Today', 'Your review'],
     ]) {
@@ -271,17 +303,71 @@ test('workspace navigation stays unique and reachable across layouts and enlarge
       await expectTouchTarget(link);
       await link.focus();
       await page.keyboard.press('Enter');
-      await expect(page.getByRole('heading', { name: title, exact: true })).toBeFocused();
+      const heading = page.getByRole('heading', { name: title, exact: true });
+      await expect(heading).toBeFocused();
+      headingEdges.push((await heading.boundingBox())!.x);
       if (destination === 'Help' && width < 1024) await expect(link).toHaveCount(0);
       else await expect(link).toHaveAttribute('aria-current', 'page');
       await expect(page.getByRole('navigation', { name: 'Your workspace' })).toHaveCount(1);
-      await expect(page.getByRole('link', { name: 'Browse sets', exact: true })).toHaveCount(0);
+      await expect(page.getByRole('link', { name: 'Browse reviewers', exact: true })).toHaveCount(0);
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
+
+      if (destination === 'Help' && width === 390) {
+        const back = page.getByRole('button', { name: 'Back', exact: true });
+        const contentTop = await page.getByRole('main').evaluate((main) => {
+          return main.getBoundingClientRect().top + Number.parseFloat(getComputedStyle(main).paddingTop);
+        });
+        expect((await back.boundingBox())!.y).toBeCloseTo(contentTop);
+        await expect(back).toHaveCSS('font-size', '16px');
+        await expect(back).toHaveCSS('color', 'rgb(55, 48, 163)');
+      }
+
+      if (tablet) {
+        const brand = page.getByRole('link', { name: 'Revue', exact: true });
+        const navigation = page.getByRole('navigation', { name: 'Your workspace' });
+        await expect(brand).toBeVisible();
+        const boxes = await Promise.all([brand, navigation].map((element) => element.boundingBox()));
+        expect(boxes[1]!.x).toBeCloseTo((await heading.boundingBox())!.x);
+        const tabs = await navigation.getByRole('link').evaluateAll((links) =>
+          links.map((tab) => {
+            const { x, y, width, height } = tab.getBoundingClientRect();
+            return [x, y, width, height];
+          }),
+        );
+        expect(tabs).toHaveLength(4);
+        for (const [, , tabWidth, tabHeight] of tabs) {
+          expect(tabWidth).toBe(tabs[0][2]);
+          expect(tabHeight).toBeGreaterThanOrEqual(48);
+        }
+        await expect
+          .poll(() => navigation.evaluate((element) => getComputedStyle(element, '::before').opacity))
+          .toBe(destination === 'Help' ? '0' : '1');
+        tabletHeaderPositions.push([...boxes.flatMap((box) => [box!.x, box!.y]), ...tabs.flat()]);
+      }
+
+      if (destination === 'Help' && width >= 768 && textSize === '100%') {
+        const [support, privacy, terms] = await Promise.all(
+          ['Contact support', 'Privacy notice', 'Terms'].map((name) =>
+            page.getByRole('link', { name, exact: true }).boundingBox(),
+          ),
+        );
+        expect(support!.y).toBeCloseTo(terms!.y);
+        expect(privacy!.x).toBeGreaterThan(support!.x);
+        expect(terms!.x).toBeGreaterThan(privacy!.x);
+      }
 
       if (destination === 'Account') {
         const signOut = page.getByRole('button', { name: 'Sign out', exact: true });
         await signOut.scrollIntoViewIfNeeded();
         await expect(signOut).toBeInViewport({ ratio: 1 });
+        if (width >= 768 && textSize === '100%') {
+          const daily = page.getByRole('heading', { name: 'Daily new cards' });
+          const choices = page.getByRole('group', { name: 'Daily new cards' });
+          await expect(choices).toBeVisible();
+          const [label, control] = await Promise.all([daily.boundingBox(), choices.boundingBox()]);
+          expect(control!.x).toBeGreaterThanOrEqual(label!.x + label!.width);
+          expect(control!.y).toBeLessThan(label!.y + label!.height);
+        }
         if (width === 390) {
           const navigation = (await page.getByRole('navigation', { name: 'Your workspace' }).boundingBox())!;
           const action = (await signOut.boundingBox())!;
@@ -290,10 +376,15 @@ test('workspace navigation stays unique and reachable across layouts and enlarge
       }
       await page.screenshot({ path: info.outputPath(`${destination.toLowerCase()}-${width}.png`), fullPage: true });
     }
+    for (const edge of headingEdges) expect(edge).toBeCloseTo(headingEdges[0]);
+    if (tablet) {
+      expect(tabletHeaderPositions).toHaveLength(5);
+      for (const header of tabletHeaderPositions) expect(header).toEqual(tabletHeaderPositions[0]);
+    }
   }
 });
 
-test('the phone tab bar stays at the bottom of the screen while a long page scrolls', async ({ page, pilot }) => {
+test('the floating phone navigation stays above the bottom edge while a long page scrolls', async ({ page, pilot }) => {
   const screen = { width: 390, height: 420 };
   await page.setViewportSize(screen);
   await page.goto(pilot.signupUrl);
@@ -307,6 +398,13 @@ test('the phone tab bar stays at the bottom of the screen while a long page scro
   const signOut = page.getByRole('button', { name: 'Sign out', exact: true });
   await expect(signOut).toBeVisible();
   const bar = page.getByRole('navigation', { name: 'Your workspace' });
+  await expect(page.locator('#root')).toHaveCSS('padding-block-start', '0px');
+  await expect(page.locator('html')).toHaveCSS('overscroll-behavior-y', 'auto');
+  await expect(bar.getByRole('link', { name: 'Account' })).toHaveAttribute('aria-current', 'page');
+  await expect(bar.getByText('Account', { exact: true })).toHaveCSS('opacity', '1');
+  await expect(bar.getByText('Library', { exact: true })).toHaveCSS('opacity', '0');
+  await expectTouchTarget(bar.getByRole('link', { name: 'Library' }));
+  expect((await bar.boundingBox())!.width).toBeLessThan(screen.width);
   const barBottom = async () => {
     const box = (await bar.boundingBox())!;
     return Math.round(box.y + box.height);
@@ -321,7 +419,7 @@ test('the phone tab bar stays at the bottom of the screen while a long page scro
       await page.evaluate((target) => {
         window.scrollTo({ top: target === 'top' ? 0 : document.documentElement.scrollHeight, behavior: 'instant' });
       }, edge);
-      expect(await barBottom()).toBe(screen.height);
+      expect(await barBottom()).toBe(screen.height - 8);
     }
     await signOut.scrollIntoViewIfNeeded();
     const action = (await signOut.boundingBox())!;

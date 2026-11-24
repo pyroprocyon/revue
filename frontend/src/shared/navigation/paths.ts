@@ -34,6 +34,7 @@ export const PRIVACY_PATH = '/privacy';
 export const TERMS_PATH = '/terms';
 
 export const LIBRARY_PATH = '/library';
+export const PUBLISHED_PATH = '/published';
 export const NEW_DECK_PATH = '/library/decks/new';
 export const DECK_ROUTE = '/library/decks/:deckId';
 
@@ -52,4 +53,13 @@ export function isReviewTopic(topic: string | undefined): topic is string {
 
 export function reviewTopicPath(topic: string, includeNew = false): string {
   return `${REVIEW_PATH}/${topic}${includeNew ? '/start' : ''}`;
+}
+
+export function savedSetListParams(params: URLSearchParams) {
+  const updated = new URLSearchParams(params);
+  updated.delete('set');
+  updated.delete('cardQuery');
+  updated.delete('cardDue');
+  updated.delete('cardAfter');
+  return updated;
 }

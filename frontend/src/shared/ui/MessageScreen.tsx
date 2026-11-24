@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { LoaderCircle } from 'lucide-react';
 import { HomeLink } from './HeaderLinks';
+import { LoadingPlaceholder, LoadingStatus } from './LoadingFeedback';
 import { PageLayout } from './PageLayout';
 import { useFocusOnMount } from './useFocusOnMount';
 import { WhenSlow } from './WhenSlow';
@@ -32,21 +32,23 @@ export function MessageScreen({ title, icon, action, children }: Readonly<Messag
 }
 
 export function SessionCheckScreen() {
-  return <LoadingScreen text="Checking your session…" />;
+  return (
+    <PageLayout top={<HomeLink />}>
+      <WhenSlow>
+        <LoadingStatus className="my-3">Checking your session…</LoadingStatus>
+      </WhenSlow>
+    </PageLayout>
+  );
 }
 
 export function LoadingScreen({ text }: Readonly<{ text: string }>) {
   return (
-    <WhenSlow>
-      <PageLayout top={<HomeLink />}>
-        <output className="my-6 flex items-center gap-3 rounded-card bg-surface px-compact-gutter py-4 text-body text-muted shadow-card sm:p-6">
-          <LoaderCircle
-            aria-hidden="true"
-            className="size-6 shrink-0 animate-spin text-accent motion-reduce:animate-none"
-          />
-          <span>{text}</span>
-        </output>
-      </PageLayout>
-    </WhenSlow>
+    <PageLayout top={<HomeLink />}>
+      <WhenSlow>
+        <LoadingPlaceholder kind="study" className="my-3">
+          {text}
+        </LoadingPlaceholder>
+      </WhenSlow>
+    </PageLayout>
   );
 }

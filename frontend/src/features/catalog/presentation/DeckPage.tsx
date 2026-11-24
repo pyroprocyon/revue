@@ -1,4 +1,4 @@
-import { Pencil, Trash2 } from 'lucide-react';
+import { Pencil } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useDeckDraftGuard, useHasUnsavedDeckChanges } from './UnsavedDeckChanges';
 import {
@@ -8,7 +8,6 @@ import {
   useId,
   useRef,
   useState,
-  type CSSProperties,
   type ReactNode,
   type Ref,
   type RefObject,
@@ -20,8 +19,9 @@ import { CardForm, draftOf } from './CardForm';
 import { CardPreview } from './CardPreview';
 import { CardScreen, type CardControls } from './CardScreen';
 import { CreateDeckSteps } from './CreateDeckSteps';
-import { ConfirmDelete } from './ConfirmDelete';
+import { InlineCardDelete } from './InlineCardDelete';
 import { DeckCardList } from './DeckCardList';
+import { belowToolbar, cardPaneGutters, onePane, paneBelowStickyToolbar, twoPanes } from './cardBrowserLayout';
 import { MoreCards } from './MoreCards';
 import { useDeckGateway } from './DeckProvider';
 import { DeckSettings } from './DeckSettings';
@@ -45,6 +45,7 @@ import { PageControls } from '../../../shared/ui/PageControls';
 import { primaryButton, secondaryButton } from '../../../shared/ui/buttonStyles';
 import { NavigationLink } from '../../../shared/ui/NavigationLink';
 import { WhenSlow } from '../../../shared/ui/WhenSlow';
+import { LoadingPlaceholder, LoadingStatus } from '../../../shared/ui/LoadingFeedback';
 import { WorkspacePage } from '../../../shared/ui/WorkspacePage';
 import { DECKS_UNAVAILABLE_TEXT, decksUnavailable } from './decksUnavailable';
 
@@ -77,9 +78,12 @@ export function DeckPage() {
       .find(([, cached]) => cached)?.[1]?.pages[0];
   const deck = page?.deck;
   const onEarlier = after === undefined ? undefined : previousPage;
-  const feedback = <DeckLoadFeedback cards={cards} term={term} deckIsGone={deckIsGone} />;
+  const feedback = <DeckLoadFeedback cards={cards} term={term} deckIsGone={deckIsGone} inline={Boolean(page)} />;
 
   if (page && deck && (!deckIsGone || hasDrafts)) {
+    const filter = (dueOnly || (!deck.archived && page.progress.dueCards > 0)) && (
+      <DueFilter dueOnly={dueOnly} onChange={showDue} />
+    );
     return (
       <DeckContent
         key={`${profile.username}:${deckId}`}
@@ -90,7 +94,7 @@ export function DeckPage() {
         {...loadedCards(deck, cards.data?.pages)}
         refreshing={cards.isFetching}
         dueOnly={dueOnly}
-        onDueOnly={showDue}
+        filter={filter}
         unavailable={deckIsGone}
         view={params.toString()}
         term={term}
@@ -150,11 +154,17 @@ function DeckLoadFeedback({
   cards,
   term,
   deckIsGone,
-}: Readonly<{ cards: ReturnType<typeof useDeckCards>; term: string; deckIsGone: boolean }>) {
+  inline,
+}: Readonly<{ cards: ReturnType<typeof useDeckCards>; term: string; deckIsGone: boolean; inline: boolean }>) {
   if (cards.isPending) {
+    const loadingLabel = term ? 'Searching cards…' : 'Loading your deck…';
     return (
       <WhenSlow>
-        <output className="block">{term ? 'Searching cards…' : 'Loading your deck…'}</output>
+        {inline ? (
+          <LoadingStatus>{loadingLabel}</LoadingStatus>
+        ) : (
+          <LoadingPlaceholder kind="rows">{loadingLabel}</LoadingPlaceholder>
+        )}
       </WhenSlow>
     );
   }
@@ -221,7 +231,7 @@ type DeckContentProps = {
   dueCardIds: string[];
   refreshing: boolean;
   dueOnly: boolean;
-  onDueOnly: (dueOnly: boolean) => void;
+  filter: ReactNode;
   unavailable: boolean;
   items: DeckCard[] | undefined;
   view: string;
@@ -240,7 +250,7 @@ function DeckContent({
   dueCardIds,
   refreshing,
   dueOnly,
-  onDueOnly,
+  filter,
   unavailable,
   items,
   view,
@@ -252,6 +262,7 @@ function DeckContent({
 }: Readonly<DeckContentProps>) {
   const addWrite = useDeckWrite();
   const editWrite = useDeckWrite();
+  const deleteWrite = useDeckWrite();
   const archiveWrite = useDeckWrite();
   const gateway = useDeckGateway();
   const client = useQueryClient();
@@ -291,6 +302,12 @@ function DeckContent({
   useEffect(() => {
     openForm.current = form;
   });
+
+  useEffect(() => {
+    if (deleteWrite.state.status === 'failed' && deleteWrite.state.reason === 'signed-out') {
+      void navigate(signInPath(LIBRARY_PATH), { replace: true });
+    }
+  }, [deleteWrite.state, navigate]);
 
   // Back, Forward and reload must not open the first card again, so the page keeps the flag and the entry drops it.
   useEffect(() => {
@@ -431,7 +448,8 @@ function DeckContent({
     void editWrite.run(
       () => gateway.editCard(card.id, draft, card.contentVersion),
       async (edited) => {
-        await applyCardChange(card.id, edited);
+        await updateCachedCards(client, deckKeys.cardPages(username, deck.id), card.id, edited);
+        setNotice('Card saved.');
         finishEdit(openingId, edited);
       },
       () => stillOpen(openingId),
@@ -478,16 +496,23 @@ function DeckContent({
     },
   };
 
-  async function applyCardChange(cardId: string, edited?: DeckCard) {
-    if (!edited) {
-      // Focus moves to the card that takes the deleted one's place, so the list keeps its scroll position.
-      const neighbor = cardAfterDeletion(listed, cardId);
-      pendingFocus.current = neighbor ? { row: neighbor } : 'results';
-      setSelectedId(neighbor);
-      setSheetCard(null);
-    }
-    await updateCachedCards(client, deckKeys.cardPages(username, deck.id), cardId, edited);
-    setNotice(edited ? 'Card saved.' : 'Card deleted.');
+  function deleteCard(cardId: string, confirmation: HTMLFormElement) {
+    void deleteWrite.run(
+      () => gateway.removeCard(cardId),
+      async () => {
+        if (confirmation.isConnected) {
+          const neighbor = cardAfterDeletion(listed, cardId);
+          if (confirmation.contains(document.activeElement) || document.activeElement === document.body) {
+            pendingFocus.current = neighbor ? { row: neighbor } : 'results';
+          }
+          setSelectedId(neighbor);
+        }
+        setSheetCard((shown) => (shown?.id === cardId ? null : shown));
+        await updateCachedCards(client, deckKeys.cardPages(username, deck.id), cardId);
+        setNotice('Card deleted.');
+      },
+      () => confirmation.isConnected,
+    );
   }
 
   const addForm = form?.kind === 'add' && (
@@ -548,17 +573,20 @@ function DeckContent({
         ref={place === 'pane' ? editButton : undefined}
         questionId={questionId}
         place={place}
+        disabled={deleteWrite.saving}
         onEdit={() => startEdit(card)}
       />
     ),
     remove: (
-      <DeleteCard
-        key={card.id}
-        card={card}
-        questionId={questionId}
-        place={place}
-        onDeleted={() => applyCardChange(card.id)}
-      />
+      <div className="mt-5 border-t border-line pt-4">
+        <InlineCardDelete
+          key={card.id}
+          questionId={questionId}
+          writeState={deleteWrite.state}
+          onOpen={deleteWrite.clearProblem}
+          onDelete={(confirmation) => deleteCard(card.id, confirmation)}
+        />
+      </div>
     ),
   });
 
@@ -568,6 +596,7 @@ function DeckContent({
       focusHeading={!firstCardFormOpensOnEntry}
       {...deckHeading(openedRightAfterCreate && firstCard, deck, progress)}
     >
+      {openedRightAfterCreate && firstCard && <CreateDeckSteps current={2} />}
       {showDeckTools && (
         <DeckToolbar
           wide={wide}
@@ -587,6 +616,7 @@ function DeckContent({
             onToggle: settingsOpen ? closeSettings : openSettings,
           }}
           settingsButton={settingsButton}
+          filter={!wide && filter}
           pagination={wide && pagination}
           stickyBottom={toolbarBottom}
           onHeldBottomChange={setToolbarBottom}
@@ -606,9 +636,7 @@ function DeckContent({
           emptyMessage: emptyMessage(items, term, Boolean(pagination), dueOnly),
           onOpen: openCard,
           results,
-          filter: (dueOnly || (!deck.archived && progress.dueCards > 0)) && (
-            <DueFilter dueOnly={dueOnly} onChange={onDueOnly} />
-          ),
+          filter: (wide || !showDeckTools) && filter,
         }}
         moreCards={wide || unavailable ? null : moreCards}
         selected={settingsOpen ? null : selected}
@@ -625,27 +653,13 @@ function DeckContent({
 }
 
 const backToLibrary = (
-  <NavigationLink
-    to={LIBRARY_PATH}
-    back
-    aria-label="Back to Library"
-    className="workspace-page-back -mt-2 -ml-2 mb-1 text-label"
-  >
+  <NavigationLink to={LIBRARY_PATH} back aria-label="Back to Library" className="workspace-page-back -mt-2 -ml-2 mb-1">
     Library
   </NavigationLink>
 );
 
 function deckHeading(firstCardAfterCreate: boolean, deck: Deck, progress: DeckProgress) {
-  if (firstCardAfterCreate) {
-    return {
-      aboveTitle: (
-        <>
-          {backToLibrary}
-          <CreateDeckSteps current={2} />
-        </>
-      ),
-    };
-  }
+  if (firstCardAfterCreate) return { aboveTitle: backToLibrary };
   return { aboveTitle: backToLibrary, subtitle: <DeckStatus deck={deck} progress={progress} /> };
 }
 
@@ -676,10 +690,6 @@ function focusElement(target: FocusTarget, elements: FocusElements) {
   if (typeof target === 'object') return document.querySelector<HTMLElement>(`[data-card-row="${target.row}"]`);
   return elements[target].current;
 }
-
-const twoPanes =
-  'mt-2 grid grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] items-start gap-4 @min-[60rem]:grid-cols-[minmax(22rem,26rem)_minmax(0,1fr)] @min-[60rem]:gap-6';
-const onePane = 'mt-2 grid gap-3';
 
 function cardAfterDeletion(cards: DeckCard[], cardId: string) {
   const index = cards.findIndex((card) => card.id === cardId);
@@ -876,8 +886,8 @@ function PhoneCardScreen({
       )}
       <div className="rounded-card bg-surface p-5 shadow-card">
         <CardPreview card={card} questionId={questionId} due={due} questionRef={question} />
+        {remove}
       </div>
-      <div className="mt-4">{remove}</div>
     </CardScreen>
   );
 }
@@ -891,12 +901,6 @@ type CardPaneProps = {
   controls: (card: DeckCard, questionId: string, place: ControlPlace) => CardControls;
 };
 
-const belowToolbar = (toolbarBottom: number | null) =>
-  toolbarBottom === null ? undefined : ({ '--deck-toolbar-bottom': `${toolbarBottom}px` } as CSSProperties);
-
-const paneBelowStickyToolbar =
-  'sticky top-[calc(var(--deck-toolbar-bottom)_+_0.5rem)] max-h-[calc(100dvh_-_var(--deck-toolbar-bottom)_-_1.5rem)] min-w-0 overflow-y-auto';
-
 function CardPane({ sticky, form, settings, settingsId, card, controls }: Readonly<CardPaneProps>) {
   const paneStyle = sticky ? paneBelowStickyToolbar : 'min-w-0';
   const questionId = useId();
@@ -906,7 +910,7 @@ function CardPane({ sticky, form, settings, settingsId, card, controls }: Readon
       <section
         id={settingsId}
         aria-label="Deck settings"
-        className={`${paneStyle} rounded-card bg-surface p-5 shadow-card @min-[60rem]:px-8`}
+        className={`${paneStyle} ${cardPaneGutters} rounded-card bg-surface py-5 shadow-card`}
       >
         {settings}
       </section>
@@ -916,13 +920,10 @@ function CardPane({ sticky, form, settings, settingsId, card, controls }: Readon
   const { edit, remove } = controls(card, questionId, 'pane');
   return (
     <section aria-label="Selected card" className={`${paneStyle} rounded-card bg-surface shadow-card`}>
-      {/* Edit and Delete lead the pane, so they are on screen even when a long card runs past the fold. */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-line px-5 py-3 @min-[60rem]:px-8">
-        {edit}
-        {remove}
-      </div>
-      <div className="px-5 pt-2 pb-5 @min-[60rem]:px-8">
+      <div className={`${cardPaneGutters} flex border-b border-line py-3`}>{edit}</div>
+      <div className={`${cardPaneGutters} pt-2 pb-5`}>
         <CardPreview card={card} questionId={questionId} />
+        {remove}
       </div>
     </section>
   );
@@ -938,56 +939,22 @@ type EditCardButtonProps = {
   ref?: Ref<HTMLButtonElement>;
   questionId: string;
   place: ControlPlace;
+  disabled: boolean;
   onEdit: () => void;
 };
 
-function EditCardButton({ ref, questionId, place, onEdit }: Readonly<EditCardButtonProps>) {
+function EditCardButton({ ref, questionId, place, disabled, onEdit }: Readonly<EditCardButtonProps>) {
   return (
-    <button ref={ref} type="button" aria-describedby={questionId} className={editButtonStyle[place]} onClick={onEdit}>
+    <button
+      ref={ref}
+      type="button"
+      aria-describedby={questionId}
+      className={`${editButtonStyle[place]} disabled:cursor-wait disabled:opacity-60`}
+      disabled={disabled}
+      onClick={onEdit}
+    >
       <Pencil aria-hidden="true" className="size-[1.125em] shrink-0" />
       Edit card
     </button>
-  );
-}
-
-const deleteButtonStyle: Record<ControlPlace, string | undefined> = {
-  pane: undefined,
-  screen:
-    'pressable inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-control px-3 text-label font-semibold text-missed',
-};
-
-type DeleteCardProps = {
-  card: DeckCard;
-  questionId: string;
-  place: ControlPlace;
-  onDeleted: () => Promise<void>;
-};
-
-function DeleteCard({ card, questionId, place, onDeleted }: Readonly<DeleteCardProps>) {
-  const gateway = useDeckGateway();
-  const write = useDeckWrite();
-  return (
-    <ConfirmDelete
-      describedBy={questionId}
-      triggerLabel="Delete"
-      triggerIcon={Trash2}
-      triggerClassName={deleteButtonStyle[place]}
-      subject={card.question}
-      warning="This permanently removes the card and its review progress."
-      keepLabel="Keep card"
-      confirmLabel="Delete card"
-      deleting={write.saving}
-      problem={<DeckWriteProblem state={write.state} />}
-      onOpen={write.clearProblem}
-      onConfirm={(close) =>
-        void write.run(
-          () => gateway.removeCard(card.id),
-          async () => {
-            close();
-            await onDeleted();
-          },
-        )
-      }
-    />
   );
 }

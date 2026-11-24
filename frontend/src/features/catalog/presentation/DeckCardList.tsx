@@ -57,7 +57,9 @@ export function DeckCardList({
       {cards.length > 0 && (
         <ul
           aria-label="Cards"
-          className="@container/cards grid divide-y divide-line rounded-card bg-surface p-1 shadow-control"
+          data-due-column={dotColumn || undefined}
+          data-wide={wide || undefined}
+          className="deck-card-list @container/cards grid rounded-card bg-surface p-1 shadow-control"
         >
           {cards.map((card) => (
             <li key={card.id} className="grid min-w-0">
@@ -108,11 +110,16 @@ function CardRow({ card, due, dotColumn, wide, selected, tabStop, keysHintId, on
       aria-haspopup={wide ? undefined : 'dialog'}
       onClick={() => onOpen(card)}
       onKeyDown={wide ? moveSelection : undefined}
-      className={`group pressable relative my-0.5 grid min-h-[48px] w-full scroll-mt-[calc(var(--deck-toolbar-bottom,0px)_+_0.5rem)] items-center gap-3 rounded-[calc(var(--radius-card)-0.25rem)] py-3 pr-2 pl-3.5 text-left aria-pressed:bg-accent-soft aria-pressed:before:absolute aria-pressed:before:inset-y-3 aria-pressed:before:left-0 aria-pressed:before:w-[3px] aria-pressed:before:rounded-full aria-pressed:before:bg-accent @max-[20rem]/cards:grid-cols-1 @max-[20rem]/cards:pr-3.5 ${wide ? 'grid-cols-1' : 'grid-cols-[minmax(0,1fr)_auto]'}`}
+      className={`deck-card-row group pressable relative my-0.5 grid min-h-[48px] w-full scroll-mt-[calc(var(--deck-toolbar-bottom,0px)_+_0.5rem)] items-center gap-3 rounded-[calc(var(--radius-card)-0.25rem)] py-3 text-start aria-pressed:bg-accent-soft aria-pressed:before:absolute aria-pressed:before:inset-y-3 aria-pressed:before:left-0 aria-pressed:before:w-[3px] aria-pressed:before:rounded-full aria-pressed:before:bg-accent @max-[20rem]/cards:grid-cols-1 ${wide ? 'grid-cols-1' : 'grid-cols-[minmax(0,1fr)_auto]'}`}
     >
-      <span className={`grid min-w-0 gap-x-2 ${dotColumn ? 'grid-cols-[0.5rem_minmax(0,1fr)]' : 'grid-cols-1'}`}>
+      <span
+        className={`grid min-w-0 gap-x-(--card-due-size) ${dotColumn ? 'grid-cols-[var(--card-due-size)_minmax(0,1fr)]' : 'grid-cols-1'}`}
+      >
         {dotColumn && (
-          <span aria-hidden="true" className={`size-2 self-center rounded-full ${due ? 'bg-highlight' : ''}`} />
+          <span
+            aria-hidden="true"
+            className={`size-(--card-due-size) self-center rounded-full ${due ? 'bg-due' : ''}`}
+          />
         )}
         <span className="min-w-0">
           <span className="line-clamp-2 text-label font-semibold whitespace-pre-line wrap-anywhere group-aria-pressed:text-accent-strong @min-[20rem]/workspace:@max-[20rem]/cards:line-clamp-3 @max-[20rem]/workspace:line-clamp-5">

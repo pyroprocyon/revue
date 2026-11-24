@@ -6,6 +6,8 @@ import { TextField } from './TextField';
 import { primaryButton, secondaryButton } from '../../../shared/ui/buttonStyles';
 
 type DeckTitleFormProps = {
+  className?: string;
+  intro?: ReactNode;
   title: string;
   onTitleChange: (title: string) => void;
   initialTitle?: string;
@@ -22,6 +24,8 @@ type DeckTitleFormProps = {
 };
 
 export function DeckTitleForm({
+  className = '',
+  intro,
   title,
   onTitleChange,
   initialTitle = '',
@@ -48,21 +52,26 @@ export function DeckTitleForm({
   }
 
   return (
-    <form onInput={firstInput} onSubmit={submit} aria-busy={saving} className="grid gap-4">
+    <form onInput={firstInput} onSubmit={submit} aria-busy={saving} className={className}>
       <fieldset disabled={saving} className="grid min-w-0 gap-4">
-        <TextField
-          label="Name"
-          note={note}
-          placeholder={placeholder}
-          value={title}
-          onChange={onTitleChange}
-          maxLength={DECK_TITLE_MAX_LENGTH}
-        />
-        {titleTooLong && (
-          <p className="text-support text-muted">Shorten the name to {DECK_TITLE_MAX_LENGTH} characters to save it.</p>
-        )}
-        {problem}
-        <div className="flex flex-wrap gap-3 empty:hidden">
+        <div className="deck-title-form-fields grid min-w-0 gap-4">
+          {intro}
+          <TextField
+            label="Name"
+            note={note}
+            placeholder={placeholder}
+            value={title}
+            onChange={onTitleChange}
+            maxLength={DECK_TITLE_MAX_LENGTH}
+          />
+          {titleTooLong && (
+            <p className="text-support text-muted">
+              Shorten the name to {DECK_TITLE_MAX_LENGTH} characters to save it.
+            </p>
+          )}
+          {problem}
+        </div>
+        <div className="deck-title-form-actions flex flex-wrap gap-3 empty:hidden">
           {(!saveOnlyWhenChanged || title !== initialTitle) && (
             <button type="submit" className={`${primaryButton} ${sharedRow}`} disabled={saving || titleTooLong}>
               {saving ? savingLabel : saveLabel}

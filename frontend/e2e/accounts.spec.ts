@@ -154,14 +154,11 @@ test('wrong and unknown credentials give the same error and a learner can retry'
   await expect(page.getByText(name, { exact: true })).toBeVisible();
 });
 
-test('repeated Escape closes a slow sign-out, and Sign out still works after that request fails', async ({
-  page,
-  pilot,
-}) => {
+test('inline sign-out stays open while pending and can be retried after an error', async ({ page, pilot }) => {
   await page.goto(pilot.signupUrl);
   await register(page, username());
   const trigger = page.getByRole('button', { name: 'Sign out', exact: true });
-  const dialog = page.getByRole('dialog', { name: 'Sign out of Revue?' });
+  const prompt = page.getByRole('region', { name: 'Sign out of Revue?' });
   let release!: () => void;
   const held = new Promise<void>((resolve) => {
     release = resolve;
@@ -176,20 +173,18 @@ test('repeated Escape closes a slow sign-out, and Sign out still works after tha
   );
 
   await trigger.click();
-  await dialog.getByRole('button', { name: 'Sign out', exact: true }).click();
+  await prompt.getByRole('button', { name: 'Sign out', exact: true }).click();
   await page.keyboard.press('Escape');
-  await expect(dialog.getByRole('button', { name: 'Signing out…' })).toBeVisible();
-  await expect(async () => {
-    await page.keyboard.press('Escape');
-    await expect(dialog).toBeHidden({ timeout: 250 });
-  }).toPass({ timeout: 5_000 });
-  await expect(trigger).toBeFocused();
+  await expect(prompt.getByRole('button', { name: 'Signing out…' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(prompt).toBeVisible();
+  await expect(prompt.getByRole('button', { name: 'Stay signed in' })).toBeDisabled();
 
   const failed = page.waitForEvent('requestfailed', (request) => request.url().endsWith('/api/v1/auth/logout'));
   release();
   await failed;
-  await trigger.click();
-  await dialog.getByRole('button', { name: 'Sign out', exact: true }).click();
+  await expect(prompt.getByRole('alert')).toContainText('Please try again.');
+  await prompt.getByRole('button', { name: 'Sign out', exact: true }).click();
   await expect(page).toHaveURL(/\/sign-in$/);
 });
 
@@ -359,6 +354,7 @@ test.describe('workspace touch navigation', () => {
   }) => {
     await page.goto(pilot.signupUrl);
     await register(page, username());
+    await expect(page.locator('html')).toHaveCSS('overscroll-behavior-y', 'none');
     let checks = 0;
     let release!: () => void;
     let pending = new Promise<void>((resolve) => {
@@ -528,7 +524,7 @@ test('a short public share opens the intended set and its trial without signing 
   expect((await page.request.get('/api/v1/me')).status()).toBe(401);
   await page.getByRole('link', { name: /Try 5 cards/ }).click();
   await expect(page).toHaveURL(/\/sets\/philippine-history\/try$/);
-  await expect(page.getByRole('button', { name: 'Check answer' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Show answer' })).toBeVisible();
 });
 
 test('signup checks the confirmation locally and sends only one password after correction', async ({ page, pilot }) => {
@@ -578,7 +574,7 @@ test('signed-in navigation keeps every public route connected to Today', async (
   const history = sets.find((set) => set.setKey === 'philippine-history')!;
   const preview = '/sets/philippine-history';
   for (const [route, heading] of [
-    ['/sets', 'Shared sets'],
+    ['/sets', 'Reviewers'],
     [preview, 'Philippine History'],
     [`/s/${history.shareCode}`, 'Philippine History'],
     ['/how-it-works', 'How spaced repetition works'],
@@ -599,6 +595,10 @@ test('signed-in navigation keeps every public route connected to Today', async (
     await page.getByRole('link', { name: destination, exact: true }).click();
     await expect(page.getByRole('link', { name: 'Privacy', exact: true })).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Terms', exact: true })).toHaveCount(0);
+    if (destination === 'Library') {
+      await expect(page.getByRole('link', { name: 'Help', exact: true })).toBeHidden();
+      await page.setViewportSize({ width: 768, height: 1024 });
+    }
     await page.getByRole('link', { name: 'Help', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Help', exact: true })).toBeFocused();
     await expect(page.getByRole('link', { name: 'Contact support' })).toBeVisible();
@@ -623,7 +623,7 @@ test('signed-in navigation keeps every public route connected to Today', async (
   await expect(page.getByRole('button', { name: 'Save to Library' })).toHaveCount(0);
   await page.getByRole('link', { name: 'Try 5 cards' }).click();
   for (let index = 0; index < 5; index++) {
-    await page.getByRole('button', { name: 'Check answer' }).click();
+    await page.getByRole('button', { name: 'Show answer' }).click();
     await page.getByRole('button', { name: /^Good:/ }).click();
   }
   await expect(page.getByRole('heading', { name: 'You practiced 5 cards.' })).toBeVisible();

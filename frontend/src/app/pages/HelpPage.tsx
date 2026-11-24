@@ -9,10 +9,9 @@ import { SessionCheckScreen } from '../../shared/ui/MessageScreen';
 import { useFocusOnMount } from '../../shared/ui/useFocusOnMount';
 import { WorkspaceLayout } from '../../shared/ui/WorkspaceLayout';
 import { ArrowUpRight, ChevronRight, FileText, Mail, ShieldCheck } from 'lucide-react';
-import { HomeScreenHelp } from './HomeScreenHelp';
 
 const helpLink = 'help-directory-row pressable';
-const helpIcon = '@max-[16rem]/help:hidden size-9 shrink-0 rounded-xl bg-accent-soft/60 p-2 text-accent-strong';
+const helpIcon = 'size-9 shrink-0 rounded-xl bg-subtle/70 p-2 text-muted @max-[16rem]/help:hidden';
 const linkArrow = 'size-4 shrink-0 text-muted';
 
 export function HelpPage() {
@@ -39,18 +38,22 @@ function HelpContent({ signedIn }: Readonly<{ signedIn: boolean }>) {
   const headingFocus = useFocusOnMount<HTMLHeadingElement>();
 
   return (
-    <section className={signedIn ? '' : 'py-6 sm:py-8'}>
-      {/* A back control above a title keeps its 48 px target but starts in the page's top padding. */}
-      <BackButton label="Back" fallbackPath={signedIn ? TODAY_PATH : HOME_PATH} className="-mt-3" />
-      <h1 {...headingFocus} className="text-title font-extrabold tracking-tight outline-none lg:text-title-lg">
-        Help
-      </h1>
+    <section className={signedIn ? 'workspace-page' : 'py-6 sm:py-8'}>
+      <div className={signedIn ? 'workspace-page-header' : undefined}>
+        <BackButton
+          label="Back"
+          fallbackPath={signedIn ? TODAY_PATH : HOME_PATH}
+          className={signedIn ? '@min-[40rem]/workspace:-mt-3' : ''}
+        />
+        <h1 {...headingFocus} className="text-title font-extrabold tracking-tight outline-none lg:text-title-lg">
+          Help
+        </h1>
+      </div>
       <nav
         aria-label="Help and policies"
-        className="@container/help mt-[1.125rem] max-w-[40.625rem] overflow-hidden rounded-[1.25rem] border border-line bg-surface shadow-xs lg:mt-6"
+        className={`@container/help mt-[1.125rem] grid max-w-[40.625rem] gap-3 lg:mt-6${signedIn ? ' workspace-help-directory' : ''}`}
       >
-        <HomeScreenHelp />
-        <div className="mx-3.5 @max-[16rem]/help:mx-2 divide-y divide-line lg:mx-[1.375rem]">
+        <div className="help-directory-links rounded-[1.25rem] border border-line bg-surface p-1.5">
           <SupportLink className={helpLink}>
             <Mail aria-hidden="true" className={helpIcon} />
             <span className="flex-1">Contact support</span>

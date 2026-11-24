@@ -16,7 +16,7 @@ export function CreateDeckSteps({ current }: Readonly<{ current: 1 | 2 }>) {
           >
             <span aria-hidden="true" className={`h-1.5 rounded-full ${step <= current ? 'bg-accent' : 'bg-subtle'}`} />
             <span className="flex items-center gap-1">
-              {done && <Check aria-hidden="true" className="size-4 shrink-0 text-good" />}
+              {done && <Check aria-hidden="true" className="size-4 shrink-0 text-success" />}
               {label}
               {done && <span className="sr-only">, done</span>}
             </span>

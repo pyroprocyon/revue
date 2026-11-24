@@ -54,7 +54,8 @@ function api({
     if (path === '/api/v1/me') return jsonResponse(200, { username: 'learner' });
     if (path === '/api/v1/auth/csrf')
       return jsonResponse(200, { token: 'csrf', headerName: 'X-XSRF-TOKEN', username: 'learner' });
-    if (path === '/api/v1/me/saved-sets') return jsonResponse(200, { items: [], nextCursor: null });
+    if (path === '/api/v1/me/saved-sets?limit=50&paused=false')
+      return jsonResponse(200, { items: [], nextCursor: null });
     if (path.split('?')[0] === '/api/v1/cards/due') return jsonResponse(200, emptyQueue);
     const deck = { id: '7', title: deckTitle, cardCount: stored.length, archived };
     if (method === 'GET') {
@@ -250,15 +251,17 @@ describe('personal decks', () => {
   it('keeps paused decks under Paused and points a search to them', async () => {
     api({ pausedDeck: true });
     renderApp('/library');
-    const showDecks = await screen.findByRole('group', { name: 'Show decks' });
+    fireEvent.click(await screen.findByRole('button', { name: 'Review status: Active' }));
+    const showDecks = screen.getByRole('group', { name: 'Show decks' });
     expect(within(showDecks).getByRole('button', { name: 'Active 1' }).getAttribute('aria-pressed')).toBe('true');
     expect(screen.queryByRole('link', { name: 'Open Physics past exam' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Review status: Active' }));
 
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search decks' }), { target: { value: 'physics' } });
     expect(await screen.findByText('No active decks match. 1 paused deck matches.')).toBeDefined();
     fireEvent.click(screen.getByRole('button', { name: 'Show paused decks' }));
 
-    expect(within(showDecks).getByRole('button', { name: 'Paused 1' }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Review status: Paused' })).toBeDefined();
     expect(screen.getAllByRole('link', { name: 'Open Physics past exam' }).length).toBeGreaterThan(0);
   });
 
@@ -298,7 +301,7 @@ describe('personal decks', () => {
     api({ paused: true, cards: [osmosis] });
     renderApp(`${deckPage}?due=1`);
     expect(await screen.findByText('No cards are due.')).toBeDefined();
-    fireEvent.click(screen.getByRole('button', { name: 'All' }));
+    fireEvent.click(screen.getByRole('button', { name: 'All cards' }));
     expect(await screen.findByRole('button', { name: /What is osmosis/ })).toBeDefined();
     expect(screen.queryByRole('group', { name: 'Show cards' })).toBeNull();
   });
@@ -307,15 +310,15 @@ describe('personal decks', () => {
     api({ paused: true, cards: [osmosis], caughtUpUntil: '2026-11-20' });
     renderApp(deckPage);
     fireEvent.click(await screen.findByRole('button', { name: 'Resume reviews' }));
-    await screen.findByText('Caught up until Fri, Nov 20');
+    await screen.findByText('Next review Fri, Nov 20');
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Add card' })));
   });
 
-  it('says when a deck is caught up and offers adding a card instead of a review', async () => {
+  it('shows the next review date and offers Add card when a deck is caught up', async () => {
     api({ cards: [osmosis], caughtUpUntil: '2026-11-20' });
     renderApp(deckPage);
 
-    expect(await screen.findByText('Caught up until Fri, Nov 20')).toBeDefined();
+    expect(await screen.findByText('Next review Fri, Nov 20')).toBeDefined();
     expect(screen.queryByRole('link', { name: /Review|Start/ })).toBeNull();
     expect(screen.getAllByRole('button', { name: 'Add card' })).toHaveLength(1);
     expect(screen.queryByRole('group', { name: 'Show cards' })).toBeNull();
@@ -325,7 +328,7 @@ describe('personal decks', () => {
     api({ cards: [osmosis], newCardsLeftToday: 3 });
     renderApp(deckPage);
 
-    expect(await screen.findByText('3 of 10 new left today')).toBeDefined();
+    expect(await screen.findByText('3 new cards left today')).toBeDefined();
     expect(screen.getByRole('link', { name: 'Start review' })).toBeDefined();
   });
 
@@ -343,7 +346,7 @@ describe('personal decks', () => {
     renderApp(deckPage);
 
     expect(await screen.findByRole('link', { name: 'Start review' })).toBeDefined();
-    expect(screen.queryByText(/new left today|New cards tomorrow/)).toBeNull();
+    expect(screen.queryByText(/new cards? left today|New cards tomorrow/)).toBeNull();
   });
 
   it('refreshes an open deck when the study day changes at Manila midnight', async () => {
@@ -354,7 +357,7 @@ describe('personal decks', () => {
       expect(await screen.findByText('New cards tomorrow')).toBeDefined();
       server.setNewCardsLeftToday(10);
       await act(() => vi.advanceTimersByTimeAsync(11_000));
-      expect(await screen.findByText('10 of 10 new left today')).toBeDefined();
+      expect(await screen.findByText('10 new cards left today')).toBeDefined();
       expect(screen.getByRole('link', { name: 'Start review' })).toBeDefined();
     } finally {
       vi.useRealTimers();
@@ -695,6 +698,22 @@ describe('personal decks', () => {
     expect(screen.getByRole('button', { name: 'Add card' })).toBeDefined();
   });
 
+  it('offers Help beside the Create title and keeps the steps under the title on both steps', async () => {
+    wideLayout();
+    api();
+    renderApp('/library/decks/new');
+    const follows = (first: Element, second: Element) =>
+      Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING);
+    const title = await screen.findByRole('heading', { name: 'Create a deck', level: 1 });
+    expect(within(title.parentElement!).getByRole('link', { name: 'Help' }).getAttribute('href')).toBe('/help');
+    expect(follows(title, screen.getByRole('list', { name: 'Steps' }))).toBe(true);
+
+    type('Name', 'Chemistry finals');
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+    const deckTitle = await screen.findByRole('heading', { name: 'Chemistry finals', level: 1 });
+    expect(follows(deckTitle, screen.getByRole('list', { name: 'Steps' }))).toBe(true);
+  });
+
   it('leaves the first card closed when a search is cleared after Done', async () => {
     api();
     const { router } = renderApp('/library/decks/new');
@@ -932,7 +951,7 @@ describe('personal decks', () => {
     expect(screen.getByRole('link', { name: 'Today' }).getAttribute('href')).toBe('/today');
   });
 
-  it('guides answers toward one idea and points long ones to Explanation near the 500-character limit', async () => {
+  it('guides answers toward one idea and points long ones to Explanation near the 300-character limit', async () => {
     api();
     renderApp(deckPage);
     await openNewCard();
@@ -942,11 +961,11 @@ describe('personal decks', () => {
         .split(' ')
         .map((id) => document.getElementById(id)?.textContent)
         .join(' ');
-    expect(answer).toHaveProperty('maxLength', 500);
+    expect(answer).toHaveProperty('maxLength', 300);
     expect(description()).toBe('Keep it to one idea');
-    type('Answer', 'a'.repeat(450));
+    type('Answer', 'a'.repeat(270));
     expect(description()).toBe(
-      'Keep it to one idea 450 of 500 characters. Add extra details under Optional details, in Explanation.',
+      'Keep it to one idea 270 of 300 characters. Add extra details under Optional details, in Explanation.',
     );
   });
 
@@ -1127,14 +1146,16 @@ describe('personal decks', () => {
     const { writes } = api({ cards: [osmosis], failRefresh: true });
     renderApp(deckPage);
     fireEvent.click(await screen.findByRole('button', { name: 'Delete' }));
-    expect(screen.getByRole('dialog', { name: 'Delete card?' })).toBeDefined();
-    expect(screen.getByText(/permanently removes the card and its review progress/)).toBeDefined();
-    fireEvent.click(screen.getByRole('button', { name: 'Keep card' }));
+    const confirmation = within(screen.getByRole('region', { name: 'Delete card?' }));
+    expect(confirmation.getByText('Removes this card and its review progress.')).toBeDefined();
+    expect(confirmation.getByText('This can’t be undone.')).toBeDefined();
+    expect(document.activeElement).toBe(confirmation.getByRole('button', { name: /^Keep$/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^Keep$/ }));
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Delete' }));
     expect(writes).toEqual([]);
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Delete card' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Delete$/ }));
     expect(await screen.findByText('Card deleted.')).toBeDefined();
     expect(writes).toEqual([{ method: 'DELETE', path: '/api/v1/cards/31', body: undefined, csrf: 'csrf' }]);
     expect((await screen.findByRole('alert')).textContent).toContain('Couldn’t refresh this deck.');
@@ -1146,12 +1167,39 @@ describe('personal decks', () => {
     api({ cards: [osmosis, { ...osmosis, id: '32', question: 'Second question' }] });
     renderApp(deckPage);
     fireEvent.click(await screen.findByRole('button', { name: 'Delete' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Delete card' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Delete$/ }));
     expect(await screen.findByText('Card deleted.')).toBeDefined();
     await waitFor(() =>
       expect(within(screen.getByRole('region', { name: 'Selected card' })).getByText('Second question')).toBeDefined(),
     );
     expect(document.activeElement).toBe(screen.getByRole('button', { name: /Second question/, pressed: true }));
+  });
+
+  it('keeps the current card selected when an earlier inline deletion finishes', async () => {
+    wideLayout();
+    const second = { ...osmosis, id: '32', question: 'Second question' };
+    const third = { ...osmosis, id: '33', question: 'Third question' };
+    let finishDelete!: () => void;
+    const deleteResponse = new Promise<Response>((resolve) => {
+      finishDelete = () => resolve(jsonResponse(204));
+    });
+    const { replaceCards, writes } = api({
+      cards: [osmosis, second, third],
+      failWrite: () => deleteResponse,
+    });
+    renderApp(deckPage);
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Delete$/ }));
+    await waitFor(() => expect(writes).toHaveLength(1));
+    const thirdRow = screen.getByRole('button', { name: /Third question/ });
+    thirdRow.focus();
+    fireEvent.click(thirdRow);
+    expect((screen.getByRole('button', { name: 'Delete' }) as HTMLButtonElement).disabled).toBe(true);
+    replaceCards([second, third]);
+    finishDelete();
+    expect(await screen.findByText('Card deleted.')).toBeDefined();
+    expect(thirdRow.getAttribute('aria-pressed')).toBe('true');
+    expect(document.activeElement).toBe(thirdRow);
   });
 
   it('makes the list one Tab stop on wide screens and moves between cards with arrow keys', async () => {
@@ -1211,9 +1259,9 @@ describe('personal decks', () => {
     });
     const { router } = renderApp(deckPage);
     fireEvent.click(await screen.findByRole('button', { name: 'Deck settings' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Delete deck' }));
-    const dialog = screen.getByRole('dialog', { name: 'Delete deck?' });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete deck' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    const confirmation = screen.getByRole('region', { name: 'Delete deck?' });
+    fireEvent.click(within(confirmation).getByRole('button', { name: /^Delete$/ }));
 
     await act(() => router.navigate('/today'));
     await screen.findByRole('heading', { name: 'Your review', level: 1 });
@@ -1239,14 +1287,15 @@ describe('personal decks', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Deck settings' }));
     expect(screen.getByText(/Removes 1\scard and their review progress/)).toBeDefined();
     expect(screen.getByText('This can’t be undone.')).toBeDefined();
-    fireEvent.click(screen.getByRole('button', { name: 'Delete deck' }));
-    const dialog = screen.getByRole('dialog', { name: 'Delete deck?' });
-    expect(within(dialog).getByText(/permanently removes 1\scard and their review progress/)).toBeDefined();
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete deck' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    const confirmation = screen.getByRole('region', { name: 'Delete deck?' });
+    expect(within(confirmation).getByText(/permanently removes .*1\scard and their review progress/i)).toBeDefined();
+    fireEvent.click(within(confirmation).getByRole('button', { name: /^Delete$/ }));
     expect(await screen.findByText('Deleted “Biology finals” and its cards.')).toBeDefined();
     expect(screen.getByRole('heading', { name: 'Library', level: 1 })).toBeDefined();
     await waitFor(() => expect(router.state.location.state).toEqual({}));
     expect(screen.getByText('Deleted “Biology finals” and its cards.')).toBeDefined();
+    fireEvent.click(screen.getByRole('button', { name: 'Review status: Active' }));
     fireEvent.click(screen.getByRole('button', { name: /^Paused/ }));
     expect(screen.queryByText('Deleted “Biology finals” and its cards.')).toBeNull();
     expect(writes.map((write) => `${write.method} ${write.path}`)).toEqual([

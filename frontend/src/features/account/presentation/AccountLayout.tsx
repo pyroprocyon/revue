@@ -16,6 +16,7 @@ import {
 import { loadPage } from '../../../shared/navigation/pageLoads';
 import { TODAY_PATH, signInPath } from '../../../shared/navigation/paths';
 import { HomeLink } from '../../../shared/ui/HeaderLinks';
+import { LoadingStatus } from '../../../shared/ui/LoadingFeedback';
 import { RouteErrorBoundary, RouteErrorCard } from '../../../shared/ui/RouteError';
 import { primaryButton } from '../../../shared/ui/buttonStyles';
 import { StudyLayout } from '../../../shared/ui/StudyLayout';
@@ -256,15 +257,15 @@ export function AccountLayout({
       )}
       {checking && (
         <WhenSlow>
-          <output
+          <LoadingStatus
             className={
               session.status === 'loading'
-                ? 'mb-4 block text-muted'
-                : 'pointer-events-none fixed inset-x-0 top-2 z-20 mx-auto w-fit rounded-control bg-surface px-3 py-2 text-support text-ink shadow-control'
+                ? 'mb-4'
+                : 'pointer-events-none fixed inset-x-4 top-2 z-20 mx-auto w-fit rounded-control bg-surface px-3 py-2 shadow-control'
             }
           >
             {session.status === 'loading' ? 'Loading your account…' : 'Checking your session…'}
-          </output>
+          </LoadingStatus>
         </WhenSlow>
       )}
       {verificationError && (
@@ -307,7 +308,6 @@ export function AccountLayout({
           <HomeLink to={TODAY_PATH} compact />
         </>
       }
-      wide
     >
       <div className="pt-2 sm:pt-6">{content}</div>
     </StudyLayout>

@@ -21,6 +21,8 @@ function setup(
     prepareWrite: vi.fn(),
     signedIn: vi.fn().mockResolvedValue(false),
     current,
+    studySettings: vi.fn().mockResolvedValue({ dailyNewCardLimit: 10 }),
+    saveStudySettings: vi.fn(),
     register: vi.fn(),
     signIn: vi.fn(),
     signOut: vi.fn().mockResolvedValue(undefined),
@@ -446,22 +448,22 @@ describe('signed-in layout', () => {
     await screen.findByRole('heading', { name: 'Your account' });
     client.setQueryData(['private-library'], ['private']);
     vi.mocked(gateway.signOut).mockRejectedValueOnce(new Error('offline'));
-    const trigger = screen.getByRole('button', { name: 'Sign out' });
-    fireEvent.click(trigger);
-    const dialog = () => within(screen.getByRole('dialog', { name: 'Sign out of Revue?' }));
-    fireEvent.click(dialog().getByRole('button', { name: 'Stay signed in' }));
+    const trigger = () => screen.getByRole('button', { name: 'Sign out' });
+    fireEvent.click(trigger());
+    const prompt = () => within(screen.getByRole('region', { name: 'Sign out of Revue?' }));
+    fireEvent.click(prompt().getByRole('button', { name: 'Stay signed in' }));
     expect(gateway.signOut).not.toHaveBeenCalled();
-    expect(document.activeElement).toBe(trigger);
-    fireEvent.click(trigger);
-    fireEvent.click(dialog().getByRole('button', { name: 'Sign out' }));
+    expect(document.activeElement).toBe(trigger());
+    fireEvent.click(trigger());
+    fireEvent.click(prompt().getByRole('button', { name: 'Sign out' }));
     await screen.findByRole('alert');
     expect(client.getQueryData(['private-library'])).toEqual(['private']);
-    fireEvent.click(dialog().getByRole('button', { name: 'Sign out' }));
+    fireEvent.click(prompt().getByRole('button', { name: 'Sign out' }));
     await screen.findByRole('heading', { name: 'Sign in again' });
     expect(client.getQueryData(['private-library'])).toBeUndefined();
   });
 
-  it('follows the browser when it closes a pending sign-out, and Sign out opens again after a failure', async () => {
+  it('keeps an in-flight sign-out open and prevents another request', async () => {
     const { gateway } = setup();
     await screen.findByRole('heading', { name: 'Your account' });
     let failSignOut!: (reason: Error) => void;
@@ -470,37 +472,42 @@ describe('signed-in layout', () => {
         failSignOut = reject;
       }),
     );
-    const trigger = screen.getByRole('button', { name: 'Sign out' });
-    fireEvent.click(trigger);
-    const dialog = screen.getByRole('dialog', { name: 'Sign out of Revue?' });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Sign out' }));
-    fireEvent(dialog, new Event('cancel', { cancelable: true }));
-    expect(screen.getByRole('dialog', { name: 'Sign out of Revue?' })).toBe(dialog);
-    fireEvent(dialog, new Event('cancel', { cancelable: false }));
-    expect(screen.queryByRole('dialog')).toBeNull();
-    expect(document.activeElement).toBe(trigger);
+    fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
+    const prompt = within(screen.getByRole('region', { name: 'Sign out of Revue?' }));
+    const stay = prompt.getByRole('button', { name: 'Stay signed in' });
+    expect(document.activeElement).toBe(stay);
+    fireEvent.click(prompt.getByRole('button', { name: 'Sign out' }));
+    const submitting = prompt.getByRole('button', { name: 'Signing out…' });
+    fireEvent.keyDown(submitting, { key: 'Escape' });
+    fireEvent.click(stay);
+    fireEvent.click(submitting);
+    expect(gateway.signOut).toHaveBeenCalledTimes(1);
     await act(async () => {
       failSignOut(new Error('offline'));
     });
-    fireEvent.click(trigger);
-    const reopened = within(screen.getByRole('dialog', { name: 'Sign out of Revue?' }));
-    expect(reopened.getByRole('button', { name: 'Sign out' })).toBeDefined();
-    expect(screen.queryByRole('alert')).toBeNull();
+    expect(prompt.getByRole('alert')).toBeDefined();
+    fireEvent.keyDown(stay, { key: 'Escape' });
+    expect(screen.queryByRole('region', { name: 'Sign out of Revue?' })).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Sign out' }));
   });
 
-  it('hides the sign-out confirmation during a session check and shows it again for the same account', async () => {
+  it('keeps the sign-out prompt in place while a session check pauses its controls', async () => {
     const { gateway } = setup();
     await screen.findByRole('heading', { name: 'Your account' });
     fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
-    expect(screen.getByRole('dialog', { name: 'Sign out of Revue?' })).toBeDefined();
+    const prompt = screen.getByRole('region', { name: 'Sign out of Revue?' });
+    const stay = within(prompt).getByRole('button', { name: 'Stay signed in' });
+    expect(document.activeElement).toBe(stay);
     const pending = deferredProfile();
     vi.mocked(gateway.current).mockReturnValueOnce(pending.promise);
     returnAfterWindowExpires();
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(prompt.closest('[inert]')).not.toBeNull());
+    blurAsChromiumDoesInsideInertContent(stay);
     await act(async () => {
       pending.resolve({ username: 'first_student' });
     });
-    expect(screen.getByRole('dialog', { name: 'Sign out of Revue?' })).toBeDefined();
+    expect(prompt.closest('[inert]')).toBeNull();
+    expect(document.activeElement).toBe(stay);
     expect(gateway.signOut).not.toHaveBeenCalled();
   });
 });

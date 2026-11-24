@@ -4,9 +4,18 @@ const buttonBase =
 
 export const primaryButton = `${buttonBase} bg-accent text-on-accent disabled:bg-subtle disabled:text-muted`;
 
+export const blueAccentButton = `${buttonBase} bg-saved-set text-on-saved-set disabled:bg-subtle disabled:text-muted`;
+
 export const secondaryButton = `${buttonBase} bg-surface text-ink shadow-control`;
 
-export const destructiveButton = `${buttonBase} bg-highlight-soft text-ink disabled:bg-subtle disabled:text-muted`;
+const outlineButton =
+  'pressable inline-flex min-h-12 max-w-full items-center justify-center gap-2 rounded-control border bg-surface px-4 py-2 text-center text-label wrap-anywhere';
+
+export const neutralOutlineButton = `${outlineButton} border-line font-semibold text-ink`;
+
+export const destructiveOutlineButton = `${outlineButton} border-destructive-edge font-bold text-destructive`;
+
+export const inlineConfirmationButton = 'min-w-0 flex-[1_1_7rem] max-sm:px-3';
 
 const accountControl =
   'pressable inline-flex min-h-12 min-w-12 items-center justify-center rounded-control py-2 text-center font-semibold';

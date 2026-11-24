@@ -23,11 +23,8 @@ export function HomeLink({ to, compact = false }: Readonly<{ to?: string; compac
 /** A text link on the right of the header, from a set's preview to the list of all sets. */
 export function AllSetsLink() {
   return (
-    <Link
-      to={SETS_PATH}
-      className="pressable -mr-2 ml-auto inline-flex min-h-12 items-center rounded-control px-2 text-label font-semibold text-accent lg:text-body"
-    >
-      All sets
+    <Link to={SETS_PATH} className="pressable header-link -mr-2 ml-auto">
+      All reviewers
     </Link>
   );
 }
@@ -57,13 +54,9 @@ export function BackButton({ label, fallbackPath, className = '' }: Readonly<Bac
   }
 
   return (
-    <button
-      type="button"
-      onClick={goBack}
-      className={`pressable -ml-2 inline-flex min-h-12 min-w-0 items-center gap-1 rounded-control px-2 text-left text-label font-semibold text-muted ${className}`}
-    >
-      <ChevronLeft aria-hidden="true" size={20} strokeWidth={2} className="shrink-0" />
-      {label}
+    <button type="button" onClick={goBack} className={`pressable header-link -ml-2 max-w-full ${className}`}>
+      <ChevronLeft aria-hidden="true" />
+      <span className="min-w-0 wrap-anywhere">{label}</span>
     </button>
   );
 }
@@ -71,10 +64,7 @@ export function BackButton({ label, fallbackPath, className = '' }: Readonly<Bac
 export function AccountHeaderLink({ appearance = 'text' }: Readonly<{ appearance?: 'text' | 'account' }>) {
   const location = useLocation();
   const session = usePublicSession();
-  const className =
-    appearance === 'account'
-      ? accountOutlinedButton
-      : 'pressable -mr-2 ml-auto inline-flex min-h-12 items-center rounded-control px-2 text-label font-semibold text-accent';
+  const className = appearance === 'account' ? accountOutlinedButton : 'pressable header-link -mr-2 ml-auto';
   if (session === 'checking') return null;
   if (session === 'signed-in')
     return (
