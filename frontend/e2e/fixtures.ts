@@ -4,17 +4,38 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { appendFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
+import { buildTestImage } from './build-test-image';
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 type PilotApp = { origin: string; signupUrl: string; addSaveableSet: () => void };
 
-export const test = base.extend<object, { pilot: PilotApp }>({
+export const test = base.extend<object, { appImage: string; pilot: PilotApp }>({
+  appImage: [
+    async ({ browserName }, provide) => {
+      const prebuiltImage = process.env.REVUE_APP_IMAGE;
+      if (prebuiltImage) {
+        await provide(prebuiltImage);
+        return;
+      }
+
+      const image = `revue-e2e-app:${browserName}-${randomUUID()}`;
+      const removeImage = buildTestImage(image);
+      try {
+        await provide(image);
+      } finally {
+        removeImage();
+      }
+    },
+    { scope: 'worker', timeout: 600_000 },
+  ],
   pilot: [
-    async ({ browserName }, provide, worker) => {
+    async ({ appImage, browserName }, provide, worker) => {
       const project = `revue-e2e-${browserName}-${randomUUID().slice(0, 12)}`;
-      const image = process.env.REVUE_APP_IMAGE;
-      if (!image) throw new Error('Playwright did not prepare the browser test image.');
-      const environment = { ...process.env, REVUE_E2E_DB_PASSWORD: randomBytes(32).toString('base64url') };
+      const environment = {
+        ...process.env,
+        REVUE_APP_IMAGE: appImage,
+        REVUE_E2E_DB_PASSWORD: randomBytes(32).toString('base64url'),
+      };
       mkdirSync(worker.project.outputDir, { recursive: true });
       const log = join(worker.project.outputDir, `${project}.log`);
 

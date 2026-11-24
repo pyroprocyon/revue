@@ -26,7 +26,7 @@ export function PublicSessionLayout() {
     redirect?.signedOutRevision === revision;
   const session = useQuery({
     queryKey: publicSessionKey,
-    queryFn: () => gateway.signedIn(),
+    queryFn: ({ signal }) => gateway.signedIn(signal),
     retry: false,
     networkMode: 'always',
     gcTime: 0,

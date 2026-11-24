@@ -13,7 +13,7 @@ export type Signup = { username: string; password: string };
 
 export interface AccountGateway {
   prepareWrite(): void;
-  signedIn(): Promise<boolean>;
+  signedIn(signal?: AbortSignal): Promise<boolean>;
   current(signal?: AbortSignal): Promise<AccountProfile | null>;
   register(input: Signup): Promise<AccountProfile>;
   signIn(username: string, password: string): Promise<AccountProfile>;
