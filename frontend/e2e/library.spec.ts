@@ -360,9 +360,15 @@ test('retired-set removal warns, supports keyboard cancellation and fits narrow 
     await page.evaluate((size) => {
       document.documentElement.style.fontSize = `${size}%`;
     }, scale);
+    const settings = page.getByRole(label === 'desktop' ? 'region' : 'dialog', {
+      name: 'Reviewer settings',
+      exact: true,
+    });
+    await expect(settings).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
-    for (const button of [keep, page.getByRole('button', { name: 'Remove', exact: true })]) {
-      expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(48);
+    for (const name of ['Keep', 'Remove']) {
+      const button = settings.getByRole('button', { name, exact: true });
+      await expect.poll(async () => (await button.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(48);
     }
     await page.screenshot({ path: info.outputPath(`retired-remove-${label}.png`), fullPage: true });
   }
