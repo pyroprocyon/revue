@@ -48,7 +48,8 @@ RUN --mount=type=cache,target=/root/.m2,sharing=locked \
     --mount=from=maven-repository,target=/maven-repository \
     mkdir -p /root/.m2/repository \
  && cp -a /maven-repository/. /root/.m2/repository/ \
- && /usr/share/maven/bin/mvn --batch-mode --no-transfer-progress -DskipTests package \
+ && /usr/share/maven/bin/mvn --settings .mvn/docker-settings.xml \
+      --batch-mode --no-transfer-progress -DskipTests package \
  && cp target/revue-*.jar /build/app.jar \
  && java -Djarmode=tools -jar /build/app.jar extract --destination /build/extracted
 
