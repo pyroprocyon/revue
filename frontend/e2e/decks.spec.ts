@@ -997,13 +997,16 @@ test('Library decks follow the finger on phones and tablets and filter the same 
   await expect(activeDeck).toBeFocused();
   await expect(position).toHaveText('3 of 3');
   await expect(carousel.getByRole('status')).toContainText('3 of 3');
-  const lastCardPosition = (await activeDeck.boundingBox())!;
-  const positionAfter = (await position.boundingBox())!;
-  expect(positionAfter.y - lastCardPosition.y).toBeCloseTo(positionBefore.y - tabletCard.y, 0);
-  expect(lastCardPosition.x + lastCardPosition.width - positionAfter.x - positionAfter.width).toBeCloseTo(
-    tabletCard.x + tabletCard.width - positionBefore.x - positionBefore.width,
-    0,
-  );
+  // The active deck changes before the native scroll animation finishes.
+  await expect(async () => {
+    const insets = await position.evaluate((badge) => {
+      const card = badge.parentElement!.getBoundingClientRect();
+      const bounds = badge.getBoundingClientRect();
+      return { top: bounds.top - card.top, right: card.right - bounds.right };
+    });
+    expect(insets.top).toBeCloseTo(positionBefore.y - tabletCard.y, 0);
+    expect(insets.right).toBeCloseTo(tabletCard.x + tabletCard.width - positionBefore.x - positionBefore.width, 0);
+  }).toPass({ timeout: 5000 });
   await previous.click();
   await expect(activeDeck).toHaveAccessibleName('Open History review');
   await page.setViewportSize({ width: 1440, height: 900 });
