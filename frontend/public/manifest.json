@@ -2,6 +2,7 @@
   "id": "/",
   "name": "Revue",
   "short_name": "Revue",
+  "categories": ["education"],
   "start_url": "/today",
   "scope": "/",
   "display": "standalone",
