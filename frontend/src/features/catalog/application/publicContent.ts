@@ -8,6 +8,7 @@ export type PublicSet = {
   cardCount: number;
   trialAvailable: boolean;
   saveAllowed: boolean;
+  sampleQuestion?: string;
 };
 
 /** A flashcard: the question on the front, the answer and its optional note and source on the back. */

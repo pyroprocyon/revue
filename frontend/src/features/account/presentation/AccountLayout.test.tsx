@@ -408,11 +408,12 @@ describe('signed-in layout', () => {
     expect(client.getQueryData(pendingLoginKey)).toBeUndefined();
   });
 
-  it('reopens from the last confirmed account at once, keeps its cache and rechecks with controls paused', async () => {
+  it('reopens from the last confirmed account at once and pauses while refreshing an expired confirmation', async () => {
     const first = setup();
     await screen.findByRole('heading', { name: 'Your account' });
     first.client.setQueryData(['private-library'], ['private']);
     first.unmount();
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 30_000);
 
     const pending = deferredProfile();
     setup(false, vi.fn().mockReturnValue(pending.promise), first.client);
@@ -436,6 +437,7 @@ describe('signed-in layout', () => {
     await screen.findByRole('heading', { name: 'first_student' });
     first.client.setQueryData(['private-library'], ['first account data']);
     first.unmount();
+    localStorage.setItem('revue.session-revision', 'changed-session');
 
     setup(true, vi.fn().mockResolvedValue(answer), first.client);
     await screen.findByRole('heading', { name: lands });

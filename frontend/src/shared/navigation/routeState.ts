@@ -1,6 +1,9 @@
 export type RouteState = {
+  sessionExpired?: boolean;
+  signedOutRevision?: string | null;
   fromLibrary?: boolean;
   fromPublished?: boolean;
+  trialPreviewKey?: string;
   fromSavedSetList?: boolean;
   fromHelp?: boolean;
   fromWorkspace?: boolean;

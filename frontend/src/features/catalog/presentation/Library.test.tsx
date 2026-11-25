@@ -138,8 +138,10 @@ describe('saved shared sets', () => {
     api({ save: async () => jsonResponse(status) });
     renderApp(setPath);
     fireEvent.click(await screen.findByRole('button', { name: 'Save to Library' }));
-    if (status === 401) expect(await screen.findByRole('link', { name: 'Sign in to save' })).toBeDefined();
-    else expect(await screen.findByRole('alert')).toBeDefined();
+    if (status === 401) {
+      fireEvent.click(await screen.findByRole('link', { name: 'Sign in to save' }));
+      expect(await screen.findByRole('heading', { name: 'Welcome back' })).toBeDefined();
+    } else expect(await screen.findByRole('alert')).toBeDefined();
     expect(screen.queryByText('Saved')).toBeNull();
   });
 
@@ -175,13 +177,15 @@ describe('saved shared sets', () => {
     expect(fetcher.mock.calls.filter(([, init]) => init?.method === 'POST')).toEqual([]);
   });
 
-  it('keeps the saved row on return while checking the same session, then checks again for a new session', async () => {
+  it.each([
+    { saved: true, role: 'link', name: 'Open Library', nextRole: 'button', nextName: 'Save to Library' },
+    { saved: false, role: 'button', name: 'Save to Library', nextRole: 'link', nextName: 'Open Library' },
+  ])('keeps $name on return while checking the same session', async ({ saved, role, name, nextRole, nextName }) => {
     const revisionKey = 'revue.session-revision';
     localStorage.setItem(revisionKey, 'first-session');
-    const fetcher = api({ saved: true });
+    const fetcher = api({ saved });
     const { router } = renderApp(setPath);
-    const savedLink = () => screen.getByRole('link', { name: 'Open Library' });
-    await screen.findByRole('link', { name: 'Open Library' });
+    await screen.findByRole(role, { name });
     await act(() => router.navigate('/help'));
 
     const respond = fetcher.getMockImplementation()!;
@@ -193,19 +197,20 @@ describe('saved shared sets', () => {
     fetcher.mockImplementation((path, init) => (path === savePath ? refresh() : respond(path, init)));
     await act(() => router.navigate(-1));
     await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
-    const visibleDuringRefresh = savedLink();
-    await act(() => finish(jsonResponse(200, { saved: true })));
-    expect(savedLink()).toBe(visibleDuringRefresh);
+    const visibleDuringRefresh = screen.getByRole(role, { name });
+    if (!saved) expect(visibleDuringRefresh.getAttribute('aria-disabled')).toBe('true');
+    await act(() => finish(jsonResponse(200, { saved })));
+    expect(screen.getByRole(role, { name })).toBe(visibleDuringRefresh);
 
     fetcher.mockImplementation((path, init) =>
-      path === savePath ? Promise.resolve(jsonResponse(200, { saved: false })) : respond(path, init),
+      path === savePath ? Promise.resolve(jsonResponse(200, { saved: !saved })) : respond(path, init),
     );
     await act(() => {
       localStorage.setItem(revisionKey, 'second-session');
       window.dispatchEvent(new StorageEvent('storage', { key: revisionKey, newValue: 'second-session' }));
     });
-    expect(await screen.findByRole('button', { name: 'Save to Library' })).toBeDefined();
-    expect(screen.queryByRole('link', { name: 'Open Library' })).toBeNull();
+    expect(await screen.findByRole(nextRole, { name: nextName })).toBeDefined();
+    expect(screen.queryByRole(role, { name })).toBeNull();
   });
 
   it('keeps the confirmed Save action in place while saved status refreshes', async () => {

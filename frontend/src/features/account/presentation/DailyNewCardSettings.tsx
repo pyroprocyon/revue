@@ -123,7 +123,7 @@ export function DailyNewCardSettings({ username }: Readonly<{ username: string }
                 ref={saveButton}
                 type="submit"
                 aria-disabled={save.isPending}
-                className={`${saveBar} pressable bg-accent-soft text-accent-strong aria-disabled:bg-subtle aria-disabled:text-muted`}
+                className={`${saveBar} pressable tonal-control-gradient bg-accent-soft text-accent-strong aria-disabled:bg-subtle aria-disabled:text-muted`}
               >
                 {save.isPending ? 'Saving…' : 'Save'}
               </button>

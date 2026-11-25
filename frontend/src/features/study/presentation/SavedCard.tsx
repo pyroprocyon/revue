@@ -1,7 +1,7 @@
 import { useRef, useState, type ReactNode } from 'react';
 import type { RatingRequest, StudyCard } from '../application/reviews';
 import { FlashCard } from './FlashCard';
-import { CardDetails, DetailSection, ReviewDetail } from './ReviewDetail';
+import { DetailSection, ReviewDetail } from './ReviewDetail';
 import { Columns2 } from 'lucide-react';
 import { neutralOutlineButton, primaryButton } from '../../../shared/ui/buttonStyles';
 
@@ -27,10 +27,11 @@ export function SavedCard({ card, position, renderControls }: Readonly<Props>) {
       card={card}
       publisherName={card.publisherName}
       showRecallHint={false}
+      savedReview
       position={position}
       answerRecap={answerRecap}
       questionDetails={
-        <details className="rounded-control border border-line bg-accent-soft px-3 text-left">
+        <details className="tonal-control-gradient rounded-control border border-line bg-accent-soft px-3 text-left">
           <summary className="review-draft-toggle pressable flex min-h-12 cursor-pointer list-none items-center justify-between gap-2 text-label font-semibold text-accent">
             <span>
               Write an answer <span className="font-normal">(optional)</span>
@@ -70,9 +71,6 @@ export function SavedCard({ card, position, renderControls }: Readonly<Props>) {
           </button>
         </div>
       )}
-      cardDetails={
-        (card.explanation || card.memoryHook) && <CardDetails explanation={card.explanation} tip={card.memoryHook} />
-      }
       ratingControls={attempt === null ? null : renderControls(attempt.mode)}
     />
   );

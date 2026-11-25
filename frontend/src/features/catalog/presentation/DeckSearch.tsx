@@ -72,7 +72,7 @@ export function DeckSearch({
       aria-label="Search this deck"
       role="search"
       onSubmit={search}
-      className="flex min-w-32 flex-1 basis-0 flex-wrap items-center gap-y-1"
+      className="flex min-w-32 flex-1 basis-0 flex-wrap items-center gap-y-1 @min-[38rem]:min-w-40"
     >
       <div className="relative min-w-0 flex-1 basis-full">
         <Search
@@ -94,7 +94,7 @@ export function DeckSearch({
           onCompositionEnd={() => setComposing(false)}
           placeholder="Search cards"
           maxLength={CARD_SEARCH_MAX_LENGTH}
-          className="block min-h-12 w-full min-w-0 rounded-control border border-field-edge bg-field py-2 pr-12 pl-10 text-body text-ink placeholder:text-muted focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent [&::-webkit-search-cancel-button]:hidden"
+          className="block min-h-12 w-full min-w-0 rounded-control border border-field-edge bg-field py-2 pr-12 pl-10 text-body text-ink placeholder:text-muted placeholder-shown:pr-3 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent [&::-webkit-search-cancel-button]:hidden"
         />
         {input.value && (
           <button

@@ -1,8 +1,11 @@
 import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query';
-import { PublicCatalogBusy, type PublicContentReader } from './publicContent';
+import { PublicCatalogBusy, type PublicContentReader, type PublicSet, type TrialCards } from './publicContent';
 
 export const publicCatalogRetry = {
-  retry: (failures: number, error: Error) => error instanceof PublicCatalogBusy && failures < 2,
+  retry: (failures: number, error: Error) => {
+    const cause = error instanceof PublicContentReadError ? error.cause : error;
+    return cause instanceof PublicCatalogBusy && failures < 2;
+  },
   retryDelay: 1_000,
 };
 
@@ -13,6 +16,46 @@ export const publicContentKeys = {
   set: (key: string) => ['public-sets', key] as const,
   trial: (key: string) => ['public-sets', key, 'demo-cards'] as const,
 };
+
+let readSequence = 0;
+
+export type PublicContentRead<T> = { value: T; started: number; finished: number };
+
+class PublicContentReadError extends Error {
+  constructor(
+    readonly started: number,
+    cause: unknown,
+  ) {
+    super('Could not load public content', { cause });
+  }
+}
+
+async function readPublicContent<T>(read: () => Promise<T>): Promise<PublicContentRead<T>> {
+  const started = ++readSequence;
+  try {
+    const value = await read();
+    return { value, started, finished: ++readSequence };
+  } catch (error) {
+    throw new PublicContentReadError(started, error);
+  }
+}
+
+export function canRecheckTrial(error: Error | null, previewFinished: number) {
+  return error === null || (error instanceof PublicContentReadError && error.started < previewFinished);
+}
+
+export function trialConflictsWithPreview(
+  trial: PublicContentRead<TrialCards | null>,
+  previewFinished: number,
+  preview: Pick<PublicSet, 'trialAvailable' | 'sampleQuestion'> | null,
+) {
+  if (trial.started >= previewFinished) return false;
+  if (!preview?.trialAvailable) return trial.value !== null;
+  return (
+    trial.value === null ||
+    (preview.sampleQuestion !== undefined && trial.value.cards[0]?.question !== preview.sampleQuestion)
+  );
+}
 
 export function publicContentQueries(reader: PublicContentReader) {
   return {
@@ -40,7 +83,7 @@ export function publicContentQueries(reader: PublicContentReader) {
     publicSetQuery: (key: string, kind: 'key' | 'share' = 'key') =>
       queryOptions({
         queryKey: publicContentKeys.set(kind === 'share' ? `share:${key}` : key),
-        queryFn: () => (kind === 'share' ? reader.sharedSummary(key) : reader.summary(key)),
+        queryFn: () => readPublicContent(() => (kind === 'share' ? reader.sharedSummary(key) : reader.summary(key))),
       }),
     trialCardsQuery: (key: string) => trialCardsQuery(reader, key),
   };
@@ -50,6 +93,6 @@ export function publicContentQueries(reader: PublicContentReader) {
 export function trialCardsQuery(reader: Pick<PublicContentReader, 'trialCards'>, key: string) {
   return queryOptions({
     queryKey: publicContentKeys.trial(key),
-    queryFn: () => reader.trialCards(key),
+    queryFn: () => readPublicContent(() => reader.trialCards(key)),
   });
 }

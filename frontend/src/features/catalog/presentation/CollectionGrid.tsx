@@ -95,7 +95,7 @@ function CollectionTile({
         data-library-deck={item.id}
         data-saved={item.saved ? '' : undefined}
         onClick={onOpen}
-        className={`pressable flex h-full min-h-24 min-w-0 flex-col justify-between gap-3 rounded-control px-5 py-4 ${item.archived ? 'bg-subtle text-muted' : 'shadow-control hover:shadow-card'} ${kind === 'subjects' ? 'border border-saved-set/25 bg-surface' : ''}`}
+        className={`pressable flex h-full min-h-24 min-w-0 flex-col justify-between gap-3 rounded-control px-5 py-4 ${item.archived ? 'bg-subtle text-muted' : 'neutral-control-gradient shadow-control hover:shadow-card'} ${kind === 'subjects' ? 'border border-saved-set/25 bg-surface' : ''}`}
       >
         {item.icon}
         <Heading className="text-section leading-snug font-bold tracking-tight text-balance wrap-anywhere">

@@ -6,6 +6,7 @@ import { BackButton, HomeLink } from '../../shared/ui/HeaderLinks';
 import { PageLayout } from '../../shared/ui/PageLayout';
 import { SupportLink } from '../../shared/ui/SupportLink';
 import { SessionCheckScreen } from '../../shared/ui/MessageScreen';
+import { setSolidControls, useSolidControls } from '../../shared/ui/solidControls';
 import { useFocusOnMount } from '../../shared/ui/useFocusOnMount';
 import { WorkspaceLayout } from '../../shared/ui/WorkspaceLayout';
 import { ArrowUpRight, ChevronRight, FileText, Mail, ShieldCheck } from 'lucide-react';
@@ -36,6 +37,8 @@ export function HelpPage() {
 
 function HelpContent({ signedIn }: Readonly<{ signedIn: boolean }>) {
   const headingFocus = useFocusOnMount<HTMLHeadingElement>();
+  const solidControls = useSolidControls();
+  const directoryWidth = signedIn ? 'max-w-[40.625rem] workspace-help-directory' : '';
 
   return (
     <section className={signedIn ? 'workspace-page' : 'py-6 sm:py-8'}>
@@ -51,7 +54,7 @@ function HelpContent({ signedIn }: Readonly<{ signedIn: boolean }>) {
       </div>
       <nav
         aria-label="Help and policies"
-        className={`@container/help mt-[1.125rem] grid max-w-[40.625rem] gap-3 lg:mt-6${signedIn ? ' workspace-help-directory' : ''}`}
+        className={`@container/help mt-[1.125rem] grid gap-3 lg:mt-6 ${directoryWidth}`}
       >
         <div className="help-directory-links rounded-[1.25rem] border border-line bg-surface p-1.5">
           <SupportLink className={helpLink}>
@@ -71,6 +74,27 @@ function HelpContent({ signedIn }: Readonly<{ signedIn: boolean }>) {
           </Link>
         </div>
       </nav>
+      <section
+        aria-labelledby="display-settings-title"
+        className={`mt-3 rounded-[1.25rem] border border-line bg-surface p-4 ${directoryWidth}`}
+      >
+        <h2 id="display-settings-title" className="text-label font-bold">
+          Display
+        </h2>
+        <label className="flex min-h-12 cursor-pointer items-center justify-between gap-3 text-label font-semibold">
+          <span>Solid controls</span>
+          <input
+            type="checkbox"
+            checked={solidControls}
+            onChange={(event) => setSolidControls(event.currentTarget.checked)}
+            aria-describedby="solid-controls-description"
+            className="size-5 shrink-0 accent-accent"
+          />
+        </label>
+        <p id="solid-controls-description" className="text-support text-muted">
+          Turn off blur on floating navigation and study controls in this browser.
+        </p>
+      </section>
     </section>
   );
 }

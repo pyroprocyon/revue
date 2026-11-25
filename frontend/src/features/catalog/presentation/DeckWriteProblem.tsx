@@ -1,9 +1,9 @@
 import { useFocusOnMount } from '../../../shared/ui/useFocusOnMount';
-import { Navigate } from 'react-router';
+import { SessionExpiredRedirect } from '../../../shared/navigation/SessionExpiredRedirect';
 import { DECK_TITLE_MAX_LENGTH, type DeckFailureReason } from '../application/decks';
 import type { DeckWriteState } from './useDecks';
 import { loadPage } from '../../../shared/navigation/pageLoads';
-import { LIBRARY_PATH, TODAY_PATH, signInPath } from '../../../shared/navigation/paths';
+import { LIBRARY_PATH, TODAY_PATH } from '../../../shared/navigation/paths';
 import { primaryButton } from '../../../shared/ui/buttonStyles';
 
 const PROBLEM_TEXT: Record<Exclude<DeckFailureReason, 'signed-out'>, string> = {
@@ -27,7 +27,7 @@ export function DeckWriteProblem({
 }: Readonly<{ state: DeckWriteState; namingDeck?: boolean; focusOnFailure?: boolean }>) {
   const alertFocus = useFocusOnMount<HTMLParagraphElement>(focusOnFailure && state.status === 'failed');
   if (state.status !== 'failed') return null;
-  if (state.reason === 'signed-out') return <Navigate replace to={signInPath(LIBRARY_PATH)} />;
+  if (state.reason === 'signed-out') return <SessionExpiredRedirect returnTo={LIBRARY_PATH} />;
   const message =
     namingDeck && state.reason === 'invalid'
       ? `Enter a deck name with ${DECK_TITLE_MAX_LENGTH} characters or fewer.`

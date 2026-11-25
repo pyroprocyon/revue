@@ -19,6 +19,74 @@ test('Today redirects after one account check and rechecks sign-in on reload', a
   expect(sessionReads).toEqual(['/api/v1/me', '/api/v1/auth/session']);
 });
 
+test('a rejected private read opens sign-in even after a recent account check', async ({ page }) => {
+  let profileRequests = 0;
+  let publicSessionRequests = 0;
+  let dueRequests = 0;
+  await page.route('**/api/v1/me', (route) => {
+    profileRequests++;
+    return route.fulfill({ json: { username: 'session_learner' } });
+  });
+  await page.route('**/api/v1/auth/session', (route) => {
+    publicSessionRequests++;
+    return route.fulfill({ json: { signedIn: false } });
+  });
+  await page.route('**/api/v1/cards/due*', (route) => {
+    dueRequests++;
+    return route.fulfill({ status: dueRequests === 1 ? 401 : 503 });
+  });
+
+  await page.goto('/today');
+  await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
+  await expect(page).toHaveURL(/\/sign-in\?returnTo=%2Ftoday$/);
+  expect({ profileRequests, publicSessionRequests, dueRequests }).toEqual({
+    profileRequests: 1,
+    publicSessionRequests: 1,
+    dueRequests: 1,
+  });
+});
+
+test('review and Help reuse the current session until the freshness window closes', async ({ page }) => {
+  const checks: string[] = [];
+  await page.route('**/api/v1/me', (route) => {
+    checks.push('account');
+    return route.fulfill({ json: { username: 'session_learner' } });
+  });
+  await page.route('**/api/v1/auth/session', (route) => {
+    checks.push('public session');
+    return route.fulfill({ json: { signedIn: true } });
+  });
+  await page.route('**/api/v1/cards/due*', (route) =>
+    route.fulfill({
+      json: {
+        totalCards: 1,
+        availableCards: 1,
+        dueCards: 1,
+        newCards: 0,
+        nextReviewDate: null,
+        topics: [{ id: 'set-1', title: 'History', dueCards: 1 }],
+        cards: [{ ...historyCards.cards[0], id: '23', setTitle: 'History', contentVersion: 1, version: 0 }],
+      },
+    }),
+  );
+  await page.goto('/today');
+  await page.getByRole('link', { name: 'Review 1 card', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Show answer' })).toBeEnabled();
+  await page.getByRole('link', { name: 'Finish for now' }).click();
+  await expect(page.getByRole('heading', { name: 'Your review', exact: true })).toBeVisible();
+  await page.getByRole('link', { name: 'Help', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Help', exact: true })).toBeVisible();
+  await page.getByRole('link', { name: 'Today', exact: true }).click();
+  await expect(page.getByRole('link', { name: 'Review 1 card', exact: true })).toBeEnabled();
+  expect(checks).toEqual(['account']);
+
+  await page.getByRole('link', { name: 'Help', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Help', exact: true })).toBeVisible();
+  await page.clock.setFixedTime(new Date((await page.evaluate(() => Date.now())) + 30_000));
+  await page.getByRole('link', { name: 'Today', exact: true }).click();
+  await expect.poll(() => checks).toEqual(['account', 'account']);
+});
+
 async function delaySession(page: Page, signedIn = true) {
   let release!: () => void;
   const pending = new Promise<void>((resolve) => {

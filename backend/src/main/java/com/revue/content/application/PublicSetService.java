@@ -50,12 +50,12 @@ public class PublicSetService {
         return queries.onboarding(ONBOARDING_KEYS).stream().map(PublicSetService::summaryOf).toList();
     }
 
-    public Optional<PublicSetSummary> summary(String setKey) {
-        return queries.summary(setKey).map(PublicSetService::summaryOf);
+    public Optional<PublicSetSummary.Preview> summary(String setKey) {
+        return queries.summary(setKey).map(PublicSetService::previewOf);
     }
 
     /** Resolves a canonical short code to an active public set. */
-    public Optional<PublicSetSummary> summaryByShareCode(String code) {
+    public Optional<PublicSetSummary.Preview> summaryByShareCode(String code) {
         if (!code.matches("[0-9a-z]{1,13}")) {
             return Optional.empty();
         }
@@ -64,7 +64,7 @@ public class PublicSetService {
             if (id <= 0 || !Long.toString(id, 36).equals(code)) {
                 return Optional.empty();
             }
-            return queries.summaryById(id).map(PublicSetService::summaryOf);
+            return queries.summaryById(id).map(PublicSetService::previewOf);
         } catch (NumberFormatException _) {
             return Optional.empty();
         }
@@ -86,5 +86,10 @@ public class PublicSetService {
             set.cardCount() >= TRIAL_CARD_COUNT,
             Long.toString(set.id(), 36),
             set.saveAllowed());
+    }
+
+    private static PublicSetSummary.Preview previewOf(PublicSetQueries.Overview set) {
+        var summary = summaryOf(set);
+        return new PublicSetSummary.Preview(summary, summary.trialAvailable() ? set.sampleQuestion() : null);
     }
 }

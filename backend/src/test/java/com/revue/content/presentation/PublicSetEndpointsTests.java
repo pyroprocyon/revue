@@ -171,7 +171,8 @@ class PublicSetEndpointsTests {
             .andExpect(status().isOk())
             .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"))
             .andExpect(header().doesNotExist(HttpHeaders.SET_COOKIE))
-            .andExpect(jsonPath("$.setKey").value("share-history"));
+            .andExpect(jsonPath("$.setKey").value("share-history"))
+            .andExpect(jsonPath("$.sampleQuestion").value("Question share-a?"));
         loader.load(
             List.of(
                 set("share-history", "Updated history", cards("share-a", "share-b", "share-c", "share-d", "share-e"))));
@@ -245,9 +246,10 @@ class PublicSetEndpointsTests {
             .andExpect(status().isOk())
             .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"))
             .andExpect(jsonPath("$.subject").value("Science"))
-            .andExpect(jsonPath("$.*", hasSize(9)))
+            .andExpect(jsonPath("$.*", hasSize(10)))
             .andExpect(jsonPath("$.setKey").value("history"))
             .andExpect(jsonPath("$.title").value("History"))
+            .andExpect(jsonPath("$.sampleQuestion").value("Question h-a?"))
             .andExpect(jsonPath("$.cardCount").value(6))
             .andExpect(jsonPath("$.saveAllowed").value(false))
             .andExpect(jsonPath("$.trialAvailable").value(true));
@@ -278,6 +280,8 @@ class PublicSetEndpointsTests {
             .andExpect(jsonPath("$.cards[0].source").value("Source g."))
             // The flashcard shows no memory hook, so the trial doesn't receive it.
             .andExpect(jsonPath("$.cards[0].memoryHook").doesNotExist());
+        mvc.perform(get(PUBLIC_SETS + "/history")).andExpect(jsonPath("$.sampleQuestion").value("Question g?"));
+        mvc.perform(get(PUBLIC_SETS)).andExpect(jsonPath("$[*].sampleQuestion").doesNotExist());
     }
 
     @Test
@@ -347,7 +351,8 @@ class PublicSetEndpointsTests {
         mvc.perform(get(PUBLIC_SETS + "/history"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.cardCount").value(4))
-            .andExpect(jsonPath("$.trialAvailable").value(false));
+            .andExpect(jsonPath("$.trialAvailable").value(false))
+            .andExpect(jsonPath("$.sampleQuestion").doesNotExist());
         mvc.perform(get(PUBLIC_SETS + "/history/demo-cards"))
             .andExpect(status().isNotFound())
             .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"));

@@ -1,4 +1,4 @@
-import { Navigate, useLocation, useNavigate, useNavigationType, useOutletContext, useSearchParams } from 'react-router';
+import { useLocation, useNavigate, useNavigationType, useOutletContext, useSearchParams } from 'react-router';
 import { useContext, useEffect, useRef, useState, type RefObject } from 'react';
 import { LibraryFailure, type ReviewGroup } from '../application/library';
 import { useSavedSet, useSavedSets } from './useSavedSets';
@@ -6,7 +6,8 @@ import type { LibraryBrowsing } from './LibraryBrowsingLayout';
 import { CreateDeckLink, MyDecks } from './MyDecks';
 import { useDecks } from './useDecks';
 import { SavedSets } from './SavedSets';
-import { LIBRARY_PATH, isPositiveLongId, savedSetListParams, signInPath } from '../../../shared/navigation/paths';
+import { LIBRARY_PATH, isPositiveLongId, savedSetListParams } from '../../../shared/navigation/paths';
+import { SessionExpiredRedirect } from '../../../shared/navigation/SessionExpiredRedirect';
 import { routeState } from '../../../shared/navigation/routeState';
 import { PageControls } from '../../../shared/ui/PageControls';
 import { usePageCursor } from '../../../shared/navigation/usePageCursor';
@@ -47,7 +48,7 @@ export function LibraryPage() {
     browsingSet || isSavedShelf(shelf, firstPage, showCollections, decks.data?.length === 0 && !deletedDeckTitle);
   const firstLoad = useLibraryFirstLoad(browsingSet, linkedSet.loading, firstPage && !removed, decks, library);
   if (signedOut) {
-    return <Navigate replace to={signInPath(LIBRARY_PATH + location.search)} />;
+    return <SessionExpiredRedirect returnTo={LIBRARY_PATH + location.search} />;
   }
   if (firstLoad.library) {
     return (

@@ -101,7 +101,8 @@ class ReviewerPreviewFilter extends OncePerRequestFilter {
         }
     }
 
-    private String render(PublicSetSummary set) {
+    private String render(PublicSetSummary.Preview preview) {
+        var set = preview.summary();
         String metadata = """
             <meta property="og:title" content="%s" />
             <meta property="og:description" content="%s" />
@@ -109,11 +110,13 @@ class ReviewerPreviewFilter extends OncePerRequestFilter {
             """.formatted(
             HtmlUtils.htmlEscape(set.title(), StandardCharsets.UTF_8.name()),
             HtmlUtils.htmlEscape(set.description(), StandardCharsets.UTF_8.name()),
-            HtmlUtils.htmlEscape(json.writeValueAsString(set), StandardCharsets.UTF_8.name()));
+            HtmlUtils.htmlEscape(
+                json.writeValueAsString(PublicSetPreviewResponse.from(preview)),
+                StandardCharsets.UTF_8.name()));
         return beforePreview + metadata + afterPreview;
     }
 
-    private Optional<PublicSetSummary> findReviewer(boolean shortLink, String identifier) {
+    private Optional<PublicSetSummary.Preview> findReviewer(boolean shortLink, String identifier) {
         if (!publicCatalogPermits.tryAcquire()) {
             return Optional.empty();
         }

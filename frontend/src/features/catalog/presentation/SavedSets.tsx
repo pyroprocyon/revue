@@ -1,4 +1,4 @@
-import { useContext, useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
+import { lazy, Suspense, useContext, useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
 import { useLocation, useSearchParams } from 'react-router';
 import type { ReviewCounts, ReviewGroup, SavedSet } from '../application/library';
 import { DeckCarousel } from './DeckCarousel';
@@ -8,11 +8,19 @@ import { CollectionStatusMenu } from './CollectionStatusMenu';
 import { LIBRARY_PATH, savedSetListParams } from '../../../shared/navigation/paths';
 import { FocusRequestContext } from '../../../shared/ui/FocusRequestContext';
 import { routeState } from '../../../shared/navigation/routeState';
-import { SavedSetBrowser } from './SavedSetBrowser';
 import { savedReviewerCardQuery } from './useSavedSets';
 import { useSavedSetCards } from './useDecks';
 import { WhenSlow } from '../../../shared/ui/WhenSlow';
-import { LoadingStatus } from '../../../shared/ui/LoadingFeedback';
+import { LoadingPlaceholder, LoadingStatus } from '../../../shared/ui/LoadingFeedback';
+
+const loadSavedSetBrowser = () => import('./SavedSetBrowser');
+const SavedSetBrowser = lazy(() => loadSavedSetBrowser().then(({ SavedSetBrowser }) => ({ default: SavedSetBrowser })));
+
+export function preloadSavedSetBrowser() {
+  void loadSavedSetBrowser().catch(() => {
+    // The lazy component reports a failed download through the route error boundary.
+  });
+}
 
 type Props = Readonly<{
   sets?: SavedSet[];
@@ -50,14 +58,14 @@ export function SavedSets({
   const groupSets = (sets ?? []).filter((set) => Boolean(set.reviewsPaused) === (group === 'paused'));
   const matches = loading ? [] : groupSets.filter((set) => set.title.toLowerCase().includes(term.trim().toLowerCase()));
   const showStatus = group === 'paused' || sets === undefined || (counts?.paused ?? 0) > 0;
-  const selected = params.get('set');
   const showing = detail?.id ?? null;
+  useEffect(() => {
+    if (linkedId) preloadSavedSetBrowser();
+  }, [linkedId]);
   useEffect(() => {
     const previous = previousDetail.current;
     previousDetail.current = showing;
-    if (showing && selected === showing) {
-      requestFocus(document.getElementById('saved-set-title'));
-    } else if (previous && !showing) {
+    if (previous && !showing) {
       const frame = requestAnimationFrame(() => {
         const links = list.current?.querySelectorAll<HTMLAnchorElement>('[data-library-deck]') ?? [];
         const anchor = Array.from(links).find(
@@ -67,7 +75,7 @@ export function SavedSets({
       });
       return () => cancelAnimationFrame(frame);
     }
-  }, [showing, selected, requestFocus]);
+  }, [showing, requestFocus]);
 
   function setParam(key: string, value: string) {
     const next = key === 'set' ? savedSetListParams(params) : new URLSearchParams(params);
@@ -133,14 +141,24 @@ export function SavedSets({
   );
   if (detail) {
     return (
-      <SavedSetBrowser
-        key={`${username}:${detail.id}`}
-        set={detail}
-        cards={cards}
-        username={username}
-        backTo={`${LIBRARY_PATH}?${savedSetListParams(params)}`}
-        onRemoved={onRemoved}
-      />
+      <Suspense
+        fallback={
+          <WhenSlow>
+            <LoadingPlaceholder kind="rows" blue>
+              Loading the saved reviewer…
+            </LoadingPlaceholder>
+          </WhenSlow>
+        }
+      >
+        <SavedSetBrowser
+          key={`${username}:${detail.id}`}
+          set={detail}
+          cards={cards}
+          username={username}
+          backTo={`${LIBRARY_PATH}?${savedSetListParams(params)}`}
+          onRemoved={onRemoved}
+        />
+      </Suspense>
     );
   }
   return (

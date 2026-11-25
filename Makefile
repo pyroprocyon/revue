@@ -21,12 +21,13 @@ BACKEND_DIR   ?= backend
 FRONTEND_DIR  ?= frontend
 BACKEND_TEST  ?= ./mvnw verify
 FRONTEND_TEST ?= npx --no-install vitest run
+PERF_OUTPUT_DIR ?=
 NODE_RUN := $(abspath scripts/with-node.sh)
 
 # Every Compose target needs a local .env file and a running Docker engine.
 PREREQS := .env check-docker
 
-.PHONY: format-java format-frontend e2e lint install-hooks tooling-test quality quality-local sonar sonar-ide sonar-ide-check check-build-context help start stop up down restart rebuild rebuild-clean logs ps db db-shell reset test check build frontend-install check-docker check-java smoke
+.PHONY: format-java format-frontend e2e perf-startup lint install-hooks tooling-test quality quality-local sonar sonar-ide sonar-ide-check check-build-context help start stop up down restart rebuild rebuild-clean logs ps db db-shell reset test check build frontend-install check-docker check-java smoke
 
 help: ## Show this list
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z_-]+:.*## / {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -131,6 +132,16 @@ quality-local: check-build-context ## Run the required local pre-PR checks under
 e2e: check-build-context frontend-install ## Test pilot account journeys against a disposable production app and database
 	cd "$(FRONTEND_DIR)" && bash "$(NODE_RUN)" npx --no-install playwright install $(PLAYWRIGHT_INSTALL_FLAGS) --only-shell chromium
 	cd "$(FRONTEND_DIR)" && bash "$(NODE_RUN)" npm run test:e2e
+perf-startup: export REVUE_STARTUP_REPORT_DIR = $(if $(strip $(PERF_OUTPUT_DIR)),$(PERF_OUTPUT_DIR),perf-results/startup)
+perf-startup: check-build-context frontend-install ## Measure cold startup on simulated 3G and write a JSON report
+	cd "$(FRONTEND_DIR)" && bash "$(NODE_RUN)" npx --no-install playwright install $(PLAYWRIGHT_INSTALL_FLAGS) --only-shell chromium
+	cd "$(FRONTEND_DIR)" && audit_output=$$(mktemp -d) && \
+	if REVUE_STARTUP_AUDIT=1 bash "$(NODE_RUN)" npm run test:e2e -- startup-audit.spec.ts --output "$$audit_output" --reporter=list; then \
+	  rm -rf -- "$$audit_output"; \
+	else \
+	  printf 'Audit diagnostics saved in %s\n' "$$audit_output" >&2; \
+	  exit 1; \
+	fi
 
 sonar: check-docker check-java ## Analyze already compiled Java and installed frontend sources
 	python3 scripts/check-sonar.py

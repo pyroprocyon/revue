@@ -167,6 +167,8 @@ test('a learner creates a private deck, starts its first review from the deck an
   await page.setViewportSize({ width: 375, height: 667 });
   await signup(page, pilot.signupUrl);
   await page.getByRole('link', { name: 'Create a deck', exact: true }).click();
+  const deckActions = page.locator('.deck-title-form-actions');
+  await expect(deckActions).toHaveCSS('backdrop-filter', /^blur\(/);
   await page.getByLabel('Name', { exact: true }).fill('Biology quiz');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
   const editor = page.getByRole('dialog', { name: 'New card' });
@@ -806,7 +808,12 @@ test('an unsaved deck name stays when Deck settings moves from the side pane to 
   await page.setViewportSize({ width: 1280, height: 800 });
   await registerDeckLearner(page, pilot.origin);
   await createDeckWithCard(page, 'Exam prep', 'First question', 'Answer');
-  await page.getByRole('button', { name: 'Deck settings', exact: true }).click();
+  const settings = page.getByRole('button', { name: 'Deck settings', exact: true });
+  await expect(settings).toHaveAttribute('aria-expanded', 'false');
+  const closedGradient = await settings.evaluate((button) => getComputedStyle(button).backgroundImage);
+  await settings.click();
+  await expect(settings).toHaveAttribute('aria-expanded', 'true');
+  await expect(settings).not.toHaveCSS('background-image', closedGradient);
   await page.getByLabel('Name', { exact: true }).fill('Biology finals');
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByLabel('Name', { exact: true })).toHaveValue('Biology finals');
@@ -1189,6 +1196,9 @@ test('deck lists append cards on phones and page by keyboard on wide screens', a
       expect(backTop).toBeGreaterThanOrEqual(58);
       expect((await navigation.boundingBox())!.y).toBeCloseTo(navAtTop.y);
       await statusArea?.evaluate((style) => style.parentNode?.removeChild(style));
+      await page.evaluate(() => document.documentElement.setAttribute('data-android-phone', ''));
+      expect((await backAboveToolbar.boundingBox())!.y).toBeCloseTo(24, 0);
+      await page.evaluate(() => document.documentElement.removeAttribute('data-android-phone'));
     }
   }
   for (const [width, height] of [

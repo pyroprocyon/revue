@@ -1,13 +1,14 @@
 import { BookOpen, ChevronRight, Info, X } from 'lucide-react';
 import { useCallback, useContext, useId, useRef, useState } from 'react';
-import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import type { DeckCard, DeckCardQuery } from '../application/decks';
 import { LibraryFailure, type SavedSet } from '../application/library';
 import { CardPreview } from './CardPreview';
 import { CardScreen } from './CardScreen';
 import { DeckCardList } from './DeckCardList';
-import { cardToolButton, DeckStatus, DeckToolbar, DueFilter } from './DeckToolbar';
+import { cardToolButton, DeckStatus, DeckToolbar } from './DeckToolbar';
+import { DueFilter } from './DueFilter';
 import { RemoveSetAction, useRemoveSetAction } from './RemoveSetAction';
 import { ReviewSettings } from './ReviewSettings';
 import { setReviewPauseProblem, useSetReviewPause } from './useSetReviewPause';
@@ -17,7 +18,8 @@ import type { useSavedSetCards, CardPages } from './useDecks';
 import { savedReviewerCardQuery } from './useSavedSets';
 import { useTwoPanes } from './useTwoPanes';
 import { libraryKeys } from '../../../shared/cache/queryKeys';
-import { LIBRARY_PATH, setPath, signInPath } from '../../../shared/navigation/paths';
+import { LIBRARY_PATH, setPath } from '../../../shared/navigation/paths';
+import { SessionExpiredRedirect } from '../../../shared/navigation/SessionExpiredRedirect';
 import { OPENED_FROM_LIBRARY, routeState } from '../../../shared/navigation/routeState';
 import { FocusRequestContext } from '../../../shared/ui/FocusRequestContext';
 import { NavigationLink } from '../../../shared/ui/NavigationLink';
@@ -59,7 +61,7 @@ export function SavedSetBrowser({ set, cards, username, backTo, onRemoved }: Rea
   const previewTabIndex = toolbarBottom === null ? undefined : 0;
 
   if (signedOut || (pause.error instanceof LibraryFailure && pause.error.reason === 'signed-out')) {
-    return <Navigate replace to={signInPath(LIBRARY_PATH + location.search)} />;
+    return <SessionExpiredRedirect returnTo={LIBRARY_PATH + location.search} />;
   }
   const earlier = after === undefined ? undefined : () => pageTo(cursors.at(-1), cursors.slice(0, -1));
   const pagination = (earlier || nextCursor) && (
@@ -77,7 +79,6 @@ export function SavedSetBrowser({ set, cards, username, backTo, onRemoved }: Rea
     <WorkspacePage
       title={set.title}
       headingId="saved-set-title"
-      focusHeading={false}
       aboveTitle={<SavedSetBack to={backTo} />}
       subtitle={<DeckStatus deck={deck} progress={progress ?? { dueCards: 0, newCards: 0, nextReviewDate: null }} />}
     >

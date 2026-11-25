@@ -18,7 +18,8 @@ import { nextReviewText, reviewAction, statusPanel } from './TodayPage';
 import { REVIEW_BATCH_SIZE } from '../../../shared/product/studyRules';
 import { cardNoun } from '../../../shared/ui/cardCount';
 import { primaryButton, secondaryButton } from '../../../shared/ui/buttonStyles';
-import { TODAY_PATH, isReviewTopic, signInPath } from '../../../shared/navigation/paths';
+import { TODAY_PATH, isReviewTopic } from '../../../shared/navigation/paths';
+import { SessionExpiredRedirect } from '../../../shared/navigation/SessionExpiredRedirect';
 import { WhenSlow } from '../../../shared/ui/WhenSlow';
 import { LoadingPlaceholder, LoadingStatus } from '../../../shared/ui/LoadingFeedback';
 import { FocusRequestContext } from '../../../shared/ui/FocusRequestContext';
@@ -57,7 +58,7 @@ function TopicReview({ selection }: Readonly<{ selection: ReviewSelection }>) {
 
 function ReviewHeading({ title }: Readonly<{ title?: string }>) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-x-3">
+    <div className="study-session-heading flex flex-wrap items-center justify-between gap-x-3">
       <h1
         className={
           title
@@ -218,7 +219,7 @@ function ReviewBatch({ cards, onFinish, onConfirmed }: Readonly<{ cards: StudyCa
     });
   }
 
-  if (status === 'signed-out') return <Navigate to={signInPath(pathname)} replace />;
+  if (status === 'signed-out') return <SessionExpiredRedirect returnTo={pathname} />;
   return (
     <>
       {reviewHeader && createPortal(<ReviewHeading title={card.setTitle} />, reviewHeader)}
@@ -412,7 +413,7 @@ function remainingText(remaining: number, available: number, title: string) {
 function QueueError({ error, retry, busy }: Readonly<{ error: Error; retry: () => void; busy: boolean }>) {
   const { pathname } = useLocation();
   if (error instanceof ReviewFailure && error.kind === 'signed-out')
-    return <Navigate to={signInPath(pathname)} replace />;
+    return <SessionExpiredRedirect returnTo={pathname} />;
   return (
     <div>
       <p role="alert">Your cards couldn’t load. Try again.</p>

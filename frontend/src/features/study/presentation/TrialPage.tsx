@@ -1,10 +1,16 @@
 import { rateTrial, startTrial, trialSummary } from '../domain/trialSession';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Flag } from 'lucide-react';
-import { useId, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router';
-import type { PublicContentReader, TrialCard, TrialCards } from '../../catalog/application/publicContent';
-import { trialCardsQuery } from '../../catalog/application/publicContentQueries';
+import type { PublicContentReader, PublicSet, TrialCard, TrialCards } from '../../catalog/application/publicContent';
+import {
+  canRecheckTrial,
+  publicContentKeys,
+  trialCardsQuery,
+  trialConflictsWithPreview,
+  type PublicContentRead,
+} from '../../catalog/application/publicContentQueries';
 import { TRIAL_CARD_COUNT } from '../../../shared/product/studyRules';
 import { cardNoun } from '../../../shared/ui/cardCount';
 import { primaryButton, secondaryButton } from '../../../shared/ui/buttonStyles';
@@ -20,21 +26,48 @@ import { routeState } from '../../../shared/navigation/routeState';
 import { SETS_PATH, setPath } from '../../../shared/navigation/paths';
 import { FlashCard } from './FlashCard';
 import { RatingButtons } from './RatingButtons';
-import { CardDetails } from './ReviewDetail';
 import { RATINGS, RecallMeter, type Rating } from './ratings';
 
 /** "Try 5 cards": a set's first five cards, practiced in the browser and never saved. */
 export function TrialPage({ reader }: Readonly<{ reader: Pick<PublicContentReader, 'trialCards'> }>) {
   const { setKey = '' } = useParams();
-  const trialCards = useQuery(trialCardsQuery(reader, setKey));
+  const { trialPreviewKey } = routeState(useLocation());
+  return <TrialEntry key={setKey} setKey={setKey} reader={reader} previewKey={trialPreviewKey} />;
+}
 
-  if (trialCards.isPending) {
-    return <LoadingScreen text="Loading the cards…" />;
+function TrialEntry({
+  setKey,
+  reader,
+  previewKey,
+}: Readonly<{ setKey: string; reader: Pick<PublicContentReader, 'trialCards'>; previewKey?: string }>) {
+  const queryClient = useQueryClient();
+  const [preview] = useState(() =>
+    previewKey === undefined
+      ? undefined
+      : queryClient.getQueryData<PublicContentRead<PublicSet | null>>(publicContentKeys.set(previewKey)),
+  );
+  const trialCards = useQuery(trialCardsQuery(reader, setKey));
+  const trialRead = trialCards.data;
+  const needsFreshCards =
+    trialRead !== undefined &&
+    preview !== undefined &&
+    (preview.value === null || preview.value.setKey === setKey) &&
+    ((preview.value?.trialAvailable === true && trialRead.finished < preview.started) ||
+      trialConflictsWithPreview(trialRead, preview.finished, preview.value));
+  const refetchTrial = trialCards.refetch;
+  const recheckTrial =
+    needsFreshCards && trialCards.fetchStatus === 'idle' && canRecheckTrial(trialCards.error, preview.finished);
+  useEffect(() => {
+    if (recheckTrial) void refetchTrial({ cancelRefetch: false });
+  }, [recheckTrial, refetchTrial]);
+
+  if (trialCards.isPending || recheckTrial || (needsFreshCards && trialCards.fetchStatus !== 'idle')) {
+    return <LoadingScreen text="Loading the cards…" top={<TrialHeader setKey={setKey} title="Try 5 cards" />} />;
   }
-  if (trialCards.isLoadingError) {
+  if (trialCards.isLoadingError || needsFreshCards) {
     return <LoadFailed onRetry={() => void trialCards.refetch()} retrying={trialCards.isFetching} />;
   }
-  if (trialCards.data === null) {
+  if (trialCards.data.value === null) {
     return (
       <MessageScreen
         title={`The ${TRIAL_CARD_COUNT}-card trial isn't available right now.`}
@@ -44,7 +77,7 @@ export function TrialPage({ reader }: Readonly<{ reader: Pick<PublicContentReade
       </MessageScreen>
     );
   }
-  return <Trial key={setKey} setKey={setKey} initialContent={trialCards.data} />;
+  return <Trial setKey={setKey} initialContent={trialCards.data.value} />;
 }
 
 function Trial({ setKey, initialContent }: Readonly<{ setKey: string; initialContent: TrialCards }>) {
@@ -67,19 +100,10 @@ function Trial({ setKey, initialContent }: Readonly<{ setKey: string; initialCon
     setTrial((current) => ({ ...current, session: rateTrial(current.session, rating) }));
   }
 
-  const top = (
-    <div className="flex w-full flex-wrap items-center justify-between gap-x-3">
-      <div className="min-w-0 flex-[1_1_8rem]">
-        <p className="text-lg leading-tight font-bold wrap-anywhere sm:text-section">{content.setTitle}</p>
-        <p className="mt-1 text-support text-muted">Trial · Progress isn’t saved</p>
-      </div>
-      <BackButton label="Exit trial" fallbackPath={setPath(setKey)} />
-    </div>
-  );
   return (
-    <StudyLayout top={top}>
+    <StudyLayout top={<TrialHeader setKey={setKey} title={content.setTitle} />}>
       <h1 className="sr-only">Try {cardCount} cards</h1>
-      <div className="review-flow pb-4 sm:pb-6">
+      <div className="review-flow pt-(--review-card-top-gap) pb-4 sm:pb-6">
         {/* A new key per card, so each card starts on its front instead of turning back over. */}
         <FlashCard
           key={card.key}
@@ -87,10 +111,21 @@ function Trial({ setKey, initialContent }: Readonly<{ setKey: string; initialCon
           publisherName={content.publisherName}
           position={{ index: cardIndex, total: cardCount }}
           ratingControls={<RatingButtons onRate={rate} />}
-          cardDetails={card.explanation && <CardDetails explanation={card.explanation} tip={null} />}
         />
       </div>
     </StudyLayout>
+  );
+}
+
+function TrialHeader({ setKey, title }: Readonly<{ setKey: string; title: string }>) {
+  return (
+    <div className="study-session-heading flex w-full flex-wrap items-center justify-between gap-x-3">
+      <div className="min-w-0 flex-[1_1_8rem]">
+        <p className="text-lg leading-tight font-bold wrap-anywhere sm:text-section">{title}</p>
+        <p className="mt-1 text-support text-muted">Trial · Progress isn’t saved</p>
+      </div>
+      <BackButton label="Exit trial" fallbackPath={setPath(setKey)} />
+    </div>
   );
 }
 
@@ -116,29 +151,27 @@ function TrialFinished({ setKey, cards, ratings }: Readonly<TrialFinishedProps>)
     </span>
   );
   return (
-    <div className="lg:[--container-page:58rem]">
-      <PageLayout top={<HomeLink />}>
-        <div className="mt-3 grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
-          <section className="result-panel">
-            {finishedIcon}
-            <h1 {...heading} className="text-title font-extrabold tracking-tight outline-none">
-              You practiced {cards.length} cards.
-            </h1>
-            <p className="my-4 text-body text-muted">This practice wasn’t saved.</p>
-            <SetLinks setKey={setKey} primary={primaryLinkBySession[session]} />
-          </section>
-          <section
-            aria-label="Example schedule"
-            className="rounded-card border border-line bg-surface p-compact-gutter sm:p-6"
-          >
-            <h2 className="mb-2 text-section font-bold">Example schedule</h2>
-            {groups.map((group, index) => (
-              <ReviewTimingGroup key={group.when} when={group.when} cards={group.cards} first={index === 0} />
-            ))}
-          </section>
-        </div>
-      </PageLayout>
-    </div>
+    <PageLayout top={<HomeLink />}>
+      <div className="mt-3 grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+        <section className="result-panel">
+          {finishedIcon}
+          <h1 {...heading} className="text-title font-extrabold tracking-tight outline-none">
+            You practiced {cards.length} cards.
+          </h1>
+          <p className="my-4 text-body text-muted">This practice wasn’t saved.</p>
+          <SetLinks setKey={setKey} primary={primaryLinkBySession[session]} />
+        </section>
+        <section
+          aria-label="Example schedule"
+          className="rounded-card border border-line bg-surface p-compact-gutter sm:p-6"
+        >
+          <h2 className="mb-2 text-section font-bold">Example schedule</h2>
+          {groups.map((group, index) => (
+            <ReviewTimingGroup key={group.when} when={group.when} cards={group.cards} first={index === 0} />
+          ))}
+        </section>
+      </div>
+    </PageLayout>
   );
 }
 

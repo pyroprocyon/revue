@@ -110,7 +110,7 @@ class StaticServingTests {
     @Test
     void sharedAndFullReviewerLinksServeCurrentEscapedMetadataWithoutJavascript() {
         String key = "share-preview-" + UUID.randomUUID();
-        long id = insertSet(key, "Private question sentinel", "Answer sentinel");
+        long id = insertSet(key, "Other question sentinel", "Answer sentinel");
         String shortPath = "/s/" + Long.toString(id, 36);
         String fullPath = "/sets/" + key;
         try {
@@ -119,6 +119,7 @@ class StaticServingTests {
                 "Music & Math",
                 "₱70 for \"A<B>\"?",
                 id);
+            jdbc.update("update cards set question = ? where set_id = ? and position = 1", "Public sample <one>", id);
             for (String path : List.of(shortPath, fullPath)) {
                 var response = send("GET", path);
                 assertThat(response.statusCode()).isEqualTo(200);
@@ -129,9 +130,10 @@ class StaticServingTests {
                     .contains(
                         "content=\"Music &amp; Math\"",
                         "content=\"₱70 for &quot;A&lt;B&gt;&quot;?\"",
+                        "&quot;sampleQuestion&quot;:&quot;Public sample &lt;one&gt;&quot;",
                         "/assets/app-test1234.js",
                         "id=\"root\"")
-                    .doesNotContain("Test app description", "question sentinel", "Answer sentinel");
+                    .doesNotContain("Test app description", "Other question sentinel", "Answer sentinel");
                 var head = send("HEAD", path);
                 assertThat(head.statusCode()).isEqualTo(200);
                 assertThat(head.body()).isEmpty();

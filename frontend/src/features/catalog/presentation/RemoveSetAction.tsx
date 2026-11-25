@@ -1,11 +1,12 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { Trash2 } from 'lucide-react';
 import { useId, useRef, useState } from 'react';
-import { Navigate, useLocation } from 'react-router';
+import { useLocation } from 'react-router';
 import { LibraryFailure, type LibraryPage, type SavedSet } from '../application/library';
 import { useLibraryGateway } from './LibraryProvider';
 import { libraryKeys, reviewKeys } from '../../../shared/cache/queryKeys';
-import { LIBRARY_PATH, signInPath } from '../../../shared/navigation/paths';
+import { LIBRARY_PATH } from '../../../shared/navigation/paths';
+import { SessionExpiredRedirect } from '../../../shared/navigation/SessionExpiredRedirect';
 import { useStillMounted } from '../../../shared/ui/useStillMounted';
 import {
   destructiveOutlineButton,
@@ -96,7 +97,7 @@ export function RemoveSetAction({
   const { state, changeConfirmation, titleId, warningId, focusResult, remove } = action;
 
   const { search } = useLocation();
-  if (state === 'signed-out') return <Navigate replace to={signInPath(LIBRARY_PATH + search)} />;
+  if (state === 'signed-out') return <SessionExpiredRedirect returnTo={LIBRARY_PATH + search} />;
   if (state === 'removing')
     return (
       <button

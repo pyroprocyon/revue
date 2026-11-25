@@ -2,14 +2,14 @@
 const buttonBase =
   'pressable inline-flex min-h-12 items-center justify-center gap-2 rounded-control px-5 py-2 text-center text-body font-semibold disabled:cursor-not-allowed';
 
-export const primaryButton = `${buttonBase} bg-accent text-on-accent disabled:bg-subtle disabled:text-muted`;
+export const primaryButton = `${buttonBase} accent-control-gradient bg-accent text-on-accent disabled:bg-subtle disabled:text-muted`;
 
-export const blueAccentButton = `${buttonBase} bg-saved-set text-on-saved-set disabled:bg-subtle disabled:text-muted`;
+export const blueAccentButton = `${buttonBase} accent-control-gradient bg-saved-set text-on-saved-set disabled:bg-subtle disabled:text-muted`;
 
-export const secondaryButton = `${buttonBase} bg-surface text-ink shadow-control`;
+export const secondaryButton = `${buttonBase} neutral-control-gradient bg-surface text-ink shadow-control`;
 
 const outlineButton =
-  'pressable inline-flex min-h-12 max-w-full items-center justify-center gap-2 rounded-control border bg-surface px-4 py-2 text-center text-label wrap-anywhere';
+  'pressable neutral-control-gradient inline-flex min-h-12 max-w-full items-center justify-center gap-2 rounded-control border bg-surface px-4 py-2 text-center text-label wrap-anywhere';
 
 export const neutralOutlineButton = `${outlineButton} border-line font-semibold text-ink`;
 
@@ -24,8 +24,8 @@ export const accountLink = `${accountControl} px-3 text-label text-accent`;
 
 // The phone pair shares available width. Desktop buttons fit their labels.
 const accountButton = `${accountControl} flex-1 basis-32 border px-2 text-base/5 lg:flex-none lg:px-4`;
-export const accountOutlinedButton = `${accountButton} border-accent/30 bg-surface text-accent`;
-export const accountTonalButton = `${accountButton} border-transparent bg-accent-soft text-accent-strong`;
+export const accountOutlinedButton = `${accountButton} neutral-control-gradient border-accent/30 bg-surface text-accent`;
+export const accountTonalButton = `${accountButton} tonal-control-gradient border-transparent bg-accent-soft text-accent-strong`;
 
 // A small pill that labels a card, such as "Sample card" or "Shared set". Not a control.
 export const chip = 'inline-flex rounded-full bg-accent-soft px-3 py-1 text-label font-semibold text-accent-strong';

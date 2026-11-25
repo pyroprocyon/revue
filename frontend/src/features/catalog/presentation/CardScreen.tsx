@@ -88,7 +88,7 @@ export function CardScreen({
       }}
       className="workspace-sheet m-0 h-dvh max-h-none w-full max-w-none bg-page p-0 text-ink backdrop:bg-transparent open:flex open:flex-col"
     >
-      <div className="page-gutters flex shrink-0 flex-wrap items-center gap-2 border-b border-line pt-[calc(max(0.5rem,env(safe-area-inset-top))_+_var(--page-top-gutter))] pb-2">
+      <div className="page-gutters flex shrink-0 flex-wrap items-center gap-2 border-b border-line pt-[calc(max(0.5rem,var(--reading-header-inset))_+_var(--page-top-gutter))] pb-2">
         {formActionsInBar ? (
           <div ref={setBarSlot} className="contents" />
         ) : (

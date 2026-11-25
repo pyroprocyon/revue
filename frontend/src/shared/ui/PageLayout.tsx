@@ -16,7 +16,7 @@ export function PageLayout({ top, actions, pinActionsOnPhone = false, children }
     >
       <SkipToContent />
       <header
-        className={`${readingColumn} phone-page-header flex min-h-14 shrink-0 flex-wrap items-center gap-x-3 gap-y-2 pt-[env(safe-area-inset-top)]`}
+        className={`${readingColumn} phone-page-header flex min-h-14 shrink-0 flex-wrap items-center gap-x-3 gap-y-2 pt-[var(--reading-header-inset)]`}
       >
         {top}
       </header>
@@ -30,7 +30,7 @@ export function PageLayout({ top, actions, pinActionsOnPhone = false, children }
       </main>
       {pinActionsOnPhone && actions && (
         <footer className="shrink-0 bg-page">
-          <div className={`${readingColumn} pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]`}>{actions}</div>
+          <div className={`${readingColumn} pt-3 pb-[max(1rem,var(--phone-bottom-inset))]`}>{actions}</div>
         </footer>
       )}
     </div>

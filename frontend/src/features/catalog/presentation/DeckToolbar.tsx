@@ -27,7 +27,7 @@ const reviewDay = new Intl.DateTimeFormat('en', {
 });
 
 export const cardToolButton =
-  'pressable grid size-12 shrink-0 place-items-center rounded-control bg-surface text-accent shadow-control aria-expanded:bg-accent-soft';
+  'pressable neutral-control-gradient grid size-12 shrink-0 place-items-center rounded-control bg-surface text-accent shadow-control aria-expanded:bg-accent-soft aria-expanded:[background-image:var(--tonal-control-gradient)]';
 
 const deckStatusPill = 'inline-flex min-w-0 items-center gap-1.5 rounded-control py-0.5 pr-2.5 pl-2 font-semibold';
 
@@ -346,25 +346,4 @@ function StudyAction({
 function startReviewLabel(kind: 'review' | 'start', title: string, saved: boolean) {
   if (kind === 'start') return saved ? `Start review: ${title}` : 'Start review';
   return undefined;
-}
-
-/** The study action already shows the due count, so the filter labels leave it out. */
-export function DueFilter({ dueOnly, onChange }: Readonly<{ dueOnly: boolean; onChange: (dueOnly: boolean) => void }>) {
-  const option = (label: string, isDue: boolean) => (
-    <button
-      type="button"
-      aria-pressed={dueOnly === isDue}
-      onClick={() => onChange(isDue)}
-      className={`pressable flex min-h-12 min-w-0 items-center justify-center border-b-2 border-transparent px-2 text-center text-label leading-tight font-bold wrap-anywhere aria-pressed:border-accent ${isDue ? 'text-due' : 'text-muted aria-pressed:text-accent-strong'}`}
-    >
-      {label}
-    </button>
-  );
-  return (
-    <fieldset className="mb-3 grid w-51 max-w-full min-w-0 grid-cols-2 gap-1 border-b border-line">
-      <legend className="sr-only">Show cards</legend>
-      {option('All cards', false)}
-      {option('Due', true)}
-    </fieldset>
-  );
 }

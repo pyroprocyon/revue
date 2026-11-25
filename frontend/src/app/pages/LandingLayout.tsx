@@ -7,13 +7,12 @@ export function LandingLayout({
   actions,
   children,
 }: Readonly<{ top: ReactNode; actions: ReactNode; children: ReactNode }>) {
-  const column = `${readingColumn} lg:max-w-wide`;
   return (
     <div className="@container/landing">
       <div className="landing-screen flex h-[var(--page-height)] flex-col lg:h-auto lg:min-h-[var(--page-height)] lg:pt-4">
         <SkipToContent />
         <header
-          className={`${column} flex min-h-14 shrink-0 flex-wrap items-center gap-x-3 pt-[env(safe-area-inset-top)]`}
+          className={`${readingColumn} flex min-h-14 shrink-0 flex-wrap items-center gap-x-3 pt-[var(--reading-header-inset)]`}
         >
           {top}
         </header>
@@ -22,12 +21,12 @@ export function LandingLayout({
           tabIndex={0 /* NOSONAR S6845: this scroll container needs focus for native keyboard scrolling. */}
           className="min-h-[min(16rem,50dvh)] flex-1 scroll-smooth overflow-y-auto overscroll-contain focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent lg:flex-none lg:overflow-visible"
         >
-          <div className={`${column} flex min-h-full flex-col pb-[max(1rem,env(safe-area-inset-bottom))]`}>
+          <div className={`${readingColumn} flex min-h-full flex-col pb-[max(1rem,var(--phone-bottom-inset))]`}>
             {children}
           </div>
         </main>
-        <div className="shrink-0 bg-page shadow-actions lg:hidden">
-          <div className={`${column} pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]`}>{actions}</div>
+        <div className={`${readingColumn} shrink-0 pt-3 pb-[max(1rem,var(--phone-bottom-inset))] lg:hidden`}>
+          <div className="floating-control-surface rounded-card border border-line p-2.5">{actions}</div>
         </div>
       </div>
     </div>

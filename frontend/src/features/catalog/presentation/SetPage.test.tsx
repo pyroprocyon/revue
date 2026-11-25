@@ -2,6 +2,7 @@ import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { historyCards, historySet, natureSet } from '../../../test/fixtures';
 import { jsonResponse, renderApp, stubFetch } from '../../../test/renderApp';
+import { publicContentKeys } from '../application/publicContentQueries';
 
 const SET_PAGE = '/sets/philippine-history';
 const SET_API = '/api/v1/public-sets/philippine-history';
@@ -85,18 +86,81 @@ describe('Set preview', () => {
     vi.stubGlobal('fetch', fetchMock);
     renderApp(SET_PAGE);
 
-    const sample = await screen.findByRole('heading', { name: 'Sample question' });
-    expect(sample).toBeDefined();
-    expect(screen.getByText(historyCards.cards[0]!.question)).toBeDefined();
+    expect(await screen.findByText(historyCards.cards[0]!.question)).toBeDefined();
+    expect(screen.getByRole('heading', { name: 'Sample question' })).toBeDefined();
     expect(screen.queryByText(historyCards.cards[0]!.answer)).toBeNull();
     expect(screen.queryByText(historyCards.cards[1]!.question)).toBeNull();
     expect(screen.getByRole('link', { name: 'Try 5 cards' }).getAttribute('href')).toBe(`${SET_PAGE}/try`);
     const actions = within(screen.getByRole('group', { name: 'Reviewer actions' }));
     expect(await actions.findByRole('button', { name: 'Save to Library' })).toBeDefined();
-    const warning = screen.getByText('Trial progress and ratings aren’t saved.');
-    expect(actions.getByRole('link', { name: 'Try 5 cards' }).getAttribute('aria-describedby')).toBe(warning.id);
-    expect(actions.queryByText(warning.textContent!)).toBeNull();
+    expect(screen.queryByText('Trial progress and ratings aren’t saved.')).toBeNull();
+    expect(actions.getByRole('link', { name: 'Try 5 cards' }).hasAttribute('aria-describedby')).toBe(false);
   });
+
+  it.each(['updated', 'unavailable'] as const)('reconciles the summary when the trial is %s', async (state) => {
+    let finishTrial!: (response: Response) => void;
+    const trial = new Promise<Response>((resolve) => {
+      finishTrial = resolve;
+    });
+    const summaryQuestion = 'The old first question?';
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (path: string) =>
+        path === `${SET_API}/demo-cards`
+          ? trial
+          : jsonResponse(200, { ...historySet, sampleQuestion: summaryQuestion }),
+      ),
+    );
+    renderApp(SET_PAGE);
+
+    expect(await screen.findByText(summaryQuestion)).toBeDefined();
+    finishTrial(state === 'updated' ? jsonResponse(200, historyCards) : jsonResponse(404));
+    if (state === 'updated') {
+      expect(await screen.findByText(historyCards.cards[0]!.question)).toBeDefined();
+    } else {
+      const tryButton = await screen.findByRole('button', { name: 'Try 5 cards' });
+      expect((tryButton as HTMLButtonElement).disabled).toBe(true);
+      expect(screen.getByText('This trial is unavailable right now.')).toBeDefined();
+    }
+    expect(screen.queryByText(summaryQuestion)).toBeNull();
+  });
+
+  it.each(['old cards', 'an older withdrawal'])(
+    'uses a newer summary while the trial cache contains %s',
+    async (cached) => {
+      let completeTrial!: (response: Response) => void;
+      const trial = new Promise<Response>((resolve) => {
+        completeTrial = resolve;
+      });
+      const question = 'The new first question?';
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (path: string) => {
+          if (path === `${SET_API}/demo-cards`) return trial;
+          if (path === SET_API) return jsonResponse(200, { ...historySet, sampleQuestion: question });
+          return jsonResponse(200, { signedIn: false });
+        }),
+      );
+      const { queryClient, router } = renderApp('/help');
+      queryClient.setQueryData(publicContentKeys.trial(historySet.setKey), {
+        value: cached === 'old cards' ? historyCards : null,
+        started: 0,
+        finished: 0,
+      });
+      await act(() => router.navigate(SET_PAGE));
+
+      expect(await screen.findByText(question)).toBeDefined();
+      const tryLink = screen.getByRole('link', { name: 'Try 5 cards' });
+      fireEvent.click(tryLink);
+      expect(screen.getByRole('button', { name: 'Exit trial' })).toBeDefined();
+      expect(screen.queryByRole('button', { name: 'Show answer' })).toBeNull();
+      expect(screen.queryByText(/trial isn't available right now/)).toBeNull();
+
+      const cards = [{ ...historyCards.cards[0]!, question }, ...historyCards.cards.slice(1)];
+      completeTrial(jsonResponse(200, { ...historyCards, cards }));
+      expect(await screen.findByRole('heading', { name: question })).toBeDefined();
+    },
+  );
 
   it('retries the sample when the catalog is busy', async () => {
     let attempts = 0;
@@ -109,7 +173,7 @@ describe('Set preview', () => {
     );
     renderApp(SET_PAGE);
 
-    expect(await screen.findByRole('heading', { name: 'Sample question' }, { timeout: 2_500 })).toBeDefined();
+    expect(await screen.findByText(historyCards.cards[0]!.question, {}, { timeout: 2_500 })).toBeDefined();
     expect(attempts).toBe(2);
   });
 
@@ -123,7 +187,7 @@ describe('Set preview', () => {
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(trialPath, expect.anything()));
     expect(screen.getByRole('link', { name: 'Try 5 cards' })).toBeDefined();
-    expect(screen.queryByRole('heading', { name: 'Sample question' })).toBeNull();
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Sample question' })).toBeNull());
   });
 
   it('says the set is unavailable when the server does not offer it, and points to the others', async () => {

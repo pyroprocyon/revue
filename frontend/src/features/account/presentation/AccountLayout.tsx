@@ -5,7 +5,13 @@ import { safeAccountReturnPath } from '../application/account';
 import type { AccountProfile } from '../application/account';
 import { useAccountGateway } from './AccountProvider';
 import { onSessionChange, sessionRevision } from '../../../shared/navigation/sessionChanges';
-import { lastConfirmedProfile, rememberConfirmedProfile } from './confirmedProfile';
+import {
+  invalidateConfirmation,
+  lastConfirmedProfile,
+  recentConfirmationTime,
+  rememberConfirmedProfile,
+  withinSessionWindow,
+} from './confirmedProfile';
 import {
   bindWritesTo,
   forgetCsrfToken,
@@ -29,13 +35,6 @@ type Session =
   | { status: 'loading' }
   | { status: 'signed-out'; revision: ReturnType<typeof sessionRevision> }
   | { status: 'ready'; profile: AccountProfile };
-
-const SESSION_FRESH_MS = 30_000;
-function withinSessionWindow(time: number | undefined) {
-  if (time === undefined) return false;
-  const elapsed = Date.now() - time;
-  return elapsed >= 0 && elapsed < SESSION_FRESH_MS;
-}
 
 const OUTDATED_REVIEW_MESSAGE = 'Your last change wasn’t sent. Go to Today to keep studying.';
 const OUTDATED_PAGE_MESSAGE =
@@ -126,10 +125,11 @@ export function AccountLayout({
   useEffect(() => {
     let pendingRequest: { controller: AbortController; startedAt: number } | undefined;
     let leftSinceLastReturn = true;
-    let confirmedAt: number | undefined;
     let revision = sessionRevision();
+    let confirmedAt = recentConfirmationTime(queryClient, revision);
     async function checkSession() {
       confirmedAt = undefined;
+      invalidateConfirmation(queryClient);
       pendingRequest?.controller.abort();
       const request = { controller: new AbortController(), startedAt: Date.now() };
       pendingRequest = request;
@@ -158,7 +158,7 @@ export function AccountLayout({
           queryClient.clear();
         }
         lastUsername.current = profile?.username;
-        if (profile !== null) rememberConfirmedProfile(queryClient, profile);
+        if (profile !== null) rememberConfirmedProfile(queryClient, profile, revision);
         setSession(profile === null ? { status: 'signed-out', revision } : { status: 'ready', profile });
       } catch {
         if (pendingRequest === request) {
@@ -257,7 +257,7 @@ export function AccountLayout({
             className={
               session.status === 'loading'
                 ? 'mb-4'
-                : 'pointer-events-none fixed inset-x-4 top-2 z-20 mx-auto w-fit rounded-control bg-surface px-3 py-2 shadow-control'
+                : 'pointer-events-none fixed inset-x-[max(1rem,var(--phone-edge-gutter))] top-[max(0.5rem,var(--phone-edge-gutter))] z-20 mx-auto w-fit rounded-control bg-surface px-3 py-2 shadow-control'
             }
           >
             {session.status === 'loading' ? 'Loading your account…' : 'Checking your session…'}
@@ -287,7 +287,7 @@ export function AccountLayout({
         <div ref={privateContent} inert={interactionsPaused} className={outdatedReview ? 'opacity-50' : undefined}>
           <InteractionPausedContext value={interactionsPaused}>
             <FocusRequestContext value={requestFocus}>
-              <RouteErrorBoundary resetKey={location.pathname} fallback={<RouteErrorCard signedIn />}>
+              <RouteErrorBoundary resetKey={location.pathname + location.search} fallback={<RouteErrorCard signedIn />}>
                 <Outlet key={session.profile.username} context={{ ...session.profile, reviewHeader }} />
               </RouteErrorBoundary>
             </FocusRequestContext>

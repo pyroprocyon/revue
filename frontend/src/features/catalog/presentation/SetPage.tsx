@@ -1,9 +1,15 @@
 import { SaveSetAction } from './SaveSetAction';
 import { useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { ArrowRight, Layers2 } from 'lucide-react';
+import { useEffect } from 'react';
 import { Link, useLocation, useParams } from 'react-router';
 import type { PublicSet, PublicSetPage } from '../application/publicContent';
-import { publicCatalogRetry, publicContentKeys } from '../application/publicContentQueries';
+import {
+  canRecheckTrial,
+  publicCatalogRetry,
+  publicContentKeys,
+  trialConflictsWithPreview,
+} from '../application/publicContentQueries';
 import { usePublicContentQueries } from './PublicContentProvider';
 import { ReviewerSubjectIcon } from './ReviewerSubjectIcon';
 import { blueAccentButton, secondaryButton } from '../../../shared/ui/buttonStyles';
@@ -12,7 +18,7 @@ import { cardCountLabel } from '../../../shared/ui/cardCount';
 import { FactLine } from '../../../shared/ui/FactLine';
 import { AllSetsLink, BackButton, HomeLink } from '../../../shared/ui/HeaderLinks';
 import { LoadFailed } from '../../../shared/ui/LoadFailed';
-import { LoadingPlaceholder, LoadingStatus } from '../../../shared/ui/LoadingFeedback';
+import { LoadingPlaceholder } from '../../../shared/ui/LoadingFeedback';
 import { MessageScreen } from '../../../shared/ui/MessageScreen';
 import { ActionRow } from '../../../shared/ui/LayoutParts';
 import { PageLayout } from '../../../shared/ui/PageLayout';
@@ -27,8 +33,9 @@ export function SetPage() {
   const { setKey = '', shareCode } = useParams();
   const { fromPublished } = routeState(useLocation());
   const queryClient = useQueryClient();
+  const previewQuery = publicSetQuery(shareCode ?? setKey, shareCode === undefined ? 'key' : 'share');
   const publicSet = useQuery({
-    ...publicSetQuery(shareCode ?? setKey, shareCode === undefined ? 'key' : 'share'),
+    ...previewQuery,
     // Coming from the set list, the summary is already known, so the page shows it at once.
     placeholderData: () => {
       const sets = fromPublished
@@ -36,14 +43,17 @@ export function SetPage() {
             .getQueriesData<InfiniteData<PublicSetPage>>({ queryKey: publicContentKeys.topics })
             .flatMap(([, catalog]) => catalog?.pages.flatMap((page) => page.items) ?? [])
         : queryClient.getQueryData(onboardingSetsQuery.queryKey);
-      return sets?.find((set) => (shareCode === undefined ? set.setKey === setKey : set.shareCode === shareCode));
+      const match = sets?.find((set) =>
+        shareCode === undefined ? set.setKey === setKey : set.shareCode === shareCode,
+      );
+      return match && { value: match, started: 0, finished: 0 };
     },
   });
 
   if (publicSet.isLoadingError) {
     return <LoadFailed onRetry={() => void publicSet.refetch()} retrying={publicSet.isFetching} />;
   }
-  if (publicSet.data === null) {
+  if (publicSet.data?.value === null) {
     const allSetsButton = (
       <ActionRow>
         {fromPublished ? (
@@ -71,7 +81,12 @@ export function SetPage() {
             </LoadingPlaceholder>
           </WhenSlow>
         ) : (
-          <SetDetails publicSet={publicSet.data} />
+          <SetDetails
+            publicSet={publicSet.data.value}
+            previewKey={previewQuery.queryKey[1]}
+            previewStarted={publicSet.data.started}
+            previewFinished={publicSet.data.finished}
+          />
         )}
       </PageLayout>
     </div>
@@ -89,7 +104,12 @@ function SetPreviewNavigation() {
   );
 }
 
-function SetDetails({ publicSet }: Readonly<{ publicSet: PublicSet }>) {
+function SetDetails({
+  publicSet,
+  previewKey,
+  previewStarted,
+  previewFinished,
+}: Readonly<{ publicSet: PublicSet; previewKey: string; previewStarted: number; previewFinished: number }>) {
   const { trialCardsQuery } = usePublicContentQueries();
   const trial = useQuery({
     ...trialCardsQuery(publicSet.setKey),
@@ -97,11 +117,27 @@ function SetDetails({ publicSet }: Readonly<{ publicSet: PublicSet }>) {
     ...publicCatalogRetry,
     refetchOnWindowFocus: false,
   });
-  const question = trial.data?.cards?.[0]?.question;
-  const showSample = publicSet.trialAvailable && (trial.isPending || Boolean(question));
+  const trialRead = trial.data;
+  const previewIsNewer = trialRead !== undefined && trialRead.finished < previewStarted;
+  const sampleQuestion = publicSet.sampleQuestion;
+  const conflictingRead =
+    publicSet.trialAvailable &&
+    !previewIsNewer &&
+    trialRead !== undefined &&
+    trialConflictsWithPreview(trialRead, previewFinished, publicSet);
+  const cachedQuestion = trialRead?.value?.cards?.[0]?.question;
+  const question =
+    previewIsNewer || conflictingRead || trialRead === undefined ? (sampleQuestion ?? cachedQuestion) : cachedQuestion;
+  const trialAvailable = publicSet.trialAvailable && (previewIsNewer || trialRead?.value !== null);
+  const showSample = trialAvailable && (trial.isPending || Boolean(question));
+  const refetchTrial = trial.refetch;
+  const recheckTrial = conflictingRead && trial.fetchStatus === 'idle' && canRecheckTrial(trial.error, previewFinished);
+  useEffect(() => {
+    if (recheckTrial) void refetchTrial({ cancelRefetch: false });
+  }, [recheckTrial, refetchTrial]);
 
   return (
-    <article className="set-detail mt-3" data-published={publicSet.saveAllowed || undefined}>
+    <article className="set-detail screen-enter mt-3" data-published={publicSet.saveAllowed || undefined}>
       <header className="set-detail-header">
         <p className="flex items-center gap-2 text-support font-semibold text-saved-set">
           <ReviewerSubjectIcon subject={publicSet.subject} />
@@ -116,34 +152,37 @@ function SetDetails({ publicSet }: Readonly<{ publicSet: PublicSet }>) {
       </header>
       {showSample && (
         <section className="set-detail-sample">
+          <h2 className="flex items-center gap-2 text-support font-semibold text-saved-set">
+            <Layers2 aria-hidden="true" className="size-4 shrink-0" />
+            Sample question
+          </h2>
           {question ? (
-            <>
-              <h2 className="flex items-center gap-2 text-support font-semibold text-saved-set">
-                <Layers2 aria-hidden="true" className="size-4 shrink-0" />
-                Sample question
-              </h2>
-              <p className="mt-2 text-section font-bold whitespace-pre-wrap wrap-anywhere">{question}</p>
-            </>
+            <p className="mt-2 text-section font-bold whitespace-pre-wrap wrap-anywhere">{question}</p>
           ) : (
-            <WhenSlow>
-              <LoadingStatus>Loading the sample question…</LoadingStatus>
-            </WhenSlow>
+            <div className="mt-2 flex min-h-[1lh] items-center text-section">
+              <span className="loading-bar" aria-hidden="true" />
+              <WhenSlow>
+                <output className="sr-only">Loading the sample question…</output>
+              </WhenSlow>
+            </div>
           )}
         </section>
       )}
       <div className="set-detail-actions">
-        <p id="trial-save-note" className="pt-1 pb-3 text-support text-muted">
-          {publicSet.trialAvailable
-            ? 'Trial progress and ratings aren’t saved.'
-            : `The trial needs ${TRIAL_CARD_COUNT} cards, and this reviewer has ${cardCountLabel(publicSet.cardCount)} right now.`}
-        </p>
+        {!trialAvailable && (
+          <p id="trial-unavailable-note" className="pt-1 pb-3 text-support text-muted">
+            {publicSet.trialAvailable
+              ? 'This trial is unavailable right now.'
+              : `The trial needs ${TRIAL_CARD_COUNT} cards, and this reviewer has ${cardCountLabel(publicSet.cardCount)} right now.`}
+          </p>
+        )}
         <div className="border-t border-line">
           <ShareLinks key={publicSet.shareCode} title={publicSet.title} path={setSharePath(publicSet.shareCode)} />
         </div>
       </div>
       <fieldset className="set-detail-study">
         <legend className="sr-only">Reviewer actions</legend>
-        <TrialAction publicSet={publicSet} />
+        <TrialAction setKey={publicSet.setKey} available={trialAvailable} previewKey={previewKey} />
         {publicSet.saveAllowed && (
           <SaveSetAction key={publicSet.setKey} shareCode={publicSet.shareCode} setKey={publicSet.setKey} />
         )}
@@ -152,24 +191,23 @@ function SetDetails({ publicSet }: Readonly<{ publicSet: PublicSet }>) {
   );
 }
 
-function TrialAction({ publicSet }: Readonly<{ publicSet: PublicSet }>) {
+function TrialAction({
+  setKey,
+  available,
+  previewKey,
+}: Readonly<{ setKey: string; available: boolean; previewKey: string }>) {
   const { fromPublished } = routeState(useLocation());
   const className = `${blueAccentButton} w-full`;
   const label = `Try ${TRIAL_CARD_COUNT} cards`;
-  if (!publicSet.trialAvailable) {
+  if (!available) {
     return (
-      <button type="button" disabled className={className} aria-describedby="trial-save-note">
+      <button type="button" disabled className={className} aria-describedby="trial-unavailable-note">
         {label}
       </button>
     );
   }
   return (
-    <Link
-      to={trialPath(publicSet.setKey)}
-      state={fromPublished ? { fromPublished: true } : undefined}
-      className={className}
-      aria-describedby="trial-save-note"
-    >
+    <Link to={trialPath(setKey)} state={{ fromPublished, trialPreviewKey: previewKey }} className={className}>
       {label}
       <ArrowRight aria-hidden="true" size={20} strokeWidth={2} className="shrink-0" />
     </Link>
