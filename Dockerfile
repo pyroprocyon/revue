@@ -25,7 +25,8 @@ RUN npm run build
 
 FROM ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f AS secret-scanner
 
-FROM maven:3.10.0-eclipse-temurin-25-alpine@sha256:6f82f859270d10c423374100049eb7837294390aaa21b50bb94b549b28b70d46 AS maven-toolchain
+# This image supplies Maven 3.10.0, the version pinned by backend/.mvn/wrapper/maven-wrapper.properties.
+FROM maven@sha256:6f82f859270d10c423374100049eb7837294390aaa21b50bb94b549b28b70d46 AS maven-toolchain
 
 # ---- Build stage: package the Spring Boot jar.
 FROM eclipse-temurin:25.0.5_8-jdk-alpine AS build

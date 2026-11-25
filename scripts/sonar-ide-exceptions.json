@@ -10,23 +10,5 @@
     "rule": "java:S3577",
     "source": "class RecoveryDrillCheck {",
     "reason": "This restore drill runs explicitly through make recovery-check. A default Surefire test name would run the extra database restore on every build."
-  },
-  {
-    "path": "frontend/src/index.css",
-    "rule": "css:S9423",
-    "source": "animation: none !important;",
-    "reason": "The reduced-motion media query must override animation utilities, including loading indicators and the flashcard flip."
-  },
-  {
-    "path": "frontend/src/index.css",
-    "rule": "css:S9423",
-    "source": "transition: none !important;",
-    "reason": "The reduced-motion media query must override component and utility transitions regardless of selector specificity."
-  },
-  {
-    "path": "frontend/src/index.css",
-    "rule": "css:S9423",
-    "source": "scroll-behavior: auto !important;",
-    "reason": "The reduced-motion media query must override smooth scrolling utilities on any affected scroll container."
   }
 ]
