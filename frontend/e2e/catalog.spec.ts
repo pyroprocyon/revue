@@ -20,6 +20,25 @@ async function mockReviewers(page: Page, reviewers: (PublicSet & { subject: stri
   });
 }
 
+test('a fresh reviewer link uses its published summary once', async ({ page, pilot }) => {
+  const { setKey, shareCode, title, description } = (await (
+    await page.request.get(`${pilot.origin}/api/v1/public-sets/philippine-history`)
+  ).json()) as PublicSet;
+  const summaryReads: string[] = [];
+  const summaryPaths = [`/api/v1/public-sets/${setKey}`, `/api/v1/public-sets/share/${shareCode}/summary`];
+  page.on('request', (request) => {
+    const path = new URL(request.url()).pathname;
+    if (summaryPaths.includes(path)) summaryReads.push(path);
+  });
+  for (const path of [`/s/${shareCode}`, `/sets/${setKey}`]) {
+    await page.goto(path);
+    await expect(page.getByRole('heading', { name: title, exact: true })).toBeVisible();
+    await expect(page.locator('meta[property="og:description"]')).toHaveAttribute('content', description);
+    await expect(page.locator('meta[name="revue:reviewer"]')).toHaveCount(0);
+    expect(summaryReads).toEqual([]);
+  }
+});
+
 test('the public list shows exactly the three onboarding reviewers across previews and reloads', async ({
   page,
   pilot,

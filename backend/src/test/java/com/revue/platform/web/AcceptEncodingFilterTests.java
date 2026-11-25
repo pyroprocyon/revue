@@ -2,8 +2,11 @@ package com.revue.platform.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.revue.AcceptedEncodings;
+import java.util.List;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.springframework.mock.web.MockHttpServletRequest;
 
 /**
  * Which compression formats a client's Accept-Encoding header accepts (RFC 9110, section 12.5.3). A weight of zero
@@ -38,6 +41,9 @@ class AcceptEncodingFilterTests {
         ''                        | none
         """)
     void acceptsOnlyServedFormatsWithPositiveWeight(String header, String expected) {
-        assertThat(AcceptEncodingFilter.acceptedCodings(header)).isEqualTo(expected);
+        var request = new MockHttpServletRequest();
+        request.addHeader("Accept-Encoding", header);
+        List<String> codings = AcceptedEncodings.from(request).preferred(List.of("br", "gzip"));
+        assertThat(codings).containsExactlyElementsOf(expected == null ? List.of() : List.of(expected.split(", ")));
     }
 }

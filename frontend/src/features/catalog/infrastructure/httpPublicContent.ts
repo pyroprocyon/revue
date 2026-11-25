@@ -23,11 +23,22 @@ export const httpPublicContent: PublicContentReader = {
     const response = await readCatalog('/api/v1/public-sets/catalog/onboarding', signal);
     return response.json() as Promise<PublicSet[]>;
   },
-  sharedSummary: (code) => getJsonOrNull<PublicSet>(`/api/v1/public-sets/share/${encodeURIComponent(code)}/summary`),
-  summary: (key) => getJsonOrNull<PublicSet>(`/api/v1/public-sets/${encodeURIComponent(key)}`),
+  sharedSummary: (code) =>
+    readSummary('shareCode', code, `/api/v1/public-sets/share/${encodeURIComponent(code)}/summary`),
+  summary: (key) => readSummary('setKey', key, `/api/v1/public-sets/${encodeURIComponent(key)}`),
   trialCards: (key) =>
     getJsonOrNull<TrialCards>(`/api/v1/public-sets/${encodeURIComponent(key)}/demo-cards`, 'no-cache'),
 };
+
+async function readSummary(field: 'shareCode' | 'setKey', id: string, path: string): Promise<PublicSet | null> {
+  const preview = document.querySelector<HTMLMetaElement>('meta[name="revue:reviewer"]');
+  if (preview) {
+    preview.remove();
+    const set = JSON.parse(preview.content) as PublicSet;
+    if (set[field] === id) return set;
+  }
+  return getJsonOrNull<PublicSet>(path);
+}
 
 async function readCatalog(path: string, signal: AbortSignal) {
   const response = await sameOriginRequest(path, { headers: { Accept: 'application/json' }, signal });

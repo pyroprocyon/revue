@@ -15,6 +15,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.Semaphore;
 import java.util.zip.GZIPInputStream;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -53,6 +54,9 @@ class StaticServingTests {
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @Autowired
+    private Semaphore publicCatalogPermits;
 
     @Test
     void largeJsonResponsesAreCompressedWithoutChangingTheirContent() throws IOException {
@@ -140,6 +144,62 @@ class StaticServingTests {
         }
         for (String path : List.of(shortPath, fullPath)) {
             assertThat(send("GET", path).body()).isEqualTo(fixture("static/index.html"));
+        }
+    }
+
+    @Test
+    void busyCatalogLeavesThePreviewShellAvailableAndRecoversItsSharedCapacity() {
+        String key = "preview-capacity-" + UUID.randomUUID();
+        long id = insertSet(key, "Question", "Answer");
+        List<String> paths = List.of("/s/" + Long.toString(id, 36), "/sets/" + key);
+        try {
+            assertThat(publicCatalogPermits.tryAcquire(3)).isTrue();
+            try {
+                assertThat(send("GET", "/api/v1/public-sets/" + key).statusCode()).isEqualTo(503);
+                for (String path : paths) {
+                    assertThat(send("GET", path).body()).isEqualTo(fixture("static/index.html"));
+                }
+            } finally {
+                publicCatalogPermits.release(3);
+            }
+            for (String path : paths) {
+                assertThat(send("GET", path).body()).contains("name=\"revue:reviewer\"");
+            }
+            assertThat(publicCatalogPermits.availablePermits()).isEqualTo(3);
+        } finally {
+            retireSet(id);
+        }
+    }
+
+    @Test
+    void currentReviewerPagesNegotiateGzipIdentityAndUnacceptableEncodings() throws IOException {
+        String key = "preview-encoding-" + UUID.randomUUID();
+        long id = insertSet(key, "Question", "Answer");
+        try {
+            for (String path : List.of("/s/" + Long.toString(id, 36), "/sets/" + key)) {
+                var plain = sendBytes(path, "gzip;q=0, identity");
+                assertThat(plain.statusCode()).isEqualTo(200);
+                assertThat(plain.headers().firstValue("Content-Encoding")).isEmpty();
+                var compressed = sendBytes(path, "gzip", "Accept-Encoding", "identity;q=0");
+                assertThat(compressed.statusCode()).isEqualTo(200);
+                assertThat(header(compressed, "Content-Encoding")).isEqualTo("gzip");
+                assertThat(vary(compressed)).contains("Accept-Encoding");
+                try (var gzip = new GZIPInputStream(new ByteArrayInputStream(compressed.body()))) {
+                    assertThat(gzip.readAllBytes()).isEqualTo(plain.body());
+                }
+                var head = HttpRequest.newBuilder(uri(path))
+                    .header("Accept-Encoding", "gzip, identity;q=0")
+                    .method("HEAD", HttpRequest.BodyPublishers.noBody())
+                    .build();
+                var headResponse = exchange(head, HttpResponse.BodyHandlers.ofByteArray());
+                assertThat(header(headResponse, "Content-Encoding")).isEqualTo("gzip");
+                assertThat(headResponse.body()).isEmpty();
+                assertThat(sendBytes(path, "br, *;q=0").statusCode()).isEqualTo(406);
+                assertThat(sendBytes(path, "gzip;q=0.5, identity;q=1").headers().firstValue("Content-Encoding"))
+                    .isEmpty();
+            }
+        } finally {
+            retireSet(id);
         }
     }
 

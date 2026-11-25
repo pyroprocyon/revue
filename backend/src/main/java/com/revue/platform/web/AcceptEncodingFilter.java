@@ -1,5 +1,6 @@
 package com.revue.platform.web;
 
+import com.revue.AcceptedEncodings;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -7,13 +8,8 @@ import jakarta.servlet.http.HttpServletRequestWrapper;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.Enumeration;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -44,62 +40,13 @@ class AcceptEncodingFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
         throws ServletException, IOException {
-        String header = combinedHeader(request);
-        chain.doFilter(header == null ? request : new CleanedRequest(request, acceptedCodings(header)), response);
-    }
-
-    /**
-     * Joins every Accept-Encoding line with commas, or returns null when the request has none. HTTP treats repeated
-     * lines as one list (RFC 9110, section 5.2), but {@code getHeader} returns only the first line, so a refusal on a
-     * later line would be lost.
-     */
-    private static @Nullable String combinedHeader(HttpServletRequest request) {
-        Enumeration<String> lines = request.getHeaders(HttpHeaders.ACCEPT_ENCODING);
-        if (lines == null || !lines.hasMoreElements()) {
-            return null;
+        if (request.getHeader(HttpHeaders.ACCEPT_ENCODING) == null) {
+            chain.doFilter(request, response);
+            return;
         }
-        return String.join(", ", Collections.list(lines));
-    }
-
-    /**
-     * Returns the served codings the header accepts, such as {@code "br, gzip"}, or null for none. A coding the header
-     * names is accepted when it has no weight or a weight above zero. A coding it doesn't name is accepted when {@code
-     * *} is. A weight that doesn't parse counts as a rejection, and an empty entry is skipped, because the plain file
-     * is the safe fallback.
-     */
-    static @Nullable String acceptedCodings(String header) {
-        Map<String, Double> weights = new HashMap<>();
-        for (String item : header.split(",")) {
-            String[] parts = item.split(";", -1);
-            String coding = parts[0].trim().toLowerCase(Locale.ROOT);
-            if (coding.equals("x-gzip")) {
-                coding = "gzip";
-            }
-            if (coding.equals("*") || SERVED_CODINGS.contains(coding)) {
-                weights.merge(coding, weight(parts), Math::max);
-            }
-        }
-        double wildcard = weights.getOrDefault("*", 0.0);
-        var preferred = SERVED_CODINGS.stream()
-            .filter(coding -> weights.getOrDefault(coding, wildcard) > 0)
-            .sorted(Comparator.comparingDouble((String coding) -> weights.getOrDefault(coding, wildcard)).reversed())
-            .collect(Collectors.joining(", "));
-        return preferred.isEmpty() ? null : preferred;
-    }
-
-    private static double weight(String[] parts) {
-        for (int i = 1; i < parts.length; i++) {
-            String parameter = parts[i].trim();
-            if (parameter.regionMatches(true, 0, "q=", 0, 2)) {
-                try {
-                    double value = Double.parseDouble(parameter.substring(2).trim());
-                    return value > 0 && value <= 1 ? value : 0;
-                } catch (NumberFormatException _) {
-                    return 0;
-                }
-            }
-        }
-        return 1;
+        var preferred = AcceptedEncodings.from(request).preferred(SERVED_CODINGS);
+        String header = preferred.isEmpty() ? null : String.join(", ", preferred);
+        chain.doFilter(new CleanedRequest(request, header), response);
     }
 
     /** The original request, with Accept-Encoding replaced by the cleaned value or removed. */
