@@ -202,7 +202,7 @@ for (const layout of ['desktop stack', 'phone stack'] as const) {
       await topics.getByRole('link', { name: 'Open Anatomy', exact: true }).focus();
       await page.keyboard.press('ArrowDown');
       await expect(botany).toBeFocused();
-      await botany.click();
+      await page.keyboard.press('Enter');
       await expect(page.getByRole('heading', { name: 'Botany', exact: true, level: 1 })).toBeVisible();
       await page.clock.setFixedTime(start + 61_000);
       await page.getByRole('button', { name: 'Back', exact: true }).click();
