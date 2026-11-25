@@ -7,7 +7,6 @@
 
 # CI supplies these directories as named contexts when runner caches are available.
 FROM scratch AS npm-cacache
-FROM scratch AS maven-wrapper-dists
 FROM scratch AS maven-repository
 
 # ---- Frontend stage: build the React app with the pinned Node version.
@@ -26,7 +25,9 @@ RUN npm run build
 
 FROM ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f AS secret-scanner
 
-# ---- Build stage: package the Spring Boot jar with the Maven Wrapper.
+FROM maven:3.10.0-eclipse-temurin-25-alpine@sha256:6f82f859270d10c423374100049eb7837294390aaa21b50bb94b549b28b70d46 AS maven-toolchain
+
+# ---- Build stage: package the Spring Boot jar.
 FROM eclipse-temurin:25.0.5_8-jdk-alpine AS build
 
 WORKDIR /build
@@ -42,12 +43,11 @@ COPY --from=frontend /frontend/dist/index.html ./src/main/resources/templates/re
 # Tests need Docker for Testcontainers, so they run in `make test` and CI, not here.
 # The cache mount keeps downloaded dependencies between builds.
 RUN --mount=type=cache,target=/root/.m2,sharing=locked \
-    --mount=from=maven-wrapper-dists,target=/maven-wrapper-dists \
+    --mount=from=maven-toolchain,source=/usr/share/maven,target=/usr/share/maven \
     --mount=from=maven-repository,target=/maven-repository \
-    mkdir -p /root/.m2/wrapper/dists /root/.m2/repository \
- && cp -a /maven-wrapper-dists/. /root/.m2/wrapper/dists/ \
+    mkdir -p /root/.m2/repository \
  && cp -a /maven-repository/. /root/.m2/repository/ \
- && sh ./mvnw --batch-mode --no-transfer-progress -DskipTests package \
+ && /usr/share/maven/bin/mvn --batch-mode --no-transfer-progress -DskipTests package \
  && cp target/revue-*.jar /build/app.jar \
  && java -Djarmode=tools -jar /build/app.jar extract --destination /build/extracted
 

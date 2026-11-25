@@ -64,12 +64,10 @@ jobs:
       - name: Prepare Docker dependency inputs
         id: docker-inputs
         run: |
-          (cd backend && ./mvnw --version)
           maven_cache="${MAVEN_USER_HOME:-$HOME/.m2}"
           npm_cache="$(npm config get cache --prefix frontend)/_cacache"
           mkdir -p "$maven_cache/repository" "$npm_cache"
           {
-            printf 'maven_wrapper=%s\n' "$maven_cache/wrapper/dists"
             printf 'maven_repository=%s\n' "$maven_cache/repository"
             printf 'npm_cacache=%s\n' "$npm_cache"
           } >> "$GITHUB_OUTPUT"
@@ -84,7 +82,6 @@ jobs:
           load: true
           tags: ${{ env.REVUE_APP_IMAGE }}
           build-contexts: |
-            maven-wrapper-dists=${{ steps.docker-inputs.outputs.maven_wrapper }}
             maven-repository=${{ steps.docker-inputs.outputs.maven_repository }}
             npm-cacache=${{ steps.docker-inputs.outputs.npm_cacache }}
           cache-from: type=gha,scope=revue-app
