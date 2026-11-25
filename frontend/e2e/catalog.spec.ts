@@ -91,8 +91,12 @@ for (const layout of ['grid', 'stack'] as const) {
       await topic.scrollIntoViewIfNeeded();
     }
     const position = await page.evaluate(() => scrollY);
-    if (layout === 'grid') expect(position).toBeGreaterThan(200);
-    await topic.click();
+    if (layout === 'grid') {
+      expect(position).toBeGreaterThan(200);
+      await topic.click();
+    } else {
+      await page.keyboard.press('Enter');
+    }
     await expect(page.getByRole('heading', { name: 'Biology reviewer 17' })).toBeVisible();
 
     const firstCatalogFrame = page.evaluate(
