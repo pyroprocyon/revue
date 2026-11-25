@@ -144,6 +144,70 @@ for (const layout of ['desktop grid', 'desktop stack', 'phone stack'] as const) 
   }
 }
 
+for (const layout of ['desktop stack', 'phone stack'] as const) {
+  for (const focus of ['opened topic', 'Search', 'next topic'] as const) {
+    test(`retiring an earlier topic in ${layout} preserves selection and focus on ${focus}`, async ({ page }) => {
+      const reviewers = ['Anatomy', 'Botany', 'Cells', 'DNA'].map((title) => ({
+        ...natureSet,
+        setKey: title.toLowerCase(),
+        title,
+        subject: 'Biology',
+      }));
+      let finishRefresh!: () => void;
+      const refreshing = new Promise<void>((resolve) => {
+        finishRefresh = resolve;
+      });
+      let requests = 0;
+      await page.setViewportSize({ width: layout === 'phone stack' ? 390 : 1280, height: 844 });
+      await page.route('**/api/v1/auth/session', (route) => route.fulfill({ json: { signedIn: true } }));
+      await page.route('**/api/v1/me', (route) => route.fulfill({ json: { username: 'catalog_learner' } }));
+      await mockReviewers(page, reviewers);
+      await page.route('**/api/v1/public-sets?published=true*', async (route) => {
+        if (++requests === 1) return route.fulfill({ json: reviewers });
+        await refreshing;
+        return route.fulfill({ json: reviewers.slice(1) });
+      });
+      await page.route('**/api/v1/public-sets/botany', (route) => route.fulfill({ json: reviewers[1] }));
+      const start = Date.now();
+      await page.clock.setFixedTime(start);
+      const view = layout === 'desktop stack' ? '&view=stack' : '';
+      await page.goto(`/published?subject=Biology${view}`);
+      const topics = page.getByRole('region', { name: 'Topics' });
+      const botany = topics.getByRole('link', { name: 'Open Botany', exact: true });
+      const cells = topics.getByRole('link', { name: 'Open Cells', exact: true });
+      const search = page.getByRole('searchbox', { name: 'Search topics' });
+      await topics.getByRole('link', { name: 'Open Anatomy', exact: true }).focus();
+      await page.keyboard.press('ArrowDown');
+      await expect(botany).toBeFocused();
+      await botany.click();
+      await expect(page.getByRole('heading', { name: 'Botany', exact: true, level: 1 })).toBeVisible();
+      await page.clock.setFixedTime(start + 61_000);
+      await page.getByRole('button', { name: 'Back', exact: true }).click();
+
+      try {
+        await expect(botany).toBeFocused();
+        await expect(topics.getByText('Anatomy', { exact: true }).first()).toBeAttached();
+        if (focus === 'Search') await search.focus();
+        if (focus === 'next topic') {
+          await page.keyboard.press('ArrowDown');
+          await expect(cells).toBeFocused();
+        }
+      } finally {
+        finishRefresh();
+      }
+      const selected = focus === 'next topic' ? cells : botany;
+      await expect(topics.getByText('Anatomy', { exact: true })).toHaveCount(0);
+      await expect(selected).toBeInViewport();
+      await expect(focus === 'Search' ? search : selected).toBeFocused();
+      if (focus !== 'Search') {
+        await page.keyboard.press('ArrowDown');
+        const nextTopic = focus === 'next topic' ? 'DNA' : 'Cells';
+        await expect(topics.getByRole('link', { name: `Open ${nextTopic}` })).toBeFocused();
+      }
+    });
+  }
+}
+
 test('the subject stack reaches every subject and counts topics only on the front card', async ({ page }) => {
   const reviewers = Array.from({ length: 12 }, (_, index) => ({
     ...natureSet,

@@ -68,8 +68,9 @@ export function CollectionCarousel({
     onRestoreFocus?: (link: HTMLAnchorElement) => void;
     onNearEnd?: () => void;
   }>) {
-  const [nearestIndex, setNearestIndex] = useState(initialIndex);
+  const [selection, setSelection] = useState(() => ({ index: initialIndex, id: items[initialIndex]?.id }));
   const [nativeScroll, setNativeScroll] = useState(false);
+  const currentItems = useRef(items);
   const selectedIndex = useRef(initialIndex);
   const carousel = useRef<HTMLElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
@@ -80,8 +81,13 @@ export function CollectionCarousel({
   const focusWasInCarousel = useRef(false);
   const visible = useCollectionLayoutVisible(carousel);
   const fittedStageHeight = useFittedStageHeight(carousel, fillsScreen && visible);
-  const frontIndex = Math.min(nearestIndex, items.length - 1);
+  const retainedIndex =
+    items[selection.index]?.id === selection.id ? selection.index : items.findIndex(({ id }) => id === selection.id);
+  const frontIndex = Math.min(retainedIndex === -1 ? selection.index : retainedIndex, items.length - 1);
   const frontDeck = items[frontIndex];
+  if (selection.index !== frontIndex || selection.id !== frontDeck?.id) {
+    setSelection({ index: frontIndex, id: frontDeck?.id });
+  }
   const catalog = kind === 'subjects' || kind === 'topics';
   const labels = carouselLabels[kind];
   const position = !catalog && items.length > 1 ? `${frontIndex + 1} of ${items.length}` : undefined;
@@ -91,6 +97,15 @@ export function CollectionCarousel({
     '--deck-reach': Math.min(items.length - 1, NEXT_DECKS_DRAWN),
     '--deck-stage-fitted': fittedStageHeight === null ? undefined : `${fittedStageHeight}px`,
   } as CSSProperties;
+
+  useLayoutEffect(() => {
+    currentItems.current = items;
+    if (selectedIndex.current === frontIndex) return;
+    selectedIndex.current = frontIndex;
+    if (scrollStep.current > 0) {
+      scroller.current?.scrollTo({ top: frontIndex * scrollStep.current, behavior: 'instant' });
+    }
+  }, [items, frontIndex]);
 
   useEffect(() => {
     if (visible && frontIndex >= items.length - 1 - ITEMS_AHEAD_FOR_NEXT_PAGE) onNearEnd?.();
@@ -114,7 +129,7 @@ export function CollectionCarousel({
     if (index === selectedIndex.current) return;
     selectedIndex.current = index;
     focusWasInCarousel.current = carousel.current?.contains(document.activeElement) ?? false;
-    setNearestIndex(index);
+    setSelection({ index, id: currentItems.current[index]?.id });
   }, []);
 
   useLayoutEffect(() => {
