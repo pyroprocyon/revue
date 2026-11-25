@@ -119,7 +119,7 @@ tooling-test: ## Check that analysis cannot silently omit application code or te
 	python3 -m unittest discover -s scripts -p 'test_*.py'
 
 quality: check-docker ## Run all checks, browser journeys and SonarQube under the checkout lock (requires Docker)
-	python3 scripts/check-sonar.py check e2e
+	python3 scripts/check-sonar.py lint e2e check
 
 quality-local: check-build-context ## Run the required local pre-PR checks under the checkout lock, including SonarQube for IDE
 	python3 scripts/quality-local-analysis.py

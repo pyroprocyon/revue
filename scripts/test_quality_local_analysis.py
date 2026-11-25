@@ -15,7 +15,7 @@ spec.loader.exec_module(local)
 class MakeEntryPointTests(unittest.TestCase):
     def test_quality_targets_start_their_locked_launcher_before_anything_installs_dependencies(self):
         for target, launcher in (("quality-local", "python3 scripts/quality-local-analysis.py"),
-                                 ("quality", "python3 scripts/check-sonar.py check e2e")):
+                                 ("quality", "python3 scripts/check-sonar.py lint e2e check")):
             with self.subTest(target=target):
                 plan = subprocess.run(("make", "-n", "--no-print-directory", target), cwd=local.ROOT,
                                       capture_output=True, text=True, check=True).stdout

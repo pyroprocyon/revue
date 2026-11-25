@@ -5,7 +5,7 @@ export default defineConfig({
   testDir: './e2e',
   testMatch: '**/*.spec.ts',
   fullyParallel: false,
-  workers: 1,
+  workers: process.env.CI === 'true' && process.env.REVUE_APP_IMAGE ? 2 : 1,
   forbidOnly: Boolean(process.env.CI),
   retries: 0,
   timeout: 30_000,
