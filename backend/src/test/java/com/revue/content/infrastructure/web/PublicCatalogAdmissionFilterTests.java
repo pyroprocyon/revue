@@ -11,7 +11,8 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
 class PublicCatalogAdmissionFilterTests {
-    private final PublicCatalogAdmissionFilter filter = new PublicCatalogAdmissionFilter();
+    private final PublicCatalogAdmissionFilter filter = new PublicCatalogAdmissionFilter(
+        PublicCatalogAdmissionFilter.publicCatalogPermits());
 
     @Test
     void fullCatalogRejectsBeforeDispatchAndLeavesStudyAndHealthAccessible() throws Exception {

@@ -6,6 +6,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.concurrent.Semaphore;
+import org.springframework.context.annotation.Bean;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpHeaders;
@@ -19,9 +20,18 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 40)
 class PublicCatalogAdmissionFilter extends OncePerRequestFilter {
-    private final Semaphore permits = new Semaphore(3);
+    private final Semaphore permits;
     private final PathPatternRequestMatcher catalog = PathPatternRequestMatcher.withDefaults()
         .matcher("/api/v1/public-sets/**");
+
+    PublicCatalogAdmissionFilter(Semaphore publicCatalogPermits) {
+        permits = publicCatalogPermits;
+    }
+
+    @Bean
+    static Semaphore publicCatalogPermits() {
+        return new Semaphore(3);
+    }
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
