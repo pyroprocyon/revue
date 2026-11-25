@@ -103,6 +103,46 @@ class StaticServingTests {
         }
     }
 
+    @Test
+    void sharedAndFullReviewerLinksServeCurrentEscapedMetadataWithoutJavascript() {
+        String key = "share-preview-" + UUID.randomUUID();
+        long id = insertSet(key, "Private question sentinel", "Answer sentinel");
+        String shortPath = "/s/" + Long.toString(id, 36);
+        String fullPath = "/sets/" + key;
+        try {
+            jdbc.update(
+                "update sets set title = ?, description = ? where id = ?",
+                "Music & Math",
+                "₱70 for \"A<B>\"?",
+                id);
+            for (String path : List.of(shortPath, fullPath)) {
+                var response = send("GET", path);
+                assertThat(response.statusCode()).isEqualTo(200);
+                assertThat(header(response, "Cache-Control")).isEqualTo("no-store");
+                assertThat(response.headers().firstValue("Set-Cookie")).isEmpty();
+                assertThat(response.body()).containsOnlyOnce("property=\"og:title\"")
+                    .containsOnlyOnce("property=\"og:description\"")
+                    .contains(
+                        "content=\"Music &amp; Math\"",
+                        "content=\"₱70 for &quot;A&lt;B&gt;&quot;?\"",
+                        "/assets/app-test1234.js",
+                        "id=\"root\"")
+                    .doesNotContain("Test app description", "question sentinel", "Answer sentinel");
+                var head = send("HEAD", path);
+                assertThat(head.statusCode()).isEqualTo(200);
+                assertThat(head.body()).isEmpty();
+                assertThat(header(head, "X-Robots-Tag")).isEqualTo(path.equals(shortPath) ? "noindex" : "(missing)");
+            }
+            jdbc.update("update sets set title = 'Updated reviewer' where id = ?", id);
+            assertThat(send("GET", shortPath).body()).contains("content=\"Updated reviewer\"");
+        } finally {
+            retireSet(id);
+        }
+        for (String path : List.of(shortPath, fullPath)) {
+            assertThat(send("GET", path).body()).isEqualTo(fixture("static/index.html"));
+        }
+    }
+
     private long insertSet(String key, String question, String answer) {
         long set = jdbc.queryForObject("""
             insert into sets(set_key,title,description,publisher_name,subject,created_at,updated_at)
@@ -147,7 +187,7 @@ class StaticServingTests {
 
     @Test
     void onlyTheHomePageTheSetListAndSetPreviewsCanBeIndexed() {
-        for (String path : new String[] {"/", "/sets", "/sets/philippine-history"}) {
+        for (String path : new String[] {"/", "/sets", "/sets/unknown-" + UUID.randomUUID()}) {
             HttpResponse<String> response = send("GET", path);
 
             assertThat(response.statusCode()).as(path).isEqualTo(200);
