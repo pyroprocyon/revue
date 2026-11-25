@@ -77,10 +77,14 @@ reset: $(PREREQS) ## Delete containers AND the local database (asks first; CONFI
 	fi
 	$(COMPOSE) down --volumes --remove-orphans
 
-test: check-docker check-java frontend-install ## Install locked frontend packages and run backend and frontend tests
+.PHONY: backend-test frontend-test
+test: backend-test frontend-test ## Run both test suites (make -j2 test runs them in parallel)
+
+backend-test: check-docker check-java ## Run backend verification, including database tests
 	@test -d "$(BACKEND_DIR)" || { echo "Missing $(BACKEND_DIR)/. Run make test from the repo root."; exit 1; }
-	@test -d "$(FRONTEND_DIR)" || { echo "Missing $(FRONTEND_DIR)/. Run make test from the repo root."; exit 1; }
 	cd "$(BACKEND_DIR)" && $(BACKEND_TEST)
+
+frontend-test: frontend-install ## Install locked frontend packages and run unit tests
 	cd "$(FRONTEND_DIR)" && bash "$(NODE_RUN)" bash -c '$(FRONTEND_TEST)'
 
 frontend-install: ## Install frontend packages with the pinned Node version

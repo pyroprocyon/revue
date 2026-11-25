@@ -13,6 +13,19 @@ async function signup(page: Page, signupUrl: string) {
   return username;
 }
 
+async function registerDeckLearner(page: Page, origin: string) {
+  const csrf = await page.request.get(`${origin}/api/v1/auth/csrf`);
+  await expect(csrf).toBeOK();
+  const { headerName, token } = await csrf.json();
+  const username = `deck_${randomUUID().slice(0, 16)}`;
+  const registration = await page.request.post(`${origin}/api/v1/auth/register`, {
+    form: { username, password: 'kanjii' },
+    headers: { [headerName]: token },
+  });
+  await expect(registration).toBeOK();
+  return username;
+}
+
 async function addCard(page: Page, question: string, answer: string) {
   await page.getByLabel('Question', { exact: true }).fill(question);
   await page.getByLabel('Answer', { exact: true }).fill(answer);
@@ -91,7 +104,7 @@ test('a refreshed search preserves a draft after another tab changes the matchin
   pilot,
 }, info) => {
   await page.setViewportSize({ width: 375, height: 667 });
-  await signup(page, pilot.signupUrl);
+  await registerDeckLearner(page, pilot.origin);
   await page.goto('/library/decks/new');
   await page.getByLabel('Name', { exact: true }).fill('Draft protection');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
@@ -256,7 +269,7 @@ test('the desktop first-card step keeps the steps and the way back in view', asy
 });
 
 test('cards can be corrected and deleted by keyboard, and deleting a deck empties Today', async ({ page, pilot }) => {
-  await signup(page, pilot.signupUrl);
+  await registerDeckLearner(page, pilot.origin);
   await page.goto('/library/decks/new');
   await page.getByLabel('Name', { exact: true }).fill('Wrong handout');
   await page.keyboard.press('Enter');
@@ -352,7 +365,7 @@ test('cards can be corrected and deleted by keyboard, and deleting a deck emptie
 
 test('a failed card deletion keeps its confirmation, and Escape returns focus', async ({ page, pilot }) => {
   await page.setViewportSize({ width: 320, height: 568 });
-  await signup(page, pilot.signupUrl);
+  await registerDeckLearner(page, pilot.origin);
   await page.goto('/library/decks/new');
   await page.getByLabel('Name', { exact: true }).fill('Delete checks');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
@@ -450,7 +463,7 @@ test('a session check on a phone hides the delete confirmation, then brings back
   // Use the same clock for the initial confirmation and the simulated return 30 seconds later.
   await page.clock.setFixedTime(new Date());
   await page.setViewportSize({ width: 375, height: 667 });
-  await signup(page, pilot.signupUrl);
+  await registerDeckLearner(page, pilot.origin);
   await createDeckWithCard(page, 'Session checks', 'What does a leaf turn toward?', 'The light');
   const sessionChecks = await holdSessionChecks(page);
   const cardScreen = page.getByRole('dialog', { name: 'What does a leaf turn toward?' });
@@ -478,7 +491,7 @@ test('a session check beside the side pane hides the delete confirmation and the
   pilot,
 }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
-  await signup(page, pilot.signupUrl);
+  await registerDeckLearner(page, pilot.origin);
   await createDeckWithCard(page, 'Session checks', 'What does a root grow toward?', 'Water');
   const sessionChecks = await holdSessionChecks(page);
   const pane = page.getByRole('region', { name: 'Selected card' });
@@ -512,7 +525,7 @@ test('a session check beside the side pane hides the delete confirmation and the
 });
 
 test('deck screens fit phone, tablet and desktop widths and enlarged text', async ({ page, pilot }, info) => {
-  await signup(page, pilot.signupUrl);
+  await registerDeckLearner(page, pilot.origin);
   await page.goto('/library/decks/new');
   await page.getByLabel('Name', { exact: true }).fill('Araling Panlipunan: Kasaysayan ng Pilipinas');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
@@ -600,7 +613,7 @@ test('deck screens fit phone, tablet and desktop widths and enlarged text', asyn
 
 test('phone card fields fit the draft while writing and when reopening a card', async ({ page, pilot }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await signup(page, pilot.signupUrl);
+  await registerDeckLearner(page, pilot.origin);
   await page.goto('/library/decks/new');
   await page.getByLabel('Name', { exact: true }).fill('Java memory');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
@@ -631,7 +644,7 @@ test('a failed phone save shows the error below Save and preserves the long draf
   pilot,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await signup(page, pilot.signupUrl);
+  await registerDeckLearner(page, pilot.origin);
   await page.goto('/library/decks/new');
   await page.getByLabel('Name', { exact: true }).fill('Save recovery');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
@@ -678,7 +691,7 @@ test('unsaved card text survives cancelled navigation, Back, reload and closing 
   page,
   pilot,
 }, info) => {
-  await signup(page, pilot.signupUrl);
+  await registerDeckLearner(page, pilot.origin);
   await page.goto('/library');
   await page.getByRole('link', { name: 'Create a deck', exact: true }).click();
   await page.getByLabel('Name', { exact: true }).fill('Draft checks');
@@ -739,7 +752,7 @@ test('unsaved edits remain protected after a failed save and before Deck setting
 }, info) => {
   // The side pane keeps the card form and the Deck settings button on screen together.
   await page.setViewportSize({ width: 1280, height: 800 });
-  await signup(page, pilot.signupUrl);
+  await registerDeckLearner(page, pilot.origin);
   await page.goto('/library/decks/new');
   await page.getByLabel('Name', { exact: true }).fill('Edit checks');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
@@ -791,7 +804,7 @@ test('an unsaved deck name stays when Deck settings moves from the side pane to 
   pilot,
 }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
-  await signup(page, pilot.signupUrl);
+  await registerDeckLearner(page, pilot.origin);
   await createDeckWithCard(page, 'Exam prep', 'First question', 'Answer');
   await page.getByRole('button', { name: 'Deck settings', exact: true }).click();
   await page.getByLabel('Name', { exact: true }).fill('Biology finals');
@@ -802,7 +815,7 @@ test('an unsaved deck name stays when Deck settings moves from the side pane to 
 });
 
 test('sign-in returns to the requested private deck or new-deck form', async ({ page, pilot }) => {
-  const username = await signup(page, pilot.signupUrl);
+  const username = await registerDeckLearner(page, pilot.origin);
   await page.goto('/library/decks/new');
   await page.getByLabel('Name', { exact: true }).fill('Return to my deck');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
@@ -830,7 +843,7 @@ test('Library decks follow the finger on phones and tablets and filter the same 
   pilot,
 }) => {
   await page.setViewportSize({ width: 320, height: 568 });
-  await signup(page, pilot.signupUrl);
+  await registerDeckLearner(page, pilot.origin);
   const csrf = await (await page.request.get('/api/v1/auth/csrf')).json();
   for (const title of ['Biology quiz', 'History review', 'Biology final']) {
     const response = await page.request.post('/api/v1/decks', {
@@ -1062,7 +1075,7 @@ test('the phone stack follows replacement decks after reconnecting with the same
 test('adjacent deck strips remain tappable when the phone text size changes', async ({ page, pilot }) => {
   await page.setViewportSize({ width: 375, height: 667 });
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await signup(page, pilot.signupUrl);
+  await registerDeckLearner(page, pilot.origin);
   const csrf = await (await page.request.get('/api/v1/auth/csrf')).json();
   for (const title of ['First deck', 'Middle deck', 'Last deck']) {
     const response = await page.request.post('/api/v1/decks', {
@@ -1120,7 +1133,7 @@ async function scrollingStopped(page: Page) {
 }
 
 test('deck lists append cards on phones and page by keyboard on wide screens', async ({ page, pilot }) => {
-  await signup(page, pilot.signupUrl);
+  await registerDeckLearner(page, pilot.origin);
   const csrf = await (await page.request.get('/api/v1/auth/csrf')).json();
   const headers = { [csrf.headerName]: csrf.token };
   const created = await page.request.post('/api/v1/decks', { data: { title: 'Pagination checks' }, headers });
@@ -1311,7 +1324,7 @@ test('search finds cards beyond the current page and keeps result pages scoped t
 }) => {
   // The side pane keeps the card form and the search field on screen together.
   await page.setViewportSize({ width: 1280, height: 800 });
-  await signup(page, pilot.signupUrl);
+  await registerDeckLearner(page, pilot.origin);
   const csrf = await (await page.request.get('/api/v1/auth/csrf')).json();
   const headers = { [csrf.headerName]: csrf.token };
   const created = await page.request.post('/api/v1/decks', { data: { title: 'Search checks' }, headers });
@@ -1427,7 +1440,7 @@ test('retrying a confirmed create after losing its response keeps one deck and o
 });
 
 test('a stale editor keeps the draft and the other tab’s correction survives', async ({ page, pilot, context }) => {
-  await signup(page, pilot.signupUrl);
+  await registerDeckLearner(page, pilot.origin);
   await page.goto('/library/decks/new');
   await page.getByLabel('Name', { exact: true }).fill('Geography');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
@@ -1455,7 +1468,7 @@ test('a card edited in another tab during its review comes back with the new que
   pilot,
   context,
 }) => {
-  await signup(page, pilot.signupUrl);
+  await registerDeckLearner(page, pilot.origin);
   await createDeckWithCard(page, 'Botany', 'What do leaves need?', 'Light');
   const deckId = new URL(page.url()).pathname.split('/').pop();
   await page.getByRole('link', { name: 'Start review' }).click();
@@ -1485,7 +1498,7 @@ test('a deck with paused reviews stays in Library and its reviews come back afte
   page,
   pilot,
 }, info) => {
-  await signup(page, pilot.signupUrl);
+  await registerDeckLearner(page, pilot.origin);
   await page.goto('/library/decks/new');
   await page.getByLabel('Name', { exact: true }).fill('Finished exam');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
@@ -1541,7 +1554,7 @@ test('pausing and resuming reviews protect settings while pending and survive a 
   page,
   pilot,
 }) => {
-  await signup(page, pilot.signupUrl);
+  await registerDeckLearner(page, pilot.origin);
   await page.goto('/library/decks/new');
   await page.getByLabel('Name', { exact: true }).fill('Exam prep');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
@@ -1598,7 +1611,7 @@ test('Library keeps paused decks under Paused at every width and returns a resum
   page,
   pilot,
 }, info) => {
-  await signup(page, pilot.signupUrl);
+  await registerDeckLearner(page, pilot.origin);
   const csrf = await (await page.request.get('/api/v1/auth/csrf')).json();
   const headers = { [csrf.headerName]: csrf.token };
   const pastBiology = 'Biology past exam with a long semester title';
