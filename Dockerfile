@@ -37,6 +37,7 @@ COPY content/public/ /content/public/
 # Spring Boot serves the files under static/ in the jar. The backend tests use their own small
 # copy in src/test/resources instead, so they don't need a frontend build.
 COPY --from=frontend /frontend/dist/ ./src/main/resources/static/
+COPY --from=frontend /frontend/dist/index.html ./src/main/resources/templates/reviewer.html
 
 # Tests need Docker for Testcontainers, so they run in `make test` and CI, not here.
 # The cache mount keeps downloaded dependencies between builds.
