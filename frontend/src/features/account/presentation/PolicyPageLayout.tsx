@@ -59,7 +59,7 @@ export function PolicyPageLayout({ title, updated, children }: Readonly<PolicyPa
             </h1>
             {updated && <p className="mt-2 text-support text-muted">Updated {updated}</p>}
           </header>
-          <div className="mt-6 space-y-7 text-body">{children}</div>
+          <div className="mt-6 max-w-prose space-y-7 text-body">{children}</div>
         </article>
         <div className="flex justify-center">
           <PolicyLinks showSupport={false} />

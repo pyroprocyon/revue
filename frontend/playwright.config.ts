@@ -4,6 +4,7 @@ export default defineConfig({
   globalSetup: './e2e/build-test-image.ts',
   testDir: './e2e',
   testMatch: '**/*.spec.ts',
+  testIgnore: process.env.REVUE_STARTUP_AUDIT === '1' ? [] : '**/startup-audit.spec.ts',
   fullyParallel: false,
   workers: process.env.CI === 'true' && process.env.REVUE_APP_IMAGE ? 2 : 1,
   forbidOnly: Boolean(process.env.CI),

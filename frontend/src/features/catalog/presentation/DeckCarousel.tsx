@@ -142,8 +142,11 @@ export function CollectionCarousel({
     const points = snapPoints.current;
     const firstPoint = points?.firstElementChild;
     if (!section || !element || !firstPoint) return;
-    let selectionObserver: IntersectionObserver | undefined;
-    let observedHeight = -1;
+    const syncSelection = () => {
+      const step = scrollStep.current;
+      if (step === 0) return;
+      selectDeck(Math.max(0, Math.min(items.length - 1, Math.round(element.scrollTop / step))));
+    };
     const measureStep = () => {
       const enlargedText = Number.parseFloat(getComputedStyle(document.documentElement).fontSize) >= ENLARGED_TEXT_PX;
       const shortCatalogViewport = catalog && window.innerHeight < MIN_CATALOG_STACK_VIEWPORT_PX;
@@ -151,33 +154,22 @@ export function CollectionCarousel({
       const scrollsNatively = getComputedStyle(element).overflowY === 'auto';
       setNativeScroll(scrollsNatively);
       const step = scrollsNatively && items.length > 1 ? firstPoint.getBoundingClientRect().height : 0;
-      const height = element.clientHeight;
       const stepChanged = step !== scrollStep.current;
       scrollStep.current = step;
       const index = Math.min(selectedIndex.current, items.length - 1);
       selectDeck(index);
       if (stepChanged && step > 0) element.scrollTo({ top: index * step, behavior: 'instant' });
-      if (!stepChanged && height === observedHeight) return;
-      observedHeight = height;
-      selectionObserver?.disconnect();
-      if (step === 0) return;
-
-      const midpoint = step / 2;
-      const nearestSnapPointMargin = `-${midpoint}px 0px -${height - midpoint}px 0px`;
-      selectionObserver = new IntersectionObserver(
-        () => selectDeck(Math.max(0, Math.min(items.length - 1, Math.round(element.scrollTop / step)))),
-        { root: element, rootMargin: nearestSnapPointMargin },
-      );
-      for (const point of points.children) selectionObserver.observe(point);
+      syncSelection();
     };
     measureStep();
+    element.addEventListener('scroll', syncSelection, { passive: true });
     const sizeChanges = new ResizeObserver(measureStep);
     sizeChanges.observe(firstPoint);
     sizeChanges.observe(element);
     if (catalog) window.addEventListener('resize', measureStep);
     return () => {
       if (catalog) window.removeEventListener('resize', measureStep);
-      selectionObserver?.disconnect();
+      element.removeEventListener('scroll', syncSelection);
       sizeChanges.disconnect();
     };
   }, [items.length, selectDeck, catalog, visible]);

@@ -136,7 +136,7 @@ function DiscardDialog({ onStay, onDiscard }: Readonly<{ onStay: () => void; onD
         event.preventDefault();
         stay();
       }}
-      className="m-auto max-h-[calc(100dvh-32px)] w-[calc(100%-32px)] max-w-md overflow-y-auto rounded-card bg-surface p-compact-gutter text-ink shadow-card backdrop:bg-scrim/40 sm:p-6"
+      className="m-auto max-h-[calc(100dvh-2*max(16px,var(--phone-edge-gutter)))] w-[calc(100%-2*var(--dialog-side-gutter))] max-w-md overflow-y-auto rounded-card bg-surface p-compact-gutter text-ink shadow-card backdrop:bg-scrim/40 sm:p-6"
     >
       <h2 id={headingId} className="text-section font-bold">
         Discard your changes?

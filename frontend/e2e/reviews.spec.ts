@@ -108,6 +108,9 @@ test('saved review survives a lost response, exact retry, reload and removal', a
   await expect(page.getByRole('heading', { name: '1 card reviewed', exact: true })).toBeVisible();
   await expect(page.getByText('Review complete for Published test set', { exact: true })).toBeVisible();
   await page.screenshot({ path: info.outputPath('review-complete.png'), fullPage: true });
+  await page.emulateMedia({ contrast: 'more' });
+  await expect(page.locator('.review-completion-actions')).toHaveCSS('border-top-color', 'rgb(222, 226, 230)');
+  await page.emulateMedia({ contrast: null });
   expect(payloads).toHaveLength(2);
   expect(payloads[1]).toBe(payloads[0]);
   expect(payloads[0]).not.toContain('private-browser-only-answer');
@@ -235,6 +238,41 @@ test('Study rhythm sits above the review topics at every width', async ({ page, 
 
 const withVisibleScrollbars = test.extend({ launchOptions: { ignoreDefaultArgs: ['--hide-scrollbars'] } });
 
+test('saved ratings follow the full typed answer on iPhone SE', async ({ page, pilot }) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  pilot.addSaveableSet();
+  await signup(page, pilot.signupUrl);
+  await page.goto('/sets/published-test-set');
+  await page.getByRole('button', { name: 'Save to Library' }).click();
+  await expect(page.getByText('Saved to your Library')).toBeVisible();
+  await page.goto(await savedSetReviewPath(page));
+  await page.getByText('Write an answer', { exact: false }).click();
+  const typedLines = [
+    'I compile the code into bytecode.',
+    'Then the JVM runs the bytecode.',
+    'Each platform has its own JVM.',
+  ];
+  await page.getByRole('textbox', { name: 'Your answer (optional)' }).fill(typedLines.join('\n'));
+  await page.getByRole('button', { name: 'Show answer' }).click();
+  await expect(page.getByRole('heading', { name: 'Test answer', exact: true })).toBeFocused();
+  const recap = page.getByText(typedLines.join(' '), { exact: true });
+  const ratings = page.getByRole('group', { name: 'Rate your answer' });
+  await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
+  await expect
+    .poll(async () => {
+      const [answer, group] = await Promise.all([recap.boundingBox(), ratings.boundingBox()]);
+      return group!.y - (answer!.y + answer!.height);
+    })
+    .toBeGreaterThanOrEqual(0);
+  await page.keyboard.press('End');
+  await expect(recap).toBeInViewport({ ratio: 1 });
+  await expect(ratings).toBeInViewport({ ratio: 1 });
+  await ratings.getByRole('button', { name: /^Good:/ }).click();
+  await expect(page.getByRole('heading', { name: '1 card reviewed', exact: true })).toBeVisible();
+  await expect(page.locator('.study-layout > header')).toBeHidden();
+});
+
 withVisibleScrollbars('Saved recall stays usable across widths and text sizes', async ({ page, pilot }, info) => {
   let ratings = 0;
   let started = false;
@@ -311,7 +349,12 @@ withVisibleScrollbars('Saved recall stays usable across widths and text sizes', 
     await page.getByRole('button', { name: 'Show answer' }).focus();
     await page.keyboard.press('Enter');
     const rotatingCard = page.locator('[data-card-frame]');
-    await expect(rotatingCard).toHaveCSS('transition-duration', width === 320 ? '0s' : '0.5s');
+    const flipMs = width >= 640 ? 480 : 360;
+    await expect(rotatingCard).toHaveCSS('transition-duration', width === 320 ? '0s' : `${flipMs / 1000}s`);
+    await expect(page.locator('.animate-review-actions-in')).toHaveCSS(
+      'animation-duration',
+      width === 320 ? '0s' : `${flipMs / 2000}s`,
+    );
     const revealedHeight = await settledCardHeight(rotatingCard);
     await expect(page.getByRole('heading', { name: 'Test answer', exact: true })).toBeFocused();
     await expect(page.getByRole('heading', { name: 'Test question', exact: true })).toHaveCount(0);

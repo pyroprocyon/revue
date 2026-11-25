@@ -23,6 +23,26 @@ async function signIn(page: Page, username: string) {
   await page.getByRole('button', { name: 'Sign in' }).click();
 }
 
+test('Back restores the Saved shelf after its reviewer bundle fails to load', async ({ page, pilot }) => {
+  pilot.addSaveableSet();
+  await register(page, pilot.signupUrl);
+  await page.goto('/sets/published-test-set');
+  await page.getByRole('button', { name: 'Save to Library' }).click();
+  await expect(page.getByRole('link', { name: 'Open Library' })).toBeVisible();
+  await page.goto('/library?shelf=saved');
+
+  await page.route('**/assets/SavedSetBrowser-*.js', (route) => route.abort('failed'));
+  const reviewer = page.getByRole('link', { name: 'Open Published test set', exact: true });
+  await reviewer.click();
+  const failure = page.getByRole('heading', { name: 'Something went wrong' });
+  await expect(failure).toBeFocused();
+
+  await page.goBack();
+  await expect(page).toHaveURL(/\/library\?shelf=saved$/);
+  await expect(reviewer).toBeVisible();
+  await expect(failure).toHaveCount(0);
+});
+
 test('a paused saved-set link loads directly and retries its own failed read', async ({ page, pilot }) => {
   pilot.addSaveableSet();
   await register(page, pilot.signupUrl);
@@ -94,9 +114,15 @@ test('saved cards can be searched and opened read-only on a phone and tablet', a
   await expect(page.getByRole('link', { name: 'Help', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: /Remove from Library/ })).toHaveCount(0);
   await expect(page.getByRole('link', { name: /Public preview/ })).toHaveCount(0);
-  await page.getByRole('button', { name: 'About this reviewer' }).click();
+  const about = page.getByRole('button', { name: 'About this reviewer' });
+  await expect(about).toHaveAttribute('aria-expanded', 'false');
+  const closedGradient = await about.evaluate((button) => getComputedStyle(button).backgroundImage);
+  await about.click();
+  await expect(about).toHaveAttribute('aria-expanded', 'true');
+  await expect(about).not.toHaveCSS('background-image', closedGradient);
   await expect(page.getByText(saved[0].description, { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'About this reviewer' }).click();
+  await about.click();
+  await expect(about).toHaveCSS('background-image', closedGradient);
   await page.getByRole('button', { name: 'Reviewer settings' }).click();
   const settings = page.getByRole('dialog', { name: 'Reviewer settings' });
   await expect(settings.getByRole('button', { name: /Remove from Library/ })).toBeVisible();

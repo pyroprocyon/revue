@@ -53,14 +53,15 @@ describe('Five-card trial', () => {
     const answer = screen.getByRole('heading', { name: 'Answer 1.' });
     expect(document.activeElement).toBe(answer);
     expect(screen.queryByRole('heading', { name: 'Question 1?' })).toBeNull();
-    expect(screen.getByText('Card details').closest('details')).toHaveProperty(
-      'textContent',
-      'Card detailsExplanationNote 1.',
-    );
-    click('Source');
-    expect(
-      within(screen.getByRole('dialog', { name: 'Source' })).getByText('Source: Grade 6 book, page 45'),
-    ).toBeDefined();
+    click('Card details');
+    const details = within(screen.getByRole('dialog', { name: 'Card details' }));
+    expect(details.getByText('Note 1.')).toBeDefined();
+    expect(details.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)).toEqual([
+      'Explanation',
+      'Source',
+    ]);
+    expect(details.getByText('Grade 6 book, page 45')).toBeDefined();
+    click('Done');
     expect(screen.getByText('Published by Revue')).toBeDefined();
     const ratings = within(screen.getByRole('group', { name: 'Rate your answer' }))
       .getAllByRole('button')
@@ -305,7 +306,7 @@ describe('Five-card trial', () => {
     act(() => {
       void view.queryClient.refetchQueries({ queryKey });
     });
-    await waitFor(() => expect(view.queryClient.getQueryData(queryKey)).toEqual(replacement));
+    await waitFor(() => expect(view.queryClient.getQueryData(queryKey)).toMatchObject({ value: replacement }));
 
     expect(screen.getByRole('heading', { name: 'Answer 2.' })).toBeDefined();
     expect(screen.getByText('Published by Revue')).toBeDefined();
@@ -341,8 +342,12 @@ describe('Five-card trial', () => {
     };
     const reader = { trialCards: async (key: string) => (key === 'other-set' ? otherCards : historyCards) };
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    queryClient.setQueryData(publicContentKeys.trial('philippine-history'), historyCards);
-    queryClient.setQueryData(publicContentKeys.trial('other-set'), otherCards);
+    queryClient.setQueryData(publicContentKeys.trial('philippine-history'), {
+      value: historyCards,
+      started: 0,
+      finished: 0,
+    });
+    queryClient.setQueryData(publicContentKeys.trial('other-set'), { value: otherCards, started: 0, finished: 0 });
     render(
       <QueryClientProvider client={queryClient}>
         <MemoryRouter initialEntries={['/sets/philippine-history/try']}>

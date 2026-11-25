@@ -1,10 +1,10 @@
 import { useEffect, type ReactNode } from 'react';
-import { Navigate } from 'react-router';
+import { SessionExpiredRedirect } from '../../../shared/navigation/SessionExpiredRedirect';
 import { ReviewFailure } from '../application/reviews';
 import { TodayReviewCard } from './TodayReviewCard';
 import type { useTodayQueue } from './ReviewProvider';
 import { forgetReview } from './pausedReview';
-import { reviewTopicPath, signInPath, TODAY_PATH } from '../../../shared/navigation/paths';
+import { reviewTopicPath, TODAY_PATH } from '../../../shared/navigation/paths';
 import { primaryButton } from '../../../shared/ui/buttonStyles';
 import { WhenSlow } from '../../../shared/ui/WhenSlow';
 import { LoadingStatus } from '../../../shared/ui/LoadingFeedback';
@@ -36,7 +36,7 @@ export function ContinueReview({
   }, [query.isSuccess, query.isFetching, unfinished, username, topic, onFinished]);
 
   if (query.error instanceof ReviewFailure && query.error.kind === 'signed-out') {
-    return <Navigate replace to={signInPath(TODAY_PATH)} />;
+    return <SessionExpiredRedirect returnTo={TODAY_PATH} />;
   }
   if (query.isError && remaining === 0) {
     return (

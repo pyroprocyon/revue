@@ -1,12 +1,13 @@
 import { useContext, useEffect, useRef, useState, type MouseEvent } from 'react';
-import { Link, Navigate, useOutletContext } from 'react-router';
+import { Link, useOutletContext } from 'react-router';
 import { DeckFailure, type Deck } from '../application/decks';
 import type { useDecks } from './useDecks';
 import { CollectionGrid } from './CollectionGrid';
 import { CollectionSearch } from './CollectionSearch';
 import { CollectionStatusMenu } from './CollectionStatusMenu';
 import { DeckCarousel } from './DeckCarousel';
-import { LIBRARY_PATH, NEW_DECK_PATH, signInPath } from '../../../shared/navigation/paths';
+import { LIBRARY_PATH, NEW_DECK_PATH } from '../../../shared/navigation/paths';
+import { SessionExpiredRedirect } from '../../../shared/navigation/SessionExpiredRedirect';
 import { primaryButton, secondaryButton } from '../../../shared/ui/buttonStyles';
 import { WhenSlow } from '../../../shared/ui/WhenSlow';
 import { LoadingStatus } from '../../../shared/ui/LoadingFeedback';
@@ -35,7 +36,7 @@ export function MyDecks({
   focusDeletedDeckNotice: boolean;
 }>) {
   if (decks.error instanceof DeckFailure && decks.error.reason === 'signed-out') {
-    return <Navigate replace to={signInPath(LIBRARY_PATH)} />;
+    return <SessionExpiredRedirect returnTo={LIBRARY_PATH} />;
   }
   const unavailable = decksUnavailable(decks.error);
   const loadMessage = unavailable

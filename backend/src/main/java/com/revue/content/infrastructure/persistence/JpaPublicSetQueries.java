@@ -12,9 +12,14 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 class JpaPublicSetQueries implements PublicSetQueries {
-    private static final String OVERVIEW = """
+    private static final String OVERVIEW_FIELDS = """
         select s.id, s.set_key, s.title, s.description, s.publisher_name, s.subject, s.save_allowed,
             (select count(*) from cards c where c.set_id = s.id and c.retired_at is null) as card_count
+        """;
+    private static final String OVERVIEW = OVERVIEW_FIELDS + ", cast(null as text) as sample_question from ";
+    private static final String PREVIEW = OVERVIEW_FIELDS + """
+        , (select c.question from cards c where c.set_id = s.id and c.retired_at is null
+            order by c.position, c.id limit 1) as sample_question
         from
         """;
     private static final String ACTIVE_SETS = "sets s where s.retired_at is null";
@@ -70,12 +75,12 @@ class JpaPublicSetQueries implements PublicSetQueries {
 
     @Override
     public Optional<Overview> summary(String setKey) {
-        return jdbc.sql(OVERVIEW + ACTIVE_SETS + " and s.set_key = ?").param(setKey).query(Overview.class).optional();
+        return jdbc.sql(PREVIEW + ACTIVE_SETS + " and s.set_key = ?").param(setKey).query(Overview.class).optional();
     }
 
     @Override
     public Optional<Overview> summaryById(long id) {
-        return jdbc.sql(OVERVIEW + ACTIVE_SETS + " and s.id = ?").param(id).query(Overview.class).optional();
+        return jdbc.sql(PREVIEW + ACTIVE_SETS + " and s.id = ?").param(id).query(Overview.class).optional();
     }
 
     @Override

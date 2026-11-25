@@ -110,12 +110,10 @@ export function WorkspaceLayout({
               </NavLink>
             ))}
           </nav>
-          <WorkspaceHelpLink />
+          <WorkspaceHelpLink showLabelOnPhone={account !== null} />
         </header>
         <main id="main-content" tabIndex={-1} className="workspace-content page-gutters @container outline-none">
-          <div className="mx-auto w-full max-w-3xl @min-[64rem]/workspace:max-w-wide @min-[64rem]/workspace:pt-6">
-            {children}
-          </div>
+          <div className="mx-auto w-full @min-[64rem]/workspace:max-w-wide @min-[64rem]/workspace:pt-6">{children}</div>
         </main>
       </div>
     </div>

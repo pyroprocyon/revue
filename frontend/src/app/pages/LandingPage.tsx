@@ -63,7 +63,7 @@ export function LandingPage() {
           >
             How it works
           </Link>
-          <AccountActions className="ml-auto hidden py-1 lg:flex" />
+          <AccountActions className="ml-auto hidden gap-3 py-1 lg:flex" />
         </>
       }
       actions={<LandingActions />}
@@ -126,11 +126,11 @@ function HeroText() {
 
 function LandingActions() {
   return (
-    <div>
-      <div className="landing-browse-in-footer mb-3 flex">
+    <div className="grid gap-2">
+      <div className="landing-browse-in-footer">
         <BrowseSetsButton />
       </div>
-      <AccountActions className="flex" />
+      <AccountActions className="flex gap-2" />
     </div>
   );
 }
@@ -140,7 +140,7 @@ function AccountActions({ className }: Readonly<{ className: string }>) {
   // The links keep their space while the session is checked, so the page does not shift when they appear.
   const visibility = session === 'checking' ? 'invisible' : '';
   return (
-    <nav aria-label="Account" className={`${className} ${visibility} flex-wrap gap-3`}>
+    <nav aria-label="Account" className={`${className} ${visibility} flex-wrap`}>
       <AccountHeaderLink appearance="account" />
       <Link to={JOIN_PATH} className={accountTonalButton}>
         Create account
@@ -152,7 +152,7 @@ function AccountActions({ className }: Readonly<{ className: string }>) {
 function BrowseSetsButton() {
   return (
     <Link to={SETS_PATH} className={`${primaryButton} w-full lg:min-h-14 lg:w-auto lg:gap-3 lg:px-6 lg:shadow-control`}>
-      <span className="text-lg/6 lg:text-xl/7">Browse reviewers</span>
+      <span className="lg:text-xl/7">Browse reviewers</span>
       <ArrowRight aria-hidden="true" className="shrink-0" size={20} />
     </Link>
   );

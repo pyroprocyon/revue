@@ -22,6 +22,7 @@ frontend/coverage
 # Generated browser-test reports
 frontend/playwright-report/
 frontend/test-results/
+frontend/perf-results/
 
 # Private engineering context and agent instructions, including nested copies.
 **/.agents

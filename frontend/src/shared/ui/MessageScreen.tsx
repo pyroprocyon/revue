@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { HomeLink } from './HeaderLinks';
 import { LoadingPlaceholder, LoadingStatus } from './LoadingFeedback';
 import { PageLayout } from './PageLayout';
+import { StudyLayout } from './StudyLayout';
 import { useFocusOnMount } from './useFocusOnMount';
 import { WhenSlow } from './WhenSlow';
 
@@ -41,14 +42,14 @@ export function SessionCheckScreen() {
   );
 }
 
-export function LoadingScreen({ text }: Readonly<{ text: string }>) {
+export function LoadingScreen({ text, top }: Readonly<{ text: string; top?: ReactNode }>) {
   return (
-    <PageLayout top={<HomeLink />}>
+    <StudyLayout top={top ?? <HomeLink />}>
       <WhenSlow>
         <LoadingPlaceholder kind="study" className="my-3">
           {text}
         </LoadingPlaceholder>
       </WhenSlow>
-    </PageLayout>
+    </StudyLayout>
   );
 }

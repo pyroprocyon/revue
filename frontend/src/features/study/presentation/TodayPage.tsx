@@ -1,6 +1,6 @@
 import { useContext, useId, useLayoutEffect, useRef, useState } from 'react';
 import { CalendarCheck, CalendarDays, ChevronDown, Check, Layers, Minus, PartyPopper } from 'lucide-react';
-import { Link, Navigate, useOutletContext } from 'react-router';
+import { Link, useOutletContext } from 'react-router';
 import { ContinueReview } from './ContinueReview';
 import { TodayReviewCard } from './TodayReviewCard';
 import { pausedReview } from './pausedReview';
@@ -9,7 +9,8 @@ import { useTodayOverview } from './ReviewProvider';
 import { REVIEW_BATCH_SIZE, REVIEW_TIME_ZONE, REVIEW_TIME_ZONE_OFFSET } from '../../../shared/product/studyRules';
 import { cardNoun } from '../../../shared/ui/cardCount';
 import { blueAccentButton, primaryButton } from '../../../shared/ui/buttonStyles';
-import { LIBRARY_PATH, NEW_DECK_PATH, TODAY_PATH, reviewTopicPath, signInPath } from '../../../shared/navigation/paths';
+import { LIBRARY_PATH, NEW_DECK_PATH, TODAY_PATH, reviewTopicPath } from '../../../shared/navigation/paths';
+import { SessionExpiredRedirect } from '../../../shared/navigation/SessionExpiredRedirect';
 import { useFirstLoadNotice } from '../../../shared/ui/useFirstLoadNotice';
 import { LoadingPlaceholder } from '../../../shared/ui/LoadingFeedback';
 import { WorkspacePage } from '../../../shared/ui/WorkspacePage';
@@ -24,7 +25,7 @@ export function TodayPage() {
   const [finished, setFinished] = useState(false);
   const { query, overview, loading, signedOut } = useTodayOverview(pausedTopic);
   const showLoading = useFirstLoadNotice(loading && overview === undefined);
-  if (signedOut) return <Navigate to={signInPath(TODAY_PATH)} replace />;
+  if (signedOut) return <SessionExpiredRedirect returnTo={TODAY_PATH} />;
   if (overview && !showLoading) {
     const { studyDays = [], topics = [] } = overview;
     const otherTopics = topics.filter((topic) => topic.id !== pausedTopic);

@@ -602,7 +602,7 @@ describe('saved daily study', () => {
     },
   );
 
-  it('keeps the full answer and puts the draft comparison and card details below it', async () => {
+  it('keeps the full answer and opens card details and draft comparison separately', async () => {
     const detailCard = {
       ...card,
       explanation: 'Plants use water for photosynthesis.',
@@ -616,13 +616,13 @@ describe('saved daily study', () => {
     const answer = screen.getByRole('region', { name: 'Answer' });
     expect(within(answer).getByRole('heading', { name: 'Water' })).toBeDefined();
     expect(screen.queryByRole('dialog')).toBeNull();
-    const summary = screen.getByText('Card details', { selector: 'summary' });
-    expect(answer.contains(summary)).toBe(false);
+    const detailsButton = screen.getByRole('button', { name: 'Card details' });
+    expect(answer.contains(detailsButton)).toBe(false);
     expect(screen.getByRole('button', { name: 'Compare with your answer' })).toBeDefined();
-    expect(summary.closest('details')!.open).toBe(false);
-    summary.closest('details')!.open = true;
-    expect(screen.getByRole('heading', { name: 'Tip to remember' })).toBeDefined();
-    expect(screen.getByRole('heading', { name: 'Explanation' })).toBeDefined();
+    fireEvent.click(detailsButton);
+    const details = within(screen.getByRole('dialog', { name: 'Card details' }));
+    expect(details.getByRole('heading', { name: 'Tip to remember' })).toBeDefined();
+    expect(details.getByRole('heading', { name: 'Explanation' })).toBeDefined();
   });
 
   it.each(['/', '/sign-in', '/join', '/i', '/register'])('opens Today from the signed-in entry %s', async (path) => {
@@ -926,6 +926,8 @@ describe('signed-in navigation without flicker', () => {
     const respond = fetcher.getMockImplementation()!;
     renderApp('/today');
     await screen.findByText('No cards to review yet');
+    using clock = vi.spyOn(Date, 'now');
+    clock.mockReturnValue(Date.now() + 30_000);
     fetcher.mockImplementation((path, init) =>
       path === '/api/v1/auth/session' ? new Promise<Response>(() => {}) : respond(path, init),
     );
@@ -934,13 +936,15 @@ describe('signed-in navigation without flicker', () => {
     expect(screen.getByRole('navigation', { name: 'Your workspace' })).toBeDefined();
   });
 
-  it('shows Today at once when returning from Help while the session is rechecked', async () => {
+  it('shows Today at once when returning from Help after the confirmation expires', async () => {
     const { fetcher } = api(ready);
     const respond = fetcher.getMockImplementation()!;
     renderApp('/today');
     await screen.findByRole('region', { name: 'Up next' });
     fireEvent.click(screen.getByRole('link', { name: 'Help' }));
     await screen.findByRole('heading', { name: 'Help' });
+    using clock = vi.spyOn(Date, 'now');
+    clock.mockReturnValue(Date.now() + 30_000);
     fetcher.mockImplementation((path, init) =>
       path === '/api/v1/me' ? new Promise<Response>(() => {}) : respond(path, init),
     );
@@ -955,6 +959,8 @@ describe('signed-in navigation without flicker', () => {
     const { queryClient } = renderApp('/today');
     await screen.findByRole('region', { name: 'Up next' });
     expect(lastConfirmedProfile(queryClient)).toEqual({ username: 'learner' });
+    using clock = vi.spyOn(Date, 'now');
+    clock.mockReturnValue(Date.now() + 30_000);
     fetcher.mockImplementation((path, init) =>
       path === '/api/v1/auth/session' ? Promise.resolve(jsonResponse(200, { signedIn: false })) : respond(path, init),
     );

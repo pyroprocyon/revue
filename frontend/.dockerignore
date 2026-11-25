@@ -8,6 +8,7 @@ coverage
 **/.git
 playwright-report/
 test-results/
+perf-results/
 
 # Private engineering context and agent instructions, including nested copies.
 **/.agents

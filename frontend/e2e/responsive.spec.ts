@@ -1,6 +1,7 @@
 import type { Locator } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { test, expect } from './fixtures';
+import { historyCards, historySet } from '../src/test/fixtures';
 
 test('practice preview pairs the trial with the sample on tablet and docks it on phones', async ({ page }) => {
   await page.addInitScript(() => {
@@ -9,13 +10,16 @@ test('practice preview pairs the trial with the sample on tablet and docks it on
   await page.setViewportSize({ width: 640, height: 900 });
   await page.goto('/sets/philippine-history');
   const trial = page.getByRole('link', { name: 'Try 5 cards' });
+  const dock = page.getByRole('group', { name: 'Reviewer actions' });
   const description = page.getByText(/from Mactan to Malolos/);
   const sample = page.getByRole('heading', { name: 'Sample question' });
   const share = page.getByRole('button', { name: 'Share', exact: true });
   const copy = page.getByRole('button', { name: 'Copy link' });
-  await expect(trial).toHaveAccessibleDescription('Trial progress and ratings aren’t saved.');
+  await expect(page.getByText('Trial progress and ratings aren’t saved.')).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'Sign in to save' })).toHaveCount(0);
   await expect(sample).toBeVisible();
+  await expect(trial).toHaveCSS('background-image', /^linear-gradient\(/);
+  await expect(dock).toHaveCSS('backdrop-filter', 'none');
   await page.evaluate(() => document.fonts.ready);
 
   const tabletTrial = (await trial.boundingBox())!;
@@ -30,6 +34,7 @@ test('practice preview pairs the trial with the sample on tablet and docks it on
   expect(tabletTrial.y).toBeGreaterThan(tabletSample.y + tabletSample.height);
 
   await page.setViewportSize({ width: 375, height: 667 });
+  await expect(dock).toHaveCSS('backdrop-filter', /^blur\(/);
   await expect(trial).toBeInViewport({ ratio: 1 });
   const sharing = (await share.boundingBox())!;
   const copyLink = (await copy.boundingBox())!;
@@ -45,6 +50,7 @@ test('practice preview pairs the trial with the sample on tablet and docks it on
     document.documentElement.style.fontSize = '200%';
   });
   await expect(trial.locator('..')).toHaveCSS('position', 'static');
+  await expect(dock).toHaveCSS('backdrop-filter', 'none');
   await copy.scrollIntoViewIfNeeded();
   await expect(copy).toBeInViewport({ ratio: 1 });
 });
@@ -74,6 +80,44 @@ test('Privacy and Terms pin the sign-in link only when the phone has room', asyn
   }
 });
 
+test('public pages share tablet gutters and a desktop max width', async ({ page }) => {
+  const routes = [
+    ['/', 'Review before it’s due.'],
+    ['/how-it-works', 'How spaced repetition works'],
+    ['/sets', 'Reviewers'],
+    ['/sets/philippine-history', 'Philippine History'],
+    ['/sign-in', 'Welcome back'],
+    ['/help', 'Help'],
+    ['/terms', 'Terms'],
+  ] as const;
+
+  for (const width of [912, 1366]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const [route, heading] of routes) {
+      await page.goto(route);
+      await expect(page.getByRole('heading', { name: heading, level: 1, exact: true })).toBeAttached();
+      const main = page.locator('main.reading-column, main > .reading-column');
+      const columns = await main.evaluate((element) => {
+        const header = document.querySelector('header.reading-column')!;
+        return [header, element].map((column) => {
+          const { x, width } = column.getBoundingClientRect();
+          const { paddingLeft, paddingRight } = getComputedStyle(column);
+          return { x, width, paddingLeft, paddingRight };
+        });
+      });
+      const frameWidth = Math.min(width, 1024);
+      for (const column of columns) {
+        expect(column, `${route} at ${width}px`).toEqual({
+          x: (width - frameWidth) / 2,
+          width: frameWidth,
+          paddingLeft: '32px',
+          paddingRight: '32px',
+        });
+      }
+    }
+  }
+});
+
 test('tablet trial keeps recall and rating controls close to the card', async ({ page }) => {
   await page.setViewportSize({ width: 768, height: 1024 });
   await page.goto('/sets/philippine-history/try');
@@ -86,6 +130,63 @@ test('tablet trial keeps recall and rating controls close to the card', async ({
     await expect(page.getByRole('button', { name: new RegExp(`^${rating}:`) })).toBeInViewport({ ratio: 1 });
   }
 });
+
+const withVisibleScrollbars = test.extend({ launchOptions: { ignoreDefaultArgs: ['--hide-scrollbars'] } });
+
+withVisibleScrollbars(
+  'trial and saved review share a centered study width and aligned controls',
+  async ({ page, pilot }) => {
+    pilot.addSaveableSet();
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto(pilot.signupUrl);
+    await page.getByLabel('Username').fill(`study_layout_${randomUUID().slice(0, 16)}`);
+    await page.getByLabel('Password', { exact: true }).fill('mango42');
+    await page.getByLabel('Confirm password').fill('mango42');
+    await page.getByRole('button', { name: 'Create account', exact: true }).click();
+    await expect(page).toHaveURL(/\/today$/);
+    await page.goto('/sets/published-test-set');
+    await page.getByRole('button', { name: 'Save to Library' }).click();
+    await expect(page.getByText('Saved to your Library')).toBeVisible();
+    await page.goto('/library');
+    await page.getByRole('link', { name: 'Open Published test set' }).click();
+    const start = page.getByRole('link', { name: 'Start review: Published test set', exact: true });
+    await expect(start).toBeVisible();
+    const reviewPath = (await start.getAttribute('href'))!;
+    const measure = async (path: string) => {
+      await page.goto(path);
+      await page.getByRole('button', { name: 'Show answer', exact: true }).click();
+      await expect(page.getByRole('group', { name: 'Rate your answer' })).toBeVisible();
+      await page.evaluate(() => document.fonts.ready);
+      return page.locator('.review-card-frame').evaluate((card) => {
+        const { x, y, width } = card.getBoundingClientRect();
+        const dock = document.querySelector('.review-dock')!;
+        const dockBounds = dock.getBoundingClientRect();
+        return {
+          availableWidth: document.documentElement.clientWidth,
+          cardLeft: x,
+          cardTop: y + window.scrollY,
+          cardWidth: width,
+          dockLeft: dockBounds.x,
+          dockWidth: dockBounds.width,
+          dockShadow: getComputedStyle(dock).boxShadow,
+        };
+      });
+    };
+    for (const width of [640, 655, 768, 1024, 1366]) {
+      await page.setViewportSize({ width, height: 900 });
+      const trial = await measure('/sets/philippine-history/try');
+      const review = await measure(reviewPath);
+      const cardWidth = Math.min(trial.availableWidth - 64, 640);
+      expect(trial.availableWidth).toBeLessThan(width);
+      expect(trial.cardLeft).toBe((trial.availableWidth - cardWidth) / 2);
+      expect(trial.cardWidth).toBe(cardWidth);
+      expect(trial.dockLeft).toBe(trial.cardLeft);
+      expect(trial.dockWidth).toBe(cardWidth);
+      expect(trial.dockShadow).not.toBe('none');
+      expect(review).toEqual(trial);
+    }
+  },
+);
 
 test('landing action and study headings fit at 320 pixels with 200% text', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 568 });
@@ -125,12 +226,38 @@ test('account help and trial source links offer a 48-pixel target', async ({ pag
   await expectTouchTarget(page.getByRole('link', { name: 'Sign in', exact: true }));
   await page.goto('/sets/philippine-history/try');
   await page.getByRole('button', { name: 'Show answer' }).click();
-  const sourceButton = page.getByRole('button', { name: 'Source' });
-  await expectTouchTarget(sourceButton);
-  await sourceButton.click();
-  const source = page.getByRole('dialog', { name: 'Source' }).getByRole('link', { name: 'NHCP historical marker' });
+  const details = page.getByRole('button', { name: 'Card details' });
+  await expectTouchTarget(details);
+  await details.click();
+  const dialog = page.getByRole('dialog', { name: 'Card details' });
+  await expect(dialog.getByRole('heading', { level: 3 })).toHaveText(['Explanation', 'Source']);
+  await expect(dialog.locator(':scope > div').first()).toHaveCSS('padding-inline-start', '24px');
+  await expect(dialog.locator(':scope > div').last()).toHaveCSS('padding-inline-start', '24px');
+  const done = dialog.getByRole('button', { name: 'Done' });
+  await expect(done).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+  await expect(done).toHaveCSS('border-top-style', 'solid');
+  await expectTouchTarget(done);
+  const gutterDifference = () =>
+    done.evaluate((button) => {
+      const dialogBounds = button.closest('dialog')!.getBoundingClientRect();
+      const buttonBounds = button.getBoundingClientRect();
+      const top = buttonBounds.top - dialogBounds.top;
+      const right = dialogBounds.right - buttonBounds.right;
+      return Math.abs(top - right);
+    });
+  expect(await gutterDifference()).toBeLessThan(1);
+  const source = dialog.getByRole('link', { name: 'NHCP historical marker' });
   await expectTouchTarget(source);
   await expect(source).toBeInViewport({ ratio: 1 });
+
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = '200%';
+  });
+  await expectWordOnOneLine(dialog.getByRole('heading', { name: 'Card details' }), 'details');
+  await source.scrollIntoViewIfNeeded();
+  await expect(done).toBeInViewport({ ratio: 1 });
+  expect(await gutterDifference()).toBeLessThan(1);
 });
 
 test('invitation and guide text keep room for whole words at 320 pixels with 200% text', async ({ page }) => {
@@ -152,6 +279,58 @@ test('invitation and guide text keep room for whole words at 320 pixels with 200
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
 });
 
+test('the compact trial bar gives long answers their own scroll area on phones', async ({ page }, info) => {
+  const answer = 'The JVM takes bytecode and runs it on the current platform. '.repeat(18).trim();
+  const cards = [{ ...historyCards.cards[0]!, answer }, ...historyCards.cards.slice(1)];
+  await page.route('**/demo-cards', (route) => route.fulfill({ json: { ...historyCards, cards } }));
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/sets/philippine-history/try');
+  const hint = page.getByText('Trial · Progress isn’t saved');
+  const frame = page.locator('.review-card-frame');
+  await expect(page.getByText('Card 1 of 5', { exact: true })).toBeVisible();
+  await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
+  const [hintBounds, frameBounds] = await Promise.all([hint.boundingBox(), frame.boundingBox()]);
+  expect(frameBounds!.y - hintBounds!.y - hintBounds!.height).toBeGreaterThanOrEqual(9);
+  await page.getByRole('button', { name: 'Show answer' }).click();
+  const reading = page.locator('.review-card-content');
+  const ratings = page.getByRole('group', { name: 'Rate your answer' });
+  await expect(reading).toHaveCSS('overflow-y', 'auto');
+  await expect(ratings.getByText('Right after a pause', { exact: true })).toBeVisible();
+  const dock = (await ratings.boundingBox())!;
+  const buttons = await ratings.getByRole('button').all();
+  for (const button of buttons) {
+    await expect(button).toBeInViewport({ ratio: 1 });
+    const bounds = (await button.boundingBox())!;
+    expect(bounds.width).toBeGreaterThanOrEqual(48);
+    expect(bounds.height).toBeGreaterThanOrEqual(48);
+    expect(bounds.y).toBe((await buttons[0]!.boundingBox())!.y);
+  }
+  await reading.evaluate((element) => (element.scrollTop = element.scrollHeight));
+  const details = page.getByRole('button', { name: 'Card details' });
+  await expect(details).toBeInViewport({ ratio: 1 });
+  expect((await details.boundingBox())!.y + (await details.boundingBox())!.height).toBeLessThanOrEqual(dock.y);
+  expect(await ratings.boundingBox()).toEqual(dock);
+  await details.click();
+  const dialog = page.getByRole('dialog', { name: 'Card details' });
+  await expect(dialog.getByText('Note 1.')).toBeVisible();
+  await expect(dialog.getByText(/Grade 6 book/)).toBeVisible();
+  await page.screenshot({ path: info.outputPath('compact-trial-details.png') });
+  await dialog.getByRole('button', { name: 'Done' }).click();
+  await expect(details).toBeFocused();
+  await page.screenshot({ path: info.outputPath('compact-trial-phone.png') });
+
+  await page.setViewportSize({ width: 768, height: 920 });
+  await expect(reading).toHaveCSS('overflow-y', 'visible');
+  await expect(ratings.getByText('Right, with a pause', { exact: true })).toBeVisible();
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.evaluate(() => (document.documentElement.style.fontSize = '200%'));
+  await expect(reading).toHaveCSS('overflow-y', 'visible');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+  await ratings.getByRole('button', { name: /^Good:/ }).click();
+  await expect(page.getByText('Card 2 of 5', { exact: true })).toBeVisible();
+});
+
 test('keyboard reveal and tabbing keep enlarged answers and ratings reachable with either motion setting', async ({
   page,
 }) => {
@@ -171,9 +350,7 @@ test('keyboard reveal and tabbing keep enlarged answers and ratings reachable wi
     await expect(answer).toBeFocused();
     await expect(answer).toBeInViewport({ ratio: 1 });
     await page.keyboard.press('Tab');
-    await expect(page.getByRole('button', { name: 'Source' })).toBeFocused();
-    await page.keyboard.press('Tab');
-    await expect(page.getByText('Card details', { exact: true })).toBeFocused();
+    await expect(page.getByRole('button', { name: 'Card details' })).toBeFocused();
     for (const rating of ['Missed', 'Hard', 'Good', 'Easy']) {
       await page.keyboard.press('Tab');
       const button = page.getByRole('button', { name: new RegExp(`^${rating}:`) });
@@ -221,6 +398,143 @@ test('rapid flip reversals start at the current angle on a narrow phone', async 
   expect(Math.abs((await angleAt(0)) - turningToQuestion)).toBeLessThan(2);
 });
 
+for (const [width, height] of [
+  [320, 568],
+  [360, 600],
+  [375, 667],
+] as const) {
+  test(`revealing a phone trial expands the rating dock without a jump or clipping at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await page.goto('/sets/philippine-history/try');
+    const show = page.getByRole('button', { name: 'Show answer' });
+    await expect(show).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+
+    const frames = await show.evaluate(async (button: HTMLButtonElement) => {
+      const dock = document.querySelector<HTMLElement>('.review-dock')!;
+      const card = document.querySelector<HTMLElement>('[data-card-frame]')!;
+      const content = document.querySelector<HTMLElement>('.review-card-content')!;
+      const before = dock.getBoundingClientRect();
+      button.click();
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      const resize = dock.getAnimations().find((animation) => animation.effect?.getTiming().duration !== 0);
+      resize?.pause();
+      const measureDock = (fraction: number) => {
+        if (resize?.effect) resize.currentTime = Number(resize.effect.getTiming().duration) * fraction;
+        return dock.getBoundingClientRect();
+      };
+      const start = measureDock(0);
+      const middle = measureDock(0.5);
+      const end = measureDock(1);
+      const flip = card.getAnimations()[0];
+      flip.pause();
+      const topClearance = [0.25, 0.5, 0.75].map((progress) => {
+        flip.currentTime = Number(flip.effect!.getTiming().duration) * progress;
+        return card.getBoundingClientRect().top - content.getBoundingClientRect().top;
+      });
+      return {
+        before: before.height,
+        start: start.height,
+        middle: middle.height,
+        end: end.height,
+        bottomShift: Math.max(...[start, middle, end].map((frame) => Math.abs(frame.bottom - before.bottom))),
+        minimumClearance: Math.min(...topClearance),
+      };
+    });
+
+    expect(frames.start).toBeCloseTo(frames.before, 0);
+    expect(frames.middle).toBeGreaterThan(frames.start);
+    expect(frames.middle).toBeLessThan(frames.end);
+    expect(frames.bottomShift).toBeLessThan(1);
+    expect(frames.minimumClearance).toBeGreaterThanOrEqual(0);
+  });
+}
+
+const touchPhone = test.extend({ hasTouch: true, isMobile: true });
+
+touchPhone('a repeated trial reveal tap cannot rate before the answer face appears', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.goto('/sets/philippine-history/try');
+  const show = page.getByRole('button', { name: 'Show answer' });
+  await expect(show).toBeVisible();
+  await page.evaluate(() => document.fonts.ready);
+
+  const revealTap = await show.evaluate(async (button: HTMLButtonElement) => {
+    const box = button.getBoundingClientRect();
+    const card = document.querySelector<HTMLElement>('[data-card-frame]')!;
+    const dock = document.querySelector<HTMLElement>('.review-dock')!;
+    button.click();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    const flipDuration = Number(card.getAnimations()[0].effect!.getTiming().duration);
+    for (const element of [card, dock]) {
+      for (const animation of element.getAnimations({ subtree: true })) {
+        animation.pause();
+        animation.currentTime = flipDuration * 0.45;
+      }
+    }
+    return { x: Math.round(box.left + box.width * 0.38), y: Math.round(box.top + box.height / 2) };
+  });
+
+  await expect(page.locator('.review-back')).toHaveCSS('opacity', '0');
+  await page.touchscreen.tap(revealTap.x, revealTap.y);
+  const position = page.locator('.review-front .review-side-label');
+  await expect(position).toHaveText('Card 1 of 5');
+  await page.evaluate(() => document.getAnimations().forEach((animation) => animation.finish()));
+  await page.getByRole('button', { name: /^Hard:/ }).tap();
+  await expect(position).toHaveText('Card 2 of 5');
+});
+
+test('Solid controls in Help changes the trial dock and persists on reload', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  await page.goto('/sets');
+  await expect(page.getByRole('heading', { name: 'Reviewers', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Help', exact: true })).toHaveCount(0);
+  await page.goto('/help');
+  const solidControls = page.getByRole('checkbox', { name: 'Solid controls' });
+  await expect(solidControls).toBeVisible();
+  await expect(solidControls).not.toBeChecked();
+
+  const trial = await page.context().newPage();
+  await trial.setViewportSize({ width: 375, height: 667 });
+  await trial.goto('/sets/philippine-history/try');
+  const dock = trial.locator('.review-dock');
+  await expect(dock).toHaveCSS('backdrop-filter', /^blur\(/);
+
+  await solidControls.check();
+  await page.reload();
+  await expect(solidControls).toBeChecked();
+  await expect(dock).toHaveCSS('backdrop-filter', 'none');
+  await expect(dock).toHaveCSS('border-top-color', 'rgb(222, 226, 230)');
+  await trial.getByRole('button', { name: 'Show answer' }).click();
+  const ratings = trial.getByRole('group', { name: 'Rate your answer' });
+  await expect(ratings).toBeVisible();
+  for (const button of await ratings.getByRole('button').all()) {
+    await expect(button).toHaveCSS('background-image', /^linear-gradient\(/);
+  }
+  await expect(dock).toHaveCSS('backdrop-filter', 'none');
+  await expect(dock).toHaveCSS('border-top-color', 'rgb(222, 226, 230)');
+
+  await solidControls.uncheck();
+  await expect(dock).toHaveCSS('backdrop-filter', /^blur\(/);
+  await trial.reload();
+  await expect(dock).toHaveCSS('backdrop-filter', /^blur\(/);
+});
+
+test('increased contrast keeps glass on both trial card faces', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  await page.emulateMedia({ contrast: 'more' });
+  await page.goto('/sets/philippine-history/try');
+  const dock = page.locator('.review-dock');
+  await expect(dock).toHaveCSS('backdrop-filter', /^blur\(/);
+  await expect(dock).toHaveCSS('border-top-color', 'rgb(222, 226, 230)');
+  await page.getByRole('button', { name: 'Show answer' }).click();
+  await expect(page.getByRole('group', { name: 'Rate your answer' })).toBeVisible();
+  await expect(dock).toHaveCSS('backdrop-filter', /^blur\(/);
+  await expect(dock).toHaveCSS('border-top-color', 'rgb(222, 226, 230)');
+});
+
 test('compact account controls remain reachable at supported widths', async ({ page, pilot }) => {
   await page.goto(pilot.signupUrl);
   const username = `layout_${randomUUID().replaceAll('-', '').slice(0, 24)}`;
@@ -233,6 +547,8 @@ test('compact account controls remain reachable at supported widths', async ({ p
   await expect(page.getByRole('heading', { name: 'Your account', exact: true })).toBeVisible();
   const signOut = page.getByRole('button', { name: 'Sign out', exact: true });
   const library = page.getByRole('link', { name: 'Library', exact: true });
+  const help = page.getByRole('link', { name: 'Help', exact: true });
+  const brand = page.getByRole('link', { name: 'Revue', exact: true });
 
   for (const [width, height, textSize] of [
     [390, 844, '100%'],
@@ -246,6 +562,16 @@ test('compact account controls remain reachable at supported widths', async ({ p
     }, textSize);
     await expectTouchTarget(signOut);
     await expectTouchTarget(library);
+    await expect(help.getByText('Help', { exact: true })).toBeVisible();
+    await expect(help.locator(':scope > svg')).toBeVisible();
+    await expectTouchTarget(help);
+    await expect(brand.locator(':scope > svg')).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+    const [wordmark, helpLink] = await Promise.all([
+      brand.getByText('Revue', { exact: true }).boundingBox(),
+      help.boundingBox(),
+    ]);
+    expect(wordmark!.x + wordmark!.width <= helpLink!.x || wordmark!.y + wordmark!.height <= helpLink!.y).toBe(true);
     expect((await signOut.boundingBox())!.width).toBeLessThan(width * 0.65);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
   }
@@ -253,6 +579,10 @@ test('compact account controls remain reachable at supported widths', async ({ p
   await expect(page.getByRole('link', { name: 'Browse reviewers', exact: true })).toHaveCount(0);
   await expect(page.locator('a[href$="/try"]')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Try practice cards' })).toHaveCount(0);
+  await help.press('Enter');
+  await expect(page.getByRole('heading', { name: 'Help', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Back', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Your account', exact: true })).toBeVisible();
   await signOut.press('Enter');
   const prompt = page.getByRole('region', { name: 'Sign out of Revue?' });
   await expect(prompt.getByRole('button', { name: 'Stay signed in' })).toBeFocused();
@@ -378,9 +708,151 @@ test('workspace navigation stays unique and reachable across layouts and enlarge
     }
     for (const edge of headingEdges) expect(edge).toBeCloseTo(headingEdges[0]);
     if (tablet) {
+      expect(headingEdges[0]).toBeCloseTo(32);
       expect(tabletHeaderPositions).toHaveLength(5);
       for (const header of tabletHeaderPositions) expect(header).toEqual(tabletHeaderPositions[0]);
     }
+  }
+});
+
+test('only Android phones get the larger workspace navigation inset', async ({ browser, pilot }, info) => {
+  const devices = [
+    ['Android phone', 'Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/131.0.0.0 Mobile Safari/537.36', 20],
+    ['iPhone', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148', 8],
+    ['Android tablet', 'Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36', 8],
+  ] as const;
+  for (const [name, userAgent, inset] of devices) {
+    const context = await browser.newContext({ userAgent, viewport: { width: 390, height: 844 }, hasTouch: true });
+    try {
+      const page = await context.newPage();
+      await page.route('**/api/v1/me', (route) => route.fulfill({ json: { username: 'nav_learner' } }));
+      await page.route('**/api/v1/public-sets/catalog/subjects', (route) =>
+        route.fulfill({ json: [{ subject: 'Practical Math', topicCount: 3 }] }),
+      );
+      await page.goto(`${pilot.origin}/published`);
+      await expect(page.getByRole('heading', { name: 'Reviewers' })).toBeVisible();
+      const bar = page.getByRole('navigation', { name: 'Your workspace' });
+      const side = inset === 20 ? 20 : 16;
+      await expect(page.getByRole('main')).toHaveCSS('padding-left', `${side}px`);
+      await expect(page.getByRole('main')).toHaveCSS('padding-right', `${side}px`);
+      await expect(bar).toHaveCSS('bottom', `${inset}px`);
+      await expect(bar).toHaveCSS('backdrop-filter', /^blur\(/);
+      const bounds = (await bar.boundingBox())!;
+      expect(844 - bounds.y - bounds.height).toBeCloseTo(inset, 0);
+      await page.screenshot({ path: info.outputPath(`${name.toLowerCase().replace(' ', '-')}-nav.png`) });
+      await page.setViewportSize({ width: 768, height: 844 });
+      await expect(bar).not.toHaveCSS('bottom', `${inset}px`);
+    } finally {
+      await context.close();
+    }
+  }
+});
+
+test('Android phone page edges line up across public, study, and workspace screens', async ({ browser, pilot }) => {
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+    userAgent: 'Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/131.0.0.0 Mobile Safari/537.36',
+    reducedMotion: 'reduce',
+  });
+  try {
+    const page = await context.newPage();
+    const open = (path: string) => page.goto(`${pilot.origin}${path}`);
+    const expectPageGutter = async () => {
+      const content = page.locator('main.page-gutters, main > .page-gutters');
+      await expect(content).toHaveCSS('padding-left', '20px');
+      await expect(content).toHaveCSS('padding-right', '20px');
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(page.viewportSize()!.width);
+    };
+
+    for (const path of [
+      '/',
+      '/how-it-works',
+      '/sets',
+      '/sets/philippine-history',
+      '/sign-in',
+      '/join',
+      '/register',
+      '/help',
+      '/privacy',
+      '/terms',
+      '/missing-page',
+    ]) {
+      await open(path);
+      await expectPageGutter();
+    }
+
+    await open('/sets/philippine-history');
+    const studyDock = page.locator('.set-detail-study');
+    await expect(studyDock).toHaveCSS('bottom', '20px');
+    await open('/sets/philippine-history/try');
+    await expectPageGutter();
+    await page.getByRole('button', { name: 'Show answer' }).click();
+    const ratings = page.locator('.review-dock-after-reveal');
+    await expect(ratings).toBeInViewport({ ratio: 1 });
+    await expect(ratings).toHaveCSS('padding', '10px');
+    await expect(ratings.locator('.review-rating-grid')).toHaveCSS('gap', '6px');
+    const bounds = (await ratings.boundingBox())!;
+    expect(844 - bounds.y - bounds.height).toBeCloseTo(20, 0);
+    await page.getByRole('button', { name: 'Card details' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Card details' });
+    await expect(dialog).toHaveCSS('width', '350px');
+    await dialog.getByRole('button', { name: 'Done' }).click();
+    await page.setViewportSize({ width: 639, height: 844 });
+    const card = (await page.locator('.review-card-frame').boundingBox())!;
+    expect(card.x).toBe(20);
+    expect(card.width).toBe(599);
+    expect((await ratings.boundingBox())!.x).toBe(20);
+    await page.setViewportSize({ width: 320, height: 568 });
+    await expect(ratings).toBeInViewport({ ratio: 1 });
+    await expect(ratings.getByRole('button')).toHaveCount(4);
+    for (const button of await ratings.getByRole('button').all()) await expectTouchTarget(button);
+    await expectWordOnOneLine(ratings.getByRole('button', { name: /^Missed:/ }), 'Missed');
+    await page.setViewportSize({ width: 390, height: 844 });
+
+    await open('/register');
+    await page.getByLabel('Username').fill(`gutter_${randomUUID().slice(0, 16)}`);
+    const password = randomUUID();
+    await page.getByLabel('Password', { exact: true }).fill(password);
+    await page.getByLabel('Confirm password').fill(password);
+    await page.getByRole('button', { name: 'Create account', exact: true }).click();
+    await expect(page).toHaveURL(/\/today$/);
+    for (const path of ['/today', '/library', '/library/decks/new', '/published', '/account', '/help']) {
+      await open(path);
+      await expectPageGutter();
+    }
+
+    const subject = 'History';
+    await page.route('**/api/v1/public-sets/catalog/subjects', (route) =>
+      route.fulfill({ json: [{ subject, topicCount: 5 }] }),
+    );
+    await page.route('**/api/v1/public-sets?published=true*', (route) =>
+      route.fulfill({
+        json: Array.from({ length: 5 }, (_, index) => ({
+          ...historySet,
+          subject,
+          setKey: `history-topic-${index}`,
+          title: `History topic ${index + 1}`,
+        })),
+      }),
+    );
+    await page.setViewportSize({ width: 390, height: 480 });
+    await open('/published?subject=History');
+    await expect(page.getByRole('region', { name: 'Topics' })).toBeVisible();
+    const help = page.getByRole('link', { name: 'Help', exact: true });
+    await page.evaluate(() => window.scrollTo({ top: 250, behavior: 'instant' }));
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(20);
+    expect((await help.boundingBox())!.y).toBeCloseTo(20, 0);
+
+    await page.setViewportSize({ width: 320, height: 568 });
+    await open('/library');
+    await expectPageGutter();
+    await page.evaluate(() => (document.documentElement.style.fontSize = '200%'));
+    await expectPageGutter();
+    await expect(page.getByRole('link', { name: 'Create a deck', exact: true })).toBeInViewport();
+  } finally {
+    await context.close();
   }
 });
 

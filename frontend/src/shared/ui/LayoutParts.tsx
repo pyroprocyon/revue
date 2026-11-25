@@ -6,7 +6,7 @@ export function SkipToContent() {
   return (
     <a
       href="#main-content"
-      className="sr-only rounded-control bg-accent px-4 py-3 text-on-accent focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:outline-2 focus:outline-offset-2 focus:outline-accent"
+      className="sr-only rounded-control bg-accent px-4 py-3 text-on-accent focus:not-sr-only focus:fixed focus:top-[max(0.5rem,var(--phone-edge-gutter))] focus:left-[max(0.5rem,var(--phone-edge-gutter))] focus:z-50 focus:outline-2 focus:outline-offset-2 focus:outline-accent"
     >
       Skip to content
     </a>

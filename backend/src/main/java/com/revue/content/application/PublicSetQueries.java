@@ -6,7 +6,7 @@ import org.jspecify.annotations.Nullable;
 
 /** Read port: projections avoid loading entire publication aggregates for public browsing. */
 public interface PublicSetQueries {
-    /** Public set metadata with its active card count. */
+    /** Public set metadata with its active card count and the first question on detailed previews. */
     record Overview(
         long id,
         String setKey,
@@ -15,7 +15,8 @@ public interface PublicSetQueries {
         String publisherName,
         String subject,
         long cardCount,
-        boolean saveAllowed) {
+        boolean saveAllowed,
+        @Nullable String sampleQuestion) {
     }
 
     /** A subject and its count of active reviewers eligible to save. */

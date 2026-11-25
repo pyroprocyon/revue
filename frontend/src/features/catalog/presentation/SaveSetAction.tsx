@@ -5,35 +5,41 @@ import { Link } from 'react-router';
 import { LibraryFailure, SAVED_SET_LIMIT, sharedSetId } from '../application/library';
 import { useLibraryGateway } from './LibraryProvider';
 import { libraryKeys, reviewKeys } from '../../../shared/cache/queryKeys';
+import { forgetCsrfToken } from '../../../shared/http/sameOriginRequest';
 import { LIBRARY_PATH, setPath, signInPath } from '../../../shared/navigation/paths';
-import { onSessionChange, sessionRevision } from '../../../shared/navigation/sessionChanges';
+import { publicSessionKey } from '../../../shared/navigation/publicSession';
+import { onSessionChange, sessionRevision, sessionSnapshot } from '../../../shared/navigation/sessionChanges';
 import { accountOutlinedButton } from '../../../shared/ui/buttonStyles';
 import { WhenSlow } from '../../../shared/ui/WhenSlow';
-import { LoadingStatus } from '../../../shared/ui/LoadingFeedback';
 
 const saveButton = `${accountOutlinedButton} w-full wrap-anywhere disabled:bg-subtle disabled:text-muted`;
 
 type SaveState = 'idle' | 'saving' | 'unknown' | 'expired-form' | 'unavailable' | 'saved-set-limit';
 
 export function SaveSetAction({ shareCode, setKey }: Readonly<{ shareCode: string; setKey: string }>) {
-  const revision = useSyncExternalStore(subscribeToSessionRevision, sessionRevision);
-  return <SaveSetMembership key={revision} id={sharedSetId(shareCode)} setKey={setKey} revision={revision} />;
+  const session = useSyncExternalStore(subscribeToSessionChanges, sessionSnapshot);
+  return <SaveSetMembership key={session} id={sharedSetId(shareCode)} setKey={setKey} session={session} />;
 }
 
-function subscribeToSessionRevision(notify: () => void) {
+function subscribeToSessionChanges(notify: () => void) {
   return onSessionChange(notify, notify);
 }
 
-function SaveSetMembership({
-  id,
-  setKey,
-  revision,
-}: Readonly<{ id: string; setKey: string; revision: ReturnType<typeof sessionRevision> }>) {
+function SaveSetMembership({ id, setKey, session }: Readonly<{ id: string; setKey: string; session: string }>) {
   const gateway = useLibraryGateway();
   const queryClient = useQueryClient();
   const savedStatusId = useId();
-  const queryKey = [...libraryKeys.membership(id), { revision }] as const;
-  const membership = useQuery({ queryKey, queryFn: () => gateway.membership(id), retry: false, staleTime: 0 });
+  const queryKey = [...libraryKeys.membership(id), { session }] as const;
+  const membership = useQuery({
+    queryKey,
+    queryFn: async () => {
+      const saved = await gateway.membership(id);
+      if (saved === null) await recordSignedOut();
+      return saved;
+    },
+    retry: false,
+    staleTime: 0,
+  });
   const [state, setState] = useState<SaveState>('idle');
   const restoreActionFocus = useRef(false);
   const signIn = signInPath(setPath(setKey));
@@ -42,6 +48,14 @@ function SaveSetMembership({
     if (!element || !restoreActionFocus.current) return;
     restoreActionFocus.current = false;
     if (document.activeElement === document.body) element.focus();
+  }
+
+  async function recordSignedOut() {
+    if (sessionSnapshot() !== session) return;
+    await queryClient.cancelQueries({ queryKey: publicSessionKey, exact: true });
+    if (sessionSnapshot() !== session) return;
+    forgetCsrfToken();
+    queryClient.setQueryData(publicSessionKey, false);
   }
 
   async function save(button: HTMLButtonElement) {
@@ -59,9 +73,11 @@ function SaveSetMembership({
       setState('idle');
     } catch (error) {
       if (error instanceof LibraryFailure && error.reason === 'signed-out') {
+        if (sessionSnapshot() !== session) return;
         queryClient.removeQueries({ queryKey: libraryKeys.lists });
         queryClient.removeQueries({ queryKey: libraryKeys.savedKeyLists });
         await queryClient.cancelQueries({ queryKey });
+        await recordSignedOut();
         queryClient.setQueryData(queryKey, null);
         setState('idle');
       } else if (
@@ -117,12 +133,13 @@ function SaveSetMembership({
         </p>
       </div>
     );
-  const hasConfirmedSavedStatus = revision !== undefined && membership.data === true;
+  const hasConfirmedSavedStatus = sessionRevision() !== undefined && typeof membership.data === 'boolean';
   if (membership.isPending || (membership.isFetching && !membership.isFetchedAfterMount && !hasConfirmedSavedStatus))
     return (
-      <div className="flex min-h-12 items-center justify-center text-center text-support text-muted">
+      <div className="grid min-h-12 place-items-center rounded-control border border-line px-2">
+        <span className="loading-bar" aria-hidden="true" />
         <WhenSlow>
-          <LoadingStatus>Checking saved status…</LoadingStatus>
+          <output className="sr-only">Checking saved status…</output>
         </WhenSlow>
       </div>
     );

@@ -75,13 +75,17 @@ class PublicSetController {
     }
 
     @GetMapping("/{setKey}")
-    ResponseEntity<PublicSetSummary> summary(@PathVariable String setKey) {
-        return publicSets.summary(setKey).map(PublicSetController::ok).orElseGet(PublicSetController::notFound);
+    ResponseEntity<PublicSetPreviewResponse> summary(@PathVariable String setKey) {
+        return publicSets.summary(setKey)
+            .map(PublicSetPreviewResponse::from)
+            .map(PublicSetController::ok)
+            .orElseGet(PublicSetController::notFound);
     }
 
     @GetMapping("/share/{shareCode}/summary")
-    ResponseEntity<PublicSetSummary> sharedSummary(@PathVariable String shareCode) {
+    ResponseEntity<PublicSetPreviewResponse> sharedSummary(@PathVariable String shareCode) {
         return publicSets.summaryByShareCode(shareCode)
+            .map(PublicSetPreviewResponse::from)
             .map(PublicSetController::ok)
             .orElseGet(PublicSetController::notFound);
     }

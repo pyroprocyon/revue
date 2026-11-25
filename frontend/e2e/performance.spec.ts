@@ -1,4 +1,62 @@
 import { test, expect } from './fixtures';
+import { historyCards } from '../src/test/fixtures';
+
+test('a deck downloads its editor while the cards are loading', async ({ page }) => {
+  await page.route('**/api/v1/me', (route) => route.fulfill({ json: { username: 'startup_learner' } }));
+  await page.route('**/api/v1/cards/due*', (route) =>
+    route.fulfill({ json: { totalCards: 0, availableCards: 0, dueCards: 0, newCards: 0, cards: [] } }),
+  );
+  const editorFiles: string[] = [];
+  page.on('request', (request) => {
+    if (/\/assets\/DeckContent-.*\.js$/.test(new URL(request.url()).pathname)) {
+      editorFiles.push(request.url());
+    }
+  });
+  await page.goto('/today');
+  await expect(page.getByRole('heading', { name: 'Your review', exact: true })).toBeVisible();
+  expect(editorFiles).toHaveLength(0);
+
+  let releaseCards!: () => void;
+  const cards = new Promise<void>((resolve) => {
+    releaseCards = resolve;
+  });
+  await page.route('**/api/v1/decks/7/cards', async (route) => {
+    await cards;
+    await route.fulfill({ status: 503 });
+  });
+  try {
+    await page.goto('/library/decks/7', { waitUntil: 'commit' });
+    await expect(page.getByText('Loading your deck…')).toBeVisible();
+    await expect.poll(() => editorFiles.length).toBe(1);
+  } finally {
+    releaseCards();
+  }
+  await expect(page.getByRole('alert')).toHaveText('Your deck couldn’t load. Check your connection and try again.');
+});
+
+test('a slow account chunk keeps the workspace in place and a failure offers an explicit reload', async ({ page }) => {
+  await page.route('**/api/v1/me', (route) => route.fulfill({ json: { username: 'startup_learner' } }));
+  let failChunk!: () => void;
+  const pending = new Promise<void>((resolve) => {
+    failChunk = resolve;
+  });
+  await page.route('**/assets/AccountPage-*.js', async (route) => {
+    await pending;
+    await route.abort('failed');
+  });
+  const nav = page.getByRole('navigation', { name: 'Your workspace' });
+  try {
+    await page.goto('/account', { waitUntil: 'domcontentloaded' });
+    await expect(nav.getByRole('link', { name: 'Account' })).toHaveAttribute('aria-current', 'page');
+    await expect(page.getByText('Loading this page…')).toBeVisible();
+  } finally {
+    failChunk();
+  }
+  await expect(page.getByRole('heading', { name: 'Something went wrong', exact: true })).toBeFocused();
+  await page.unroute('**/assets/AccountPage-*.js');
+  await page.getByRole('button', { name: 'Try again', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Your account', exact: true })).toBeFocused();
+});
 
 test('a slow tab keeps the header steady and fades in the content once it arrives', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -35,6 +93,32 @@ test('a slow tab keeps the header steady and fades in the content once it arrive
     await library.click();
     await expect(page.getByText('Cell Biology', { exact: true })).toBeVisible();
     await expect(page.locator('.library-collections')).toHaveCSS('animation-name', 'none');
+  } finally {
+    release();
+  }
+});
+
+test('a slow direct trial keeps its exit in place while the first card loads', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  let release!: () => void;
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('**/api/v1/public-sets/philippine-history/demo-cards', async (route) => {
+    await pending;
+    await route.fulfill({ json: historyCards });
+  });
+  await page.goto('/sets/philippine-history/try');
+  const exit = page.getByRole('button', { name: 'Exit trial' });
+  try {
+    await expect(exit).toBeVisible();
+    await expect(page.getByText('Loading the cards…')).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+    const waitingPosition = await exit.boundingBox();
+    release();
+    await expect(page.getByRole('heading', { name: 'Question 1?' })).toBeFocused();
+    expect(await exit.boundingBox()).toEqual(waitingPosition);
+    await expect(page.getByText('Loading the cards…')).toHaveCount(0);
   } finally {
     release();
   }

@@ -9,30 +9,33 @@ import { LibraryPage } from '../features/catalog/presentation/LibraryPage';
 import { LibraryBrowsingLayout } from '../features/catalog/presentation/LibraryBrowsingLayout';
 import { httpLibrary } from '../features/catalog/infrastructure/httpLibrary';
 import { DeckProvider } from '../features/catalog/presentation/DeckProvider';
-import { DeckPage } from '../features/catalog/presentation/DeckPage';
+import { DeckPage, preloadDeckContent } from '../features/catalog/presentation/DeckPage';
+import { preloadSavedSetBrowser } from '../features/catalog/presentation/SavedSets';
 import { NewDeckPage } from '../features/catalog/presentation/NewDeckPage';
 import { httpDecks } from '../features/catalog/infrastructure/httpDecks';
 import { httpAccount } from '../features/account/infrastructure/httpAccount';
 import { AccountProvider } from '../features/account/presentation/AccountProvider';
 import { AccountForm } from '../features/account/presentation/AccountForm';
-import { AccountPage } from '../features/account/presentation/AccountPage';
 import { AccountLayout } from '../features/account/presentation/AccountLayout';
 import { JoinPage } from '../features/account/presentation/JoinPage';
 import { TermsPage } from '../features/account/presentation/TermsPage';
 import { PrivacyPage } from '../features/account/presentation/PrivacyPage';
 import { httpPublicContent } from '../features/catalog/infrastructure/httpPublicContent';
 import { PublicContentProvider } from '../features/catalog/presentation/PublicContentProvider';
-import { useEffect, useLayoutEffect } from 'react';
+import { lazy, Suspense, useEffect, useLayoutEffect, type ReactNode } from 'react';
 import { GuestRoute, PublicSessionLayout } from './PublicSessionLayout';
-import { Route, Routes, useLocation, useNavigate } from 'react-router';
+import { matchPath, Route, Routes, useLocation, useNavigate } from 'react-router';
 import { LandingPage } from './pages/LandingPage';
 import { HowItWorksPage } from './pages/HowItWorksPage';
 import { HelpPage } from './pages/HelpPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { SetPage } from '../features/catalog/presentation/SetPage';
-import { PublishedPage } from '../features/catalog/presentation/PublishedPage';
 import { SetsPage } from '../features/catalog/presentation/SetsPage';
 import { TrialPage } from '../features/study/presentation/TrialPage';
+import { shouldWaitForSession } from '../shared/navigation/signedInHint';
+import { LoadingStatus } from '../shared/ui/LoadingFeedback';
+import { WhenSlow } from '../shared/ui/WhenSlow';
+import { WorkspacePage } from '../shared/ui/WorkspacePage';
 import {
   TODAY_PATH,
   REVIEW_PATH,
@@ -56,7 +59,32 @@ import {
   JOIN_PATH,
   PRIVACY_PATH,
   TERMS_PATH,
+  isPositiveLongId,
 } from '../shared/navigation/paths';
+
+const loadAccountPage = () => import('../features/account/presentation/AccountPage');
+const loadPublishedPage = () => import('../features/catalog/presentation/PublishedPage');
+const AccountPage = lazy(() => loadAccountPage().then(({ AccountPage }) => ({ default: AccountPage })));
+const PublishedPage = lazy(() => loadPublishedPage().then(({ PublishedPage }) => ({ default: PublishedPage })));
+
+/** Downloads only the requested private page's code while the account boundary verifies the session. */
+export function preloadInitialWorkspacePage({ pathname, search }: Pick<Location, 'pathname' | 'search'>) {
+  if (!shouldWaitForSession()) return;
+  const deckId = matchPath(DECK_ROUTE, pathname)?.params.deckId;
+  if (deckId && isPositiveLongId(deckId)) preloadDeckContent();
+  else if (matchPath(LIBRARY_PATH, pathname)) {
+    const params = new URLSearchParams(search);
+    if (params.get('shelf') === 'saved' && isPositiveLongId(params.get('set') ?? '')) preloadSavedSetBrowser();
+  } else if (matchPath(ACCOUNT_PATH, pathname)) {
+    void loadAccountPage().catch(() => {
+      // The account route reports a failed download when it opens.
+    });
+  } else if (matchPath(PUBLISHED_PATH, pathname)) {
+    void loadPublishedPage().catch(() => {
+      // The published route reports a failed download when it opens.
+    });
+  }
+}
 
 /** Public journeys choose their layout; private routes share the confirmed account boundary. */
 export function App() {
@@ -95,8 +123,22 @@ export function App() {
                       <Route path={DECK_ROUTE} element={<DeckPage />} />
                     </Route>
                   </Route>
-                  <Route path={PUBLISHED_PATH} element={<PublishedPage />} />
-                  <Route path={ACCOUNT_PATH} element={<AccountPage />} />
+                  <Route
+                    path={PUBLISHED_PATH}
+                    element={
+                      <DeferredWorkspacePage title="Reviewers">
+                        <PublishedPage />
+                      </DeferredWorkspacePage>
+                    }
+                  />
+                  <Route
+                    path={ACCOUNT_PATH}
+                    element={
+                      <DeferredWorkspacePage title="Your account">
+                        <AccountPage />
+                      </DeferredWorkspacePage>
+                    }
+                  />
                 </Route>
                 <Route element={<AccountLayout focused />}>
                   <Route path={REVIEW_PATH} element={<ReviewPage />} />
@@ -109,6 +151,22 @@ export function App() {
         </LibraryProvider>
       </ReviewProvider>
     </AccountProvider>
+  );
+}
+
+function DeferredWorkspacePage({ title, children }: Readonly<{ title: string; children: ReactNode }>) {
+  return (
+    <Suspense
+      fallback={
+        <WorkspacePage title={title} focusHeading={false}>
+          <WhenSlow>
+            <LoadingStatus>Loading this page…</LoadingStatus>
+          </WhenSlow>
+        </WorkspacePage>
+      }
+    >
+      {children}
+    </Suspense>
   );
 }
 

@@ -3,8 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 
 const shareButton =
   'pressable inline-flex min-h-12 min-w-0 flex-[1_1_7rem] items-center justify-center gap-2 rounded-control border px-3 py-2 text-center text-support font-semibold wrap-anywhere';
-const quiet = 'border-line bg-surface text-accent';
-const copiedStyle = 'border-success/25 bg-success-soft text-success';
+const quiet = 'neutral-control-gradient border-line bg-surface text-accent';
+const copiedStyle = 'tonal-control-gradient border-success/25 bg-success-soft text-success';
 const CONFIRMATION_MS = 2000;
 
 type ShareLinksProps = {

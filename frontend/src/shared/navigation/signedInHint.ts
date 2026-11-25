@@ -1,8 +1,8 @@
 export const SIGNED_IN_HINT_KEY = 'revue.signed-in-hint';
 
 /**
- * Remembers in this browser whether the last confirmed session was signed in. The homepage reads
- * it only to decide whether to wait for the session check. It grants no access.
+ * Remembers in this browser whether the last confirmed session was signed in. The hint can choose
+ * a loading state or start a code download. It grants no access.
  */
 export function saveSignedInHint(signedIn: boolean) {
   try {
