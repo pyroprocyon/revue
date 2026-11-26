@@ -102,7 +102,6 @@ type DeckToolbarProps = {
   filter?: ReactNode;
   settingsButton?: Ref<HTMLButtonElement>;
   savedSetBack?: string;
-  pagination: ReactNode;
   stickyBottom: number | null;
   onHeldBottomChange: (bottom: number | null) => void;
 };
@@ -119,7 +118,6 @@ export function DeckToolbar(props: Readonly<DeckToolbarProps>) {
     settingsButton: settingsRef,
     savedSetBack,
     collectionAction,
-    pagination,
     stickyBottom,
     onHeldBottomChange,
   } = props;
@@ -156,7 +154,6 @@ export function DeckToolbar(props: Readonly<DeckToolbarProps>) {
         {collectionAction}
         {settingsButton}
         <StudyAction {...props} />
-        {pagination}
       </>
     );
   } else if (searching || term) {
@@ -198,7 +195,7 @@ export function DeckToolbar(props: Readonly<DeckToolbarProps>) {
       >
         {showBackBar && <DeckBackBar deck={deck} backTo={savedSetBack ?? LIBRARY_PATH} />}
         {tools}
-        {props.filter && <div className="min-w-0 basis-full">{props.filter}</div>}
+        {props.filter && <div className="mb-3 min-w-0 basis-full">{props.filter}</div>}
       </div>
     </>
   );

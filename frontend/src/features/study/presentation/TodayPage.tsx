@@ -1,59 +1,42 @@
-import { useContext, useId, useLayoutEffect, useRef, useState } from 'react';
-import { CalendarCheck, CalendarDays, ChevronDown, Check, Layers, Minus, PartyPopper } from 'lucide-react';
-import { Link, useOutletContext } from 'react-router';
-import { ContinueReview } from './ContinueReview';
-import { TodayReviewCard } from './TodayReviewCard';
-import { pausedReview } from './pausedReview';
-import { type ReviewTopic, type StudyDay, type StudyQueue } from '../application/reviews';
+import { useState } from 'react';
+import { useOutletContext } from 'react-router';
 import { useTodayOverview } from './ReviewProvider';
-import { REVIEW_BATCH_SIZE, REVIEW_TIME_ZONE, REVIEW_TIME_ZONE_OFFSET } from '../../../shared/product/studyRules';
-import { cardNoun } from '../../../shared/ui/cardCount';
-import { blueAccentButton, primaryButton } from '../../../shared/ui/buttonStyles';
-import { LIBRARY_PATH, NEW_DECK_PATH, TODAY_PATH, reviewTopicPath } from '../../../shared/navigation/paths';
+import { pausedReview } from './pausedReview';
+import { statusPanel } from './reviewPresentation';
+import { pageModule } from '../../../shared/navigation/usePageModule';
+import { TODAY_PATH } from '../../../shared/navigation/paths';
 import { SessionExpiredRedirect } from '../../../shared/navigation/SessionExpiredRedirect';
-import { useFirstLoadNotice } from '../../../shared/ui/useFirstLoadNotice';
 import { LoadingPlaceholder } from '../../../shared/ui/LoadingFeedback';
+import { primaryButton } from '../../../shared/ui/buttonStyles';
+import { useFirstLoadNotice } from '../../../shared/ui/useFirstLoadNotice';
 import { WorkspacePage } from '../../../shared/ui/WorkspacePage';
-import { FocusRequestContext } from '../../../shared/ui/FocusRequestContext';
 
-export const statusPanel = 'rounded-card bg-surface p-compact-gutter py-6 shadow-control sm:p-8';
-const weekday = new Intl.DateTimeFormat('en', { weekday: 'short', timeZone: REVIEW_TIME_ZONE });
+const { usePageModule: useTodayOverviewModule, preload: loadTodayOverview } = pageModule(() =>
+  import('./TodayOverview').then(({ TodayOverview }) => TodayOverview),
+);
+
+export { loadTodayOverview };
 
 export function TodayPage() {
   const { username } = useOutletContext<{ username: string }>();
   const [pausedTopic] = useState(() => pausedReview(username));
-  const [finished, setFinished] = useState(false);
   const { query, overview, loading, signedOut } = useTodayOverview(pausedTopic);
-  const showLoading = useFirstLoadNotice(loading && overview === undefined);
+  const view = useTodayOverviewModule();
+  const waiting = overview ? view === undefined : loading;
+  const showLoading = useFirstLoadNotice(waiting);
   if (signedOut) return <SessionExpiredRedirect returnTo={TODAY_PATH} />;
-  if (overview && !showLoading) {
-    const { studyDays = [], topics = [] } = overview;
-    const otherTopics = topics.filter((topic) => topic.id !== pausedTopic);
+  if (overview && view) {
+    if ('error' in view) throw view.error;
+    const TodayOverview = view.component;
     return (
       <WorkspacePage title="Your review">
-        <div className="screen-enter space-y-4">
-          <StudyRhythm days={studyDays} />
-          <div className="min-w-0 space-y-4">
-            {pausedTopic && !finished ? (
-              <ContinueReview
-                query={query}
-                onFinished={() => setFinished(true)}
-                username={username}
-                topic={pausedTopic}
-                fallback={<TodayTopics queue={overview} />}
-                otherReviews={otherTopics.length > 0 && <NextTopic topics={otherTopics} />}
-              />
-            ) : (
-              <TodayTopics queue={overview} />
-            )}
-          </div>
-        </div>
+        <TodayOverview query={query} overview={overview} username={username} pausedTopic={pausedTopic} />
       </WorkspacePage>
     );
   }
   return (
     <WorkspacePage title="Your review">
-      {loading || showLoading ? (
+      {waiting ? (
         showLoading && <LoadingPlaceholder kind="today">Loading your review…</LoadingPlaceholder>
       ) : (
         <div className={statusPanel}>
@@ -70,226 +53,4 @@ export function TodayPage() {
       )}
     </WorkspacePage>
   );
-}
-
-function TodayTopics({ queue }: Readonly<{ queue: StudyQueue }>) {
-  const topics = queue.topics ?? [];
-  if (topics.length > 0) return <NextTopic topics={topics} />;
-  const canStartNewCards = queue.newCards > 0;
-  const newCardLimitReached = !canStartNewCards && (queue.unintroducedCards ?? 0) > 0;
-  if (queue.availableCards > 0 && queue.dueCards === 0 && !newCardLimitReached && queue.studyDays?.at(-1)?.studied) {
-    return <TodayCelebration canStartNewCards={canStartNewCards} nextReviewDate={queue.nextReviewDate} />;
-  }
-  return (
-    <div className={statusPanel}>
-      <TodayContent queue={queue} />
-    </div>
-  );
-}
-
-function TodayCelebration({
-  canStartNewCards,
-  nextReviewDate,
-}: Readonly<{ canStartNewCards: boolean; nextReviewDate: string | null }>) {
-  const heading = useId();
-  return (
-    <section
-      aria-labelledby={heading}
-      className="grid justify-items-center gap-2 rounded-card border border-line bg-linear-to-br from-saved-set-soft to-surface to-80% px-4 py-6 text-center wrap-anywhere shadow-control short-phone:py-4 sm:px-6"
-    >
-      <span className="mb-1.5 grid size-15 place-items-center rounded-full border border-saved-set/20 bg-surface text-saved-set short-phone:size-12">
-        <PartyPopper aria-hidden="true" className="size-6" />
-      </span>
-      <h2 id={heading} className="text-2xl leading-tight font-extrabold tracking-tight short-phone:text-section">
-        Nice work today!
-      </h2>
-      <p className="text-base text-pretty text-muted">
-        {canStartNewCards
-          ? 'Scheduled reviews complete. Start new cards if you’d like.'
-          : 'Today’s reviews are complete.'}
-      </p>
-      {canStartNewCards && (
-        <Link to={LIBRARY_PATH} className={`${blueAccentButton} mt-2`}>
-          Open Library
-        </Link>
-      )}
-      {!canStartNewCards && nextReviewDate && (
-        <p className="mt-2 grid w-full max-w-64 gap-0.5 rounded-control border border-saved-set/20 bg-surface px-3 py-3.5">
-          <span className="text-label font-medium text-muted">Next review</span>
-          <time dateTime={nextReviewDate} className="text-lg leading-tight font-bold">
-            {nextReviewText(nextReviewDate)}
-          </time>
-        </p>
-      )}
-    </section>
-  );
-}
-
-export function reviewAction(count: number) {
-  if (count >= REVIEW_BATCH_SIZE) return `Start with ${REVIEW_BATCH_SIZE}`;
-  return `Review ${count} ${cardNoun(count)}`;
-}
-
-export function nextReviewText(date: string) {
-  const parsed = new Date(`${date}T00:00:00${REVIEW_TIME_ZONE_OFFSET}`);
-  return new Intl.DateTimeFormat('en', {
-    weekday: 'long',
-    month: 'short',
-    day: 'numeric',
-    timeZone: REVIEW_TIME_ZONE,
-  }).format(parsed);
-}
-
-function StudyRhythm({ days }: Readonly<{ days: readonly StudyDay[] }>) {
-  const studiedCount = days.filter((day) => day.studied).length;
-  if (studiedCount === 0) return null;
-  const dayLabel = studiedCount === 1 ? 'day' : 'days';
-  return (
-    <section
-      aria-label="Study rhythm"
-      className="rounded-card border border-line bg-accent-soft p-compact-gutter sm:p-6"
-    >
-      <div className="flex items-center justify-between gap-2">
-        <div>
-          <p className="text-support font-semibold text-muted">Past 7 days</p>
-          <h2 className="text-section font-extrabold tracking-tight">
-            {studiedCount} {dayLabel} studied
-          </h2>
-        </div>
-        <CalendarDays aria-hidden="true" className="size-9 rounded-inset bg-surface/70 p-2 text-accent-strong" />
-      </div>
-      <ol aria-label="Recent study days" className="study-week mt-4">
-        {days.map((day, index) => {
-          const isToday = index === days.length - 1;
-          const dayName = weekday.format(new Date(`${day.date}T00:00:00${REVIEW_TIME_ZONE_OFFSET}`));
-          const Icon = day.studied ? Check : Minus;
-          return (
-            <li
-              key={day.date}
-              aria-current={isToday ? 'date' : undefined}
-              aria-label={`${nextReviewText(day.date)}, ${day.studied ? 'studied' : 'no reviews'}`}
-            >
-              <span aria-hidden="true" className="grid justify-items-center gap-1 text-xs font-semibold text-muted">
-                {isToday ? 'Today' : dayName.slice(0, 2)}
-                <span
-                  className={`study-marker ${day.studied ? 'bg-study-day-complete text-on-study-day-complete' : 'bg-surface text-muted'}`}
-                >
-                  <Icon size={15} strokeWidth={day.studied ? 2.75 : 2} />
-                </span>
-              </span>
-            </li>
-          );
-        })}
-      </ol>
-    </section>
-  );
-}
-
-function NextTopic({ topics }: Readonly<{ topics: readonly ReviewTopic[] }>) {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const pickerId = useId();
-  const startLink = useRef<HTMLAnchorElement>(null);
-  const requestFocus = useContext(FocusRequestContext);
-  const currentTopic = topics.find((topic) => topic.id === selectedId) ?? topics[0];
-  const alternatives = topics.filter((topic) => topic.id !== currentTopic.id);
-
-  useLayoutEffect(() => {
-    if (selectedId !== null) requestFocus(startLink.current);
-  }, [selectedId, requestFocus]);
-
-  return (
-    <TodayReviewCard
-      kind="next"
-      title={currentTopic.title}
-      detail={`${currentTopic.dueCards} ${cardNoun(currentTopic.dueCards)} due`}
-      to={reviewTopicPath(currentTopic.id)}
-      action={reviewAction(currentTopic.dueCards)}
-      linkRef={startLink}
-    >
-      {alternatives.length > 0 && (
-        <details className="group/picker mt-2.5 border-t border-line">
-          <summary className="pressable flex min-h-12 cursor-pointer list-none items-center justify-between gap-2 rounded-control px-1 py-2 text-label font-semibold text-saved-set [&::-webkit-details-marker]:hidden">
-            Other topics
-            <ChevronDown aria-hidden="true" className="size-4 shrink-0 group-open/picker:rotate-180" />
-          </summary>
-          <ul aria-label="Review topics" className="divide-y divide-line border-t border-line">
-            {alternatives.map((topic) => (
-              <li key={topic.id}>
-                <button
-                  type="button"
-                  aria-labelledby={`${pickerId}-${topic.id}-title`}
-                  aria-describedby={`${pickerId}-${topic.id}-due`}
-                  className="pressable flex min-h-12 w-full flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-control px-1 py-2 text-left text-label font-semibold wrap-anywhere"
-                  onClick={() => setSelectedId(topic.id)}
-                >
-                  <span id={`${pickerId}-${topic.id}-title`} className="min-w-0">
-                    {topic.title}
-                  </span>
-                  <span
-                    id={`${pickerId}-${topic.id}-due`}
-                    className="shrink-0 text-support font-medium text-muted tabular-nums"
-                  >
-                    {topic.dueCards} due
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </details>
-      )}
-    </TodayReviewCard>
-  );
-}
-
-function TodayContent({ queue }: Readonly<{ queue: StudyQueue }>) {
-  const empty = queue.totalCards === 0;
-  const unavailable = !empty && queue.availableCards === 0;
-  const Icon = empty || unavailable ? Layers : CalendarCheck;
-  const text = emptyStateText(queue);
-  return (
-    <>
-      <span className="mb-5 grid size-12 place-items-center rounded-control bg-accent-soft text-accent">
-        <Icon aria-hidden="true" className="size-6" />
-      </span>
-      <h2 className="text-section font-bold">{text.title}</h2>
-      <p className="mt-3 text-body text-muted">{text.description}</p>
-      {!empty && !unavailable && queue.newCards === 0 && queue.nextReviewDate && (
-        <p className="mt-4 text-label font-semibold text-accent">Next review: {nextReviewText(queue.nextReviewDate)}</p>
-      )}
-      {empty && (
-        <Link to={NEW_DECK_PATH} className={`${primaryButton} mt-6`}>
-          Create a deck
-        </Link>
-      )}
-      {queue.newCards > 0 && (
-        <Link to={LIBRARY_PATH} className={`${primaryButton} mt-6`}>
-          Open Library
-        </Link>
-      )}
-    </>
-  );
-}
-
-function emptyStateText(queue: StudyQueue) {
-  if (queue.totalCards === 0)
-    return {
-      title: 'No cards to review yet',
-      description: 'Make your own cards for a class or exam. They will appear here to review.',
-    };
-  if (queue.availableCards === 0)
-    return {
-      title: 'No cards available right now',
-      description: 'Your Library’s cards aren’t currently available to study.',
-    };
-  if (queue.newCards > 0)
-    return {
-      title: 'No cards due today',
-      description: 'Open a deck or saved reviewer in Library to start its new cards.',
-    };
-  if ((queue.unintroducedCards ?? 0) > 0)
-    return {
-      title: 'All caught up',
-      description: 'You’ve reached today’s new-card limit. You can start more new cards tomorrow.',
-    };
-  return { title: 'All caught up', description: 'Your saved progress is ready for your next visit.' };
 }

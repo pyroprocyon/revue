@@ -2,6 +2,8 @@ import { Pencil } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useDeckDraftGuard } from './UnsavedDeckChanges';
 import {
+  Suspense,
+  lazy,
   useCallback,
   useContext,
   useEffect,
@@ -12,17 +14,16 @@ import {
   type Ref,
   type RefObject,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router';
 import type { CardDraft, Deck, DeckCard, DeckProgress } from '../application/decks';
-import { CardForm, draftOf } from './CardForm';
+import { draftOf } from './cardDraft';
 import { CardPreview } from './CardPreview';
-import { CardScreen, type CardControls } from './CardScreen';
-import { CreateDeckSteps } from './CreateDeckSteps';
+import { CardScreen, CardScreenBar, type CardControls } from './CardScreen';
 import { InlineCardDelete } from './InlineCardDelete';
-import { DeckCardList } from './DeckCardList';
+import { DeckCardList, DeckCardsHeader } from './DeckCardList';
 import { belowToolbar, cardPaneGutters, onePane, paneBelowStickyToolbar, twoPanes } from './cardBrowserLayout';
 import { useDeckGateway } from './DeckProvider';
-import { DeckSettings } from './DeckSettings';
 import { DeckStatus, DeckToolbar } from './DeckToolbar';
 import { DeckWriteProblem } from './DeckWriteProblem';
 import { matchesCardSearch, updateCachedCards, updateDeckPages, useDeckWrite } from './useDecks';
@@ -35,6 +36,14 @@ import { FocusRequestContext } from '../../../shared/ui/FocusRequestContext';
 import { secondaryButton } from '../../../shared/ui/buttonStyles';
 import { NavigationLink } from '../../../shared/ui/NavigationLink';
 import { WorkspacePage } from '../../../shared/ui/WorkspacePage';
+import { LoadingStatus } from '../../../shared/ui/LoadingFeedback';
+import { WhenSlow } from '../../../shared/ui/WhenSlow';
+
+const CardForm = lazy(() => import('./CardForm').then(({ CardForm }) => ({ default: CardForm })));
+const DeckSettings = lazy(() => import('./DeckSettings').then(({ DeckSettings }) => ({ default: DeckSettings })));
+const CreateDeckSteps = lazy(() =>
+  import('./CreateDeckSteps').then(({ CreateDeckSteps }) => ({ default: CreateDeckSteps })),
+);
 
 /**
  * At most one card form is open: a new card or one card's edit. Its text and save live here, so they survive moving
@@ -134,6 +143,16 @@ export function DeckContent({
   const settingsButton = useRef<HTMLButtonElement>(null);
   const settingsHeading = useRef<HTMLHeadingElement>(null);
   const pendingFocus = useRef<FocusTarget | null>(null);
+  const setSettingsHeading = useCallback(
+    (element: HTMLHeadingElement | null) => {
+      settingsHeading.current = element;
+      if (element && pendingFocus.current === 'settingsHeading') {
+        pendingFocus.current = null;
+        requestFocus(element);
+      }
+    },
+    [requestFocus],
+  );
   const openForm = useRef<CardFormState>(form);
   const { listed, editing, cards, selected, firstCard, showDeckTools } = deckView({
     deck,
@@ -178,6 +197,7 @@ export function DeckContent({
   useEffect(() => {
     const target = pendingFocus.current;
     if (target === 'study' && (archiveWrite.saving || refreshing || deck.archived)) return;
+    if (target === 'settingsHeading' && !settingsHeading.current) return;
     pendingFocus.current = null;
     if (target) {
       requestFocus(
@@ -360,56 +380,62 @@ export function DeckContent({
   }
 
   const addForm = form?.kind === 'add' && (
-    <CardForm
-      prepareWrite={gateway.prepareWrite}
-      key={cardsAdded}
-      heading="New card"
-      added={cardsAdded > 0}
-      draft={form.draft}
-      writeState={addWrite.state}
-      onDraftChange={updateDraft}
-      onSave={(draft) => {
-        const { requestId } = form;
-        void addWrite.run(
-          () => gateway.addCard(deck.id, draft, requestId),
-          () => {
-            if (!stillOpen(requestId)) return;
-            setCardsAdded((count) => count + 1);
-            setForm(newCardForm());
-          },
-          () => stillOpen(requestId),
-        );
-      }}
-      onCancel={() => {
-        setCardsAdded(0);
-        closeForm('add');
-      }}
-    />
+    <DeferredPanel label="Loading card editor…" onCancel={screenBack.add}>
+      <CardForm
+        prepareWrite={gateway.prepareWrite}
+        key={cardsAdded}
+        heading="New card"
+        added={cardsAdded > 0}
+        draft={form.draft}
+        writeState={addWrite.state}
+        onDraftChange={updateDraft}
+        onSave={(draft) => {
+          const { requestId } = form;
+          void addWrite.run(
+            () => gateway.addCard(deck.id, draft, requestId),
+            () => {
+              if (!stillOpen(requestId)) return;
+              setCardsAdded((count) => count + 1);
+              setForm(newCardForm());
+            },
+            () => stillOpen(requestId),
+          );
+        }}
+        onCancel={() => {
+          setCardsAdded(0);
+          closeForm('add');
+        }}
+      />
+    </DeferredPanel>
   );
   const editForm = form?.kind === 'edit' && (
-    <CardForm
-      prepareWrite={gateway.prepareWrite}
-      key={form.openingId}
-      heading="Edit card"
-      card={form.card}
-      draft={form.draft}
-      writeState={editWrite.state}
-      onDraftChange={updateDraft}
-      onSave={(draft) => saveEdit(form, draft)}
-      onCancel={() => finishEdit(form.openingId)}
-    />
+    <DeferredPanel label="Loading card editor…" onCancel={() => finishEdit(form.openingId)}>
+      <CardForm
+        prepareWrite={gateway.prepareWrite}
+        key={form.openingId}
+        heading="Edit card"
+        card={form.card}
+        draft={form.draft}
+        writeState={editWrite.state}
+        onDraftChange={updateDraft}
+        onSave={(draft) => saveEdit(form, draft)}
+        onCancel={() => finishEdit(form.openingId)}
+      />
+    </DeferredPanel>
   );
   const settings = settingsOpen && (
-    <DeckSettings
-      deck={deck}
-      titleDraft={titleDraft}
-      onTitleDraftChange={setTitleDraft}
-      headingRef={settingsHeading}
-      archiveState={archiveWrite.state}
-      onArchiveChange={(archived) => setArchived(archived)}
-      onChanged={settingsChanged}
-      onClose={wide ? closeSettings : undefined}
-    />
+    <DeferredPanel label="Loading deck settings…">
+      <DeckSettings
+        deck={deck}
+        titleDraft={titleDraft}
+        onTitleDraftChange={setTitleDraft}
+        headingRef={setSettingsHeading}
+        archiveState={archiveWrite.state}
+        onArchiveChange={(archived) => setArchived(archived)}
+        onChanged={settingsChanged}
+        onClose={wide ? closeSettings : undefined}
+      />
+    </DeferredPanel>
   );
   const cardControls = (card: DeckCard, questionId: string, place: ControlPlace): CardControls => ({
     edit: (
@@ -440,7 +466,11 @@ export function DeckContent({
       focusHeading={!firstCardFormOpensOnEntry}
       {...deckHeading(openedRightAfterCreate && firstCard, deck, progress)}
     >
-      {openedRightAfterCreate && firstCard && <CreateDeckSteps current={2} />}
+      {openedRightAfterCreate && firstCard && (
+        <Suspense fallback={null}>
+          <CreateDeckSteps current={2} />
+        </Suspense>
+      )}
       {showDeckTools && (
         <DeckToolbar
           wide={wide}
@@ -461,7 +491,6 @@ export function DeckContent({
           }}
           settingsButton={settingsButton}
           filter={!wide && filter}
-          pagination={wide && pagination}
           stickyBottom={toolbarBottom}
           onHeldBottomChange={setToolbarBottom}
         />
@@ -470,7 +499,7 @@ export function DeckContent({
       {!settingsOpen && <DeckWriteProblem state={archiveWrite.state} />}
       {feedback}
       <DeckCards
-        layout={{ wide, firstCard, panes, measured: panesMeasured, toolbarBottom }}
+        layout={{ wide, firstCard, panes, measured: panesMeasured, toolbarBottom, showDeckTools }}
         addForm={addForm}
         editForm={editForm}
         formLabel={form?.kind === 'add' ? 'New card' : 'Edit card'}
@@ -480,7 +509,8 @@ export function DeckContent({
           emptyMessage: emptyMessage(items, term, Boolean(pagination), dueOnly),
           onOpen: openCard,
           results,
-          filter: (wide || !showDeckTools) && filter,
+          filter,
+          pagination,
         }}
         moreCards={wide || unavailable ? null : moreCards}
         selected={settingsOpen ? null : selected}
@@ -493,6 +523,33 @@ export function DeckContent({
         back={screenBack}
       />
     </WorkspacePage>
+  );
+}
+
+function DeferredPanel({
+  label,
+  children,
+  onCancel,
+}: Readonly<{ label: string; children: ReactNode; onCancel?: () => void }>) {
+  const bar = useContext(CardScreenBar);
+  const cancel = onCancel && (
+    <button type="button" className={secondaryButton} onClick={onCancel}>
+      Cancel
+    </button>
+  );
+  return (
+    <Suspense
+      fallback={
+        <>
+          {bar?.slot ? createPortal(cancel, bar.slot) : cancel}
+          <WhenSlow>
+            <LoadingStatus>{label}</LoadingStatus>
+          </WhenSlow>
+        </>
+      }
+    >
+      {children}
+    </Suspense>
   );
 }
 
@@ -563,6 +620,7 @@ type DeckCardsProps = {
     measured: boolean;
     panes: (element: HTMLElement | null) => void;
     toolbarBottom: number | null;
+    showDeckTools: boolean;
   };
   addForm: ReactNode;
   editForm: ReactNode;
@@ -574,6 +632,7 @@ type DeckCardsProps = {
     onOpen: (card: DeckCard) => void;
     results: Ref<HTMLElement>;
     filter: ReactNode;
+    pagination: ReactNode;
   };
   selected: DeckCard | null;
   settings: ReactNode;
@@ -586,7 +645,7 @@ type DeckCardsProps = {
 };
 
 function DeckCards({
-  layout: { wide, firstCard, measured, panes, toolbarBottom },
+  layout: { wide, firstCard, measured, panes, toolbarBottom, showDeckTools },
   moreCards,
   addForm,
   editForm,
@@ -614,10 +673,13 @@ function DeckCards({
   return (
     <>
       <div ref={panes} className={wide ? twoPanes : onePane} style={belowToolbar(toolbarBottom)}>
+        <DeckCardsHeader
+          filter={(wide || !showDeckTools) && list.filter}
+          pagination={wide && showDeckTools && list.pagination}
+        />
         <DeckCardList
           cards={list.cards}
           dueIds={list.dueIds}
-          filter={list.filter}
           emptyMessage={list.emptyMessage}
           wide={wide}
           selectedId={selected?.id ?? null}

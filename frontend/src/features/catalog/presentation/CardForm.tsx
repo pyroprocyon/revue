@@ -4,6 +4,7 @@ import { useUnsavedDeckForm } from './UnsavedDeckChanges';
 import { useContext, useEffect, useId, useRef, useState, type SubmitEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { CardScreenBar } from './CardScreen';
+import { draftChanged, draftOf } from './cardDraft';
 import { CARD_FIELD_MAX_LENGTH, type CardDraft, type DeckCard } from '../application/decks';
 import { DeckWriteProblem } from './DeckWriteProblem';
 import type { DeckWriteState } from './useDecks';
@@ -26,20 +27,6 @@ type CardFormProps = {
   draft: CardDraft;
   onDraftChange: (draft: CardDraft) => void;
 };
-
-export function draftOf(card?: DeckCard): CardDraft {
-  return {
-    question: card?.question ?? '',
-    answer: card?.answer ?? '',
-    explanation: card?.explanation ?? '',
-    memoryHook: card?.memoryHook ?? '',
-    source: card?.source ?? '',
-  };
-}
-
-export function draftChanged(draft: CardDraft, original: CardDraft) {
-  return (Object.keys(draft) as (keyof CardDraft)[]).some((key) => draft[key] !== original[key]);
-}
 
 export function CardForm({
   heading,

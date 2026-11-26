@@ -1,9 +1,9 @@
-import '@fontsource-variable/inter/opsz.css';
+import '@fontsource-variable/inter';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createBrowserRouter, RouterProvider } from 'react-router';
-import { preloadInitialWorkspacePage } from './app/App';
+import { preloadWorkspacePage } from './app/App';
 import { appRoutes } from './app/routes';
 import { watchPhoneInstall } from './features/account/presentation/homeScreenInstall';
 import { watchTouchFocus } from './app/touchFocus';
@@ -19,7 +19,7 @@ document.documentElement.toggleAttribute('data-android-phone', /Android.*Mobile/
 watchSolidControls();
 watchPhoneInstall();
 watchTouchFocus();
-preloadInitialWorkspacePage(window.location);
+preloadWorkspacePage(window.location);
 const queryClient = new QueryClient();
 const router = createBrowserRouter(appRoutes);
 

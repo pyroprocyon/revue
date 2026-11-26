@@ -1,4 +1,4 @@
-import { lazy, Suspense, useContext, useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
+import { useContext, useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
 import { useLocation, useSearchParams } from 'react-router';
 import type { ReviewCounts, ReviewGroup, SavedSet } from '../application/library';
 import { DeckCarousel } from './DeckCarousel';
@@ -8,25 +8,15 @@ import { CollectionStatusMenu } from './CollectionStatusMenu';
 import { LIBRARY_PATH, savedSetListParams } from '../../../shared/navigation/paths';
 import { FocusRequestContext } from '../../../shared/ui/FocusRequestContext';
 import { routeState } from '../../../shared/navigation/routeState';
-import { savedReviewerCardQuery } from './useSavedSets';
-import { useSavedSetCards } from './useDecks';
+import type { LibraryRouteData } from './LibraryRoute';
 import { WhenSlow } from '../../../shared/ui/WhenSlow';
 import { LoadingPlaceholder, LoadingStatus } from '../../../shared/ui/LoadingFeedback';
 
-const loadSavedSetBrowser = () => import('./SavedSetBrowser');
-const SavedSetBrowser = lazy(() => loadSavedSetBrowser().then(({ SavedSetBrowser }) => ({ default: SavedSetBrowser })));
-
-export function preloadSavedSetBrowser() {
-  void loadSavedSetBrowser().catch(() => {
-    // The lazy component reports a failed download through the route error boundary.
-  });
-}
-
 type Props = Readonly<{
   sets?: SavedSet[];
-  detail?: SavedSet;
-  linkedId?: string;
+  linkedSet: LibraryRouteData['linkedSet'];
   detailFeedback?: ReactNode;
+  showLoading: boolean;
   loading: boolean;
   group: ReviewGroup;
   counts?: ReviewCounts;
@@ -37,9 +27,9 @@ type Props = Readonly<{
 
 export function SavedSets({
   sets,
-  detail,
-  linkedId,
+  linkedSet,
   detailFeedback,
+  showLoading,
   loading,
   group,
   counts,
@@ -48,7 +38,7 @@ export function SavedSets({
   onRemoved,
 }: Props) {
   const [params, setParams] = useSearchParams();
-  const cards = useSavedSetCards(username, linkedId ?? '', savedReviewerCardQuery(params), linkedId !== undefined);
+  const { detail, browser, cards } = linkedSet;
   const location = useLocation();
   const requestFocus = useContext(FocusRequestContext);
   const previousDetail = useRef<string | null>(null);
@@ -59,9 +49,6 @@ export function SavedSets({
   const matches = loading ? [] : groupSets.filter((set) => set.title.toLowerCase().includes(term.trim().toLowerCase()));
   const showStatus = group === 'paused' || sets === undefined || (counts?.paused ?? 0) > 0;
   const showing = detail?.id ?? null;
-  useEffect(() => {
-    if (linkedId) preloadSavedSetBrowser();
-  }, [linkedId]);
   useEffect(() => {
     const previous = previousDetail.current;
     previousDetail.current = showing;
@@ -140,25 +127,24 @@ export function SavedSets({
     <output>{emptyMessage(term, group, paginated)}</output>
   );
   if (detail) {
+    if (!browser)
+      return showLoading ? (
+        <LoadingPlaceholder kind="rows" blue>
+          Loading the saved reviewer…
+        </LoadingPlaceholder>
+      ) : null;
+    if ('error' in browser) throw browser.error;
+    const SavedSetBrowser = browser.component;
     return (
-      <Suspense
-        fallback={
-          <WhenSlow>
-            <LoadingPlaceholder kind="rows" blue>
-              Loading the saved reviewer…
-            </LoadingPlaceholder>
-          </WhenSlow>
-        }
-      >
-        <SavedSetBrowser
-          key={`${username}:${detail.id}`}
-          set={detail}
-          cards={cards}
-          username={username}
-          backTo={`${LIBRARY_PATH}?${savedSetListParams(params)}`}
-          onRemoved={onRemoved}
-        />
-      </Suspense>
+      <SavedSetBrowser
+        key={`${username}:${detail.id}`}
+        set={detail}
+        cards={cards}
+        showLoading={showLoading}
+        username={username}
+        backTo={`${LIBRARY_PATH}?${savedSetListParams(params)}`}
+        onRemoved={onRemoved}
+      />
     );
   }
   return (

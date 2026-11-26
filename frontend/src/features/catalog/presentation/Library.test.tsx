@@ -236,10 +236,42 @@ describe('saved shared sets', () => {
     expect(await screen.findByRole('link', { name: 'Open Library' })).toBeDefined();
   });
 
-  it.each([
-    ['/library', 'Loading your Library…', 'Open Java notes'],
-    ['/library?shelf=saved&set=1', 'Loading the saved reviewer…', 'Philippine History'],
-  ])('waits for the correct shelf on a cold visit to %s', async (path, waiting, ready) => {
+  it('shows My decks while the saved shelf is still loading', async () => {
+    const fetcher = api({ saved: true });
+    const respond = fetcher.getMockImplementation()!;
+    let finish!: (response: Response) => void;
+    const pending = new Promise<Response>((resolve) => {
+      finish = resolve;
+    });
+    fetcher.mockImplementation((url, init) => {
+      if (url.startsWith('/api/v1/me/saved-sets?')) return pending;
+      if (url === '/api/v1/decks')
+        return Promise.resolve(jsonResponse(200, { items: [{ id: '8', title: 'Java notes', cardCount: 3 }] }));
+      return respond(url, init);
+    });
+    renderApp('/library');
+    const deck = await screen.findByRole('link', { name: 'Open Java notes' });
+    expect(screen.getByRole('link', { name: 'Create a deck' })).toBeDefined();
+    await act(async () => finish(jsonResponse(200, { items: [savedSet], nextCursor: null })));
+    await screen.findByRole('group', { name: 'Library collections' });
+    expect(screen.getByRole('link', { name: 'Open Java notes' })).toBe(deck);
+  });
+
+  it('opens the requested Saved shelf while My decks is still loading', async () => {
+    const fetcher = api({ saved: true });
+    const respond = fetcher.getMockImplementation()!;
+    let finish!: (response: Response) => void;
+    const pending = new Promise<Response>((resolve) => {
+      finish = resolve;
+    });
+    fetcher.mockImplementation((url, init) => (url === '/api/v1/decks' ? pending : respond(url, init)));
+    renderApp('/library?shelf=saved');
+    const reviewer = await screen.findByRole('link', { name: `Open ${historySet.title}` });
+    await act(async () => finish(jsonResponse(200, { items: [] })));
+    expect(screen.getByRole('link', { name: `Open ${historySet.title}` })).toBe(reviewer);
+  });
+
+  it('waits for the selected saved reviewer on a cold visit', async () => {
     const fetcher = api({ saved: true });
     const respond = fetcher.getMockImplementation()!;
     let finish!: (response: Response) => void;
@@ -252,13 +284,11 @@ describe('saved shared sets', () => {
         return Promise.resolve(jsonResponse(200, { items: [{ id: '8', title: 'Java notes', cardCount: 3 }] }));
       return respond(url, init);
     });
-    renderApp(path);
-    await screen.findByText(waiting);
+    renderApp('/library?shelf=saved&set=1');
+    await screen.findByText('Loading the saved reviewer…');
     expect(screen.queryByRole('link', { name: 'Open Java notes' })).toBeNull();
-    const linkedSet = path.includes('set=');
-    finish(jsonResponse(200, linkedSet ? savedSet : { items: [savedSet], nextCursor: null }));
-    const role = linkedSet ? 'heading' : 'link';
-    expect(await screen.findByRole(role, { name: ready })).toBeDefined();
+    finish(jsonResponse(200, savedSet));
+    expect(await screen.findByRole('heading', { name: 'Philippine History' })).toBeDefined();
   });
 
   it('shows deck creation and hides the saved sets section when no sets are saved', async () => {

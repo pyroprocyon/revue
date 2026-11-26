@@ -51,7 +51,7 @@ export function DailyNewCardSettings({ username }: Readonly<{ username: string }
 
   const limitSlot = 'mt-3.5 min-w-0 @min-[36rem]:mt-0';
   let loadFeedback;
-  if (loading || showLoading) {
+  if (loading) {
     loadFeedback = (
       <div className={`${limitSlot} grid min-h-14 items-center`}>
         {showLoading && <LoadingStatus>Loading your daily limit…</LoadingStatus>}
@@ -67,7 +67,7 @@ export function DailyNewCardSettings({ username }: Readonly<{ username: string }
 
   return (
     <section
-      className="border-t border-line p-4 sm:p-5 @min-[36rem]:grid @min-[36rem]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] @min-[36rem]:items-center @min-[36rem]:gap-5"
+      className="p-4 sm:p-5 @min-[36rem]:grid @min-[36rem]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] @min-[36rem]:items-center @min-[36rem]:gap-5"
       aria-labelledby="daily-new-cards-label"
     >
       <div>
@@ -78,9 +78,9 @@ export function DailyNewCardSettings({ username }: Readonly<{ username: string }
           Shared across your decks and saved reviewers.
         </p>
       </div>
-      {limit !== undefined && !showLoading ? (
+      {limit !== undefined ? (
         <form
-          className={limitSlot}
+          className={`${limitSlot} loading-reveal`}
           aria-busy={save.isPending}
           onSubmit={(event) => {
             event.preventDefault();

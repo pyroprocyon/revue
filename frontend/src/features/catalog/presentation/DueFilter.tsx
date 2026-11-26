@@ -11,7 +11,7 @@ export function DueFilter({ dueOnly, onChange }: Readonly<{ dueOnly: boolean; on
     </button>
   );
   return (
-    <fieldset className="mb-3 grid w-51 max-w-full min-w-0 grid-cols-2 gap-1 border-b border-line">
+    <fieldset className="grid w-51 max-w-full min-w-0 grid-cols-2 gap-1 border-b border-line">
       <legend className="sr-only">Show cards</legend>
       {option('All cards', false)}
       {option('Due', true)}

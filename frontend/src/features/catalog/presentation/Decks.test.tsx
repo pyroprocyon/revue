@@ -379,6 +379,7 @@ describe('personal decks', () => {
     const { replaceCards, writes } = api({ cards: [osmosis] });
     const { queryClient } = renderApp(`${deckPage}?q=osmosis`);
     fireEvent.click(await screen.findByRole('button', { name: 'Edit card' }));
+    await screen.findByLabelText('Answer');
     type('Answer', 'Keep my unsaved correction');
 
     replaceCards([]);
@@ -587,6 +588,7 @@ describe('personal decks', () => {
     expect(
       within(screen.getByRole('dialog', { name: 'New card' })).getByRole('button', { name: 'Save card' }),
     ).toBeDefined();
+    await screen.findByRole('list', { name: 'Steps' });
     expect(steps()).toEqual([
       ['Deck, done', null],
       ['Cards', 'step'],
@@ -725,7 +727,8 @@ describe('personal decks', () => {
     );
     fireEvent.click(screen.getByRole('button', { name: 'Search cards' }));
     fireEvent.change(await screen.findByRole('searchbox', { name: 'Search cards' }), { target: { value: 'osmosis' } });
-    await waitFor(() => expect(router.state.location.search).toBe('?q=osmosis'));
+    await screen.findByText('No cards match your search.');
+    expect(router.state.location.search).toBe('?q=osmosis');
     fireEvent.click(await screen.findByRole('button', { name: 'Clear card search' }));
 
     await waitFor(() => expect(router.state.location.search).toBe(''));

@@ -14,7 +14,8 @@ import { SavedCard } from './SavedCard';
 import { rememberReview, forgetReview } from './pausedReview';
 import { RatingButtons } from './RatingButtons';
 import type { Rating } from './ratings';
-import { nextReviewText, reviewAction, statusPanel } from './TodayPage';
+import { nextReviewText, reviewAction, statusPanel } from './reviewPresentation';
+import { ReviewHeading } from './ReviewHeading';
 import { REVIEW_BATCH_SIZE } from '../../../shared/product/studyRules';
 import { cardNoun } from '../../../shared/ui/cardCount';
 import { primaryButton, secondaryButton } from '../../../shared/ui/buttonStyles';
@@ -24,7 +25,6 @@ import { WhenSlow } from '../../../shared/ui/WhenSlow';
 import { LoadingPlaceholder, LoadingStatus } from '../../../shared/ui/LoadingFeedback';
 import { FocusRequestContext } from '../../../shared/ui/FocusRequestContext';
 import { useFocusOnMount } from '../../../shared/ui/useFocusOnMount';
-import { NavigationLink } from '../../../shared/ui/NavigationLink';
 
 export function ReviewPage({ includeNew = false }: Readonly<{ includeNew?: boolean }>) {
   const { topic } = useParams();
@@ -56,30 +56,11 @@ function TopicReview({ selection }: Readonly<{ selection: ReviewSelection }>) {
   );
 }
 
-function ReviewHeading({ title }: Readonly<{ title?: string }>) {
-  return (
-    <div className="study-session-heading flex flex-wrap items-center justify-between gap-x-3">
-      <h1
-        className={
-          title
-            ? 'min-w-0 flex-[1_1_8rem] text-lg leading-tight font-bold wrap-anywhere sm:text-section'
-            : 'text-title font-extrabold tracking-tight'
-        }
-      >
-        {title ?? 'Review'}
-      </h1>
-      <NavigationLink to={TODAY_PATH} back>
-        Finish for now
-      </NavigationLink>
-    </div>
-  );
-}
-
 type Finish = (title: string, note?: string) => void;
 type BatchCallbacks = { onFinish: Finish; onConfirmed: (id: string) => void };
 function LoadBatch({ selection, onFinish, onConfirmed }: Readonly<BatchCallbacks & { selection: ReviewSelection }>) {
   const query = useBatchQueue(selection);
-  const { username } = useOutletContext<{ username: string }>();
+  const { username, reviewHeader } = useOutletContext<{ username: string; reviewHeader: HTMLElement | null }>();
   useEffect(() => {
     if (selection.includeNew && query.isSuccess && query.data.cards.length > 0) {
       rememberReview(username, selection.topic);
@@ -92,9 +73,7 @@ function LoadBatch({ selection, onFinish, onConfirmed }: Readonly<BatchCallbacks
   if (query.isPending) {
     feedback = (
       <WhenSlow>
-        <LoadingPlaceholder kind="study" className="mt-3">
-          Loading your cards…
-        </LoadingPlaceholder>
+        <LoadingPlaceholder kind="study">Loading your cards…</LoadingPlaceholder>
       </WhenSlow>
     );
   } else if (query.isError) {
@@ -113,7 +92,7 @@ function LoadBatch({ selection, onFinish, onConfirmed }: Readonly<BatchCallbacks
   }
   return (
     <>
-      <ReviewHeading />
+      {reviewHeader ? createPortal(<ReviewHeading />, reviewHeader) : <ReviewHeading />}
       {feedback}
     </>
   );

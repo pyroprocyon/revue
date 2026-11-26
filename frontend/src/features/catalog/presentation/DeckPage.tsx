@@ -4,7 +4,7 @@ import { deckKeys } from '../../../shared/cache/queryKeys';
 import { routeState } from '../../../shared/navigation/routeState';
 import { NavigationLink } from '../../../shared/ui/NavigationLink';
 import { WorkspacePage } from '../../../shared/ui/WorkspacePage';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback } from 'react';
 import { useLocation, useOutletContext, useParams, useSearchParams } from 'react-router';
 import type { AccountProfile } from '../../account/application/account';
 import { SessionExpiredRedirect } from '../../../shared/navigation/SessionExpiredRedirect';
@@ -14,30 +14,18 @@ import { MoreCards } from './MoreCards';
 import { DueFilter } from './DueFilter';
 import { useDeckCards, type CardPages } from './useDecks';
 import { usePageCursor } from '../../../shared/navigation/usePageCursor';
+import { pageModule } from '../../../shared/navigation/usePageModule';
 import { PageControls } from '../../../shared/ui/PageControls';
 import { primaryButton } from '../../../shared/ui/buttonStyles';
 import { WhenSlow } from '../../../shared/ui/WhenSlow';
 import { LoadingPlaceholder, LoadingStatus } from '../../../shared/ui/LoadingFeedback';
 import { DECKS_UNAVAILABLE_TEXT, decksUnavailable } from './decksUnavailable';
 
-type DeckEditor = typeof import('./DeckContent').DeckContent;
-type DeckEditorState = { component: DeckEditor } | { error: unknown };
-let editorRequest: Promise<DeckEditor> | undefined;
-let loadedEditor: DeckEditor | undefined;
+const { usePageModule: useDeckContent, preload: preloadDeckContent } = pageModule(() =>
+  import('./DeckContent').then(({ DeckContent }) => DeckContent),
+);
 
-function loadDeckContent() {
-  editorRequest ??= import('./DeckContent').then(({ DeckContent }) => {
-    loadedEditor = DeckContent;
-    return DeckContent;
-  });
-  return editorRequest;
-}
-
-export function preloadDeckContent() {
-  void loadDeckContent().catch(() => {
-    // The deck page reports a failed download when it needs to show the editor.
-  });
-}
+export { preloadDeckContent };
 
 export function DeckPage() {
   const profile = useOutletContext<AccountProfile>();
@@ -49,23 +37,7 @@ export function DeckPage() {
   const dueOnly = params.get('due') === '1';
   const cards = useDeckCards(profile.username, deckId, { after, search: term, dueOnly });
   const client = useQueryClient();
-  const [editor, setEditor] = useState<DeckEditorState | undefined>(() =>
-    loadedEditor ? { component: loadedEditor } : undefined,
-  );
-  useEffect(() => {
-    let mounted = true;
-    void loadDeckContent().then(
-      (component) => {
-        if (mounted) setEditor({ component });
-      },
-      (error: unknown) => {
-        if (mounted) setEditor({ error });
-      },
-    );
-    return () => {
-      mounted = false;
-    };
-  }, []);
+  const editor = useDeckContent();
   const hasDrafts = useHasUnsavedDeckChanges();
   const search = useCallback(
     (value: string, replace = false) => {
@@ -127,11 +99,21 @@ export function DeckPage() {
     ? client.getQueryData<Deck[]>(deckKeys.list(profile.username))?.find((item) => item.id === deckId)
     : undefined;
   return (
-    <WorkspacePage title={deck?.title ?? summary?.title ?? 'Deck'}>
+    <WorkspacePage
+      title={deck?.title ?? summary?.title ?? 'Deck'}
+      subtitle={(cards.isPending || (canShowCards && !editor)) && <span aria-hidden="true" className="block min-h-6" />}
+      aboveTitle={
+        <NavigationLink
+          to={LIBRARY_PATH}
+          back
+          aria-label="Back to Library"
+          className="workspace-page-back -mt-2 -ml-2 mb-1"
+        >
+          Library
+        </NavigationLink>
+      }
+    >
       {feedback}
-      <NavigationLink to={LIBRARY_PATH} back>
-        Back to Library
-      </NavigationLink>
     </WorkspacePage>
   );
 }
@@ -188,7 +170,7 @@ function DeckLoadFeedback({
         {inline ? (
           <LoadingStatus>{loadingLabel}</LoadingStatus>
         ) : (
-          <LoadingPlaceholder kind="rows">{loadingLabel}</LoadingPlaceholder>
+          <LoadingPlaceholder kind="deck">{loadingLabel}</LoadingPlaceholder>
         )}
       </WhenSlow>
     );

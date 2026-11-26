@@ -21,7 +21,7 @@ import { ReviewerSubjectIcon } from './ReviewerSubjectIcon';
 import { usePublicContentQueries } from './PublicContentProvider';
 import { useSavedReviewerKeys } from './useSavedSets';
 
-const SUBJECT_HEADING_ID = 'published-subject-heading';
+const REVIEWERS_HEADING_ID = 'reviewers-heading';
 const TOPIC_SEARCH_DELAY_MS = 200;
 const positionKey = ['published-position'] as const;
 
@@ -39,7 +39,7 @@ export function PublishedPage() {
   const query = params.get('q') ?? '';
   const searchTerm = query.trim();
   const term = searchTerm.toLocaleLowerCase();
-  const requestedSubject = params.get('subject') ?? '';
+  const requestedSubject = params.get('subject') || undefined;
   const stack = params.get('view') === 'stack';
   const [lastOpenedSubject, setLastOpenedSubject] = useState(requestedSubject);
   const restoredTopic = useRef<{ position: CatalogPosition; link: HTMLAnchorElement } | null>(null);
@@ -58,6 +58,7 @@ export function PublishedPage() {
   const restoreSubject = showSubjects && Boolean(lastOpenedSubject) && navigationType !== 'REPLACE';
   const subjectFocusId = restoreSubject ? lastOpenedSubject : undefined;
   const subjectInView = selected?.subject;
+  const subjectHeading = catalog.isPending ? requestedSubject : subjectInView;
   const subjectForAccent = hasCatalog ? subjectInView : requestedSubject;
   const topicSearch = useTopicSearch(subjectForAccent, searchTerm);
   const topics = usePublishedTopics(subjectForAccent ?? '', topicSearch);
@@ -83,7 +84,7 @@ export function PublishedPage() {
 
   useLayoutEffect(() => {
     if (subjectInView && !returning && !interactionsPaused && document.activeElement !== searchInput.current) {
-      document.getElementById(SUBJECT_HEADING_ID)?.focus({ preventScroll: true });
+      document.getElementById(REVIEWERS_HEADING_ID)?.focus({ preventScroll: true });
     }
   }, [subjectInView, interactionsPaused, returning]);
 
@@ -147,9 +148,9 @@ export function PublishedPage() {
     };
   });
   const layoutCount = selected?.topicCount ?? (showSubjects ? subjects.length : 0);
-  const searchTarget = selected ? 'topic' : 'subject';
+  const searchTarget = subjectHeading ? 'topic' : 'subject';
   const searchLabel = `Search ${searchTarget}s`;
-  const headerControls = subjects.length > 0 && (
+  const headerControls = (catalog.isPending || subjects.length > 0) && (
     <CollectionSearch
       label={searchLabel}
       placeholder={searchLabel}
@@ -162,16 +163,16 @@ export function PublishedPage() {
 
   return (
     <WorkspacePage
-      title={subjectInView ?? 'Reviewers'}
+      title={subjectHeading ?? 'Reviewers'}
       className={subjectForAccent && 'reviewer-topics'}
-      headingId={subjectInView ? SUBJECT_HEADING_ID : undefined}
-      headingIcon={subjectInView && <ReviewerSubjectIcon subject={subjectInView} />}
+      headingId={REVIEWERS_HEADING_ID}
+      headingIcon={subjectHeading && <ReviewerSubjectIcon subject={subjectHeading} />}
       aboveTitle={
-        subjectInView && (
+        subjectHeading && (
           <Link
             to={collectionPath}
             className="pressable header-link -ml-2"
-            onClick={() => setLastOpenedSubject(subjectInView)}
+            onClick={() => setLastOpenedSubject(subjectHeading)}
           >
             <ChevronLeft aria-hidden="true" />
             Reviewers
@@ -184,7 +185,7 @@ export function PublishedPage() {
     >
       {catalog.isPending && (
         <WhenSlow>
-          <LoadingPlaceholder kind="collection" blue stack={stack}>
+          <LoadingPlaceholder kind="collection" blue stack={stack} showField={false}>
             {requestedSubject ? 'Loading topics…' : 'Loading reviewers…'}
           </LoadingPlaceholder>
         </WhenSlow>
@@ -204,7 +205,7 @@ export function PublishedPage() {
       )}
       {showSubjects && (
         <CollectionStackContext value={stack}>
-          <div className="reviewer-collections" data-stack={stack || undefined}>
+          <div className="reviewer-collections loading-reveal" data-stack={stack || undefined}>
             <CollectionCarousel
               key={term}
               kind="subjects"
@@ -311,7 +312,7 @@ function SubjectTopics({
   if (searchPending || topics.isPending || restoringTopic) {
     return (
       <WhenSlow>
-        <LoadingPlaceholder kind="collection" blue stack={stack}>
+        <LoadingPlaceholder kind="collection" blue stack={stack} showField={false}>
           Loading topics…
         </LoadingPlaceholder>
       </WhenSlow>
@@ -321,7 +322,7 @@ function SubjectTopics({
   const focusId = returnTo ? items[Math.max(0, restoredIndex)]?.id : undefined;
   return (
     <CollectionStackContext value={stack}>
-      <div className="reviewer-collections" data-stack={stack || undefined}>
+      <div className="reviewer-collections loading-reveal" data-stack={stack || undefined}>
         {items.length > 0 && (
           <>
             <CollectionCarousel

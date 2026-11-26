@@ -1,19 +1,16 @@
 import { useLocation, useNavigate, useNavigationType, useOutletContext, useSearchParams } from 'react-router';
 import { useContext, useEffect, useRef, useState, type RefObject } from 'react';
-import { LibraryFailure, type ReviewGroup } from '../application/library';
-import { useSavedSet, useSavedSets } from './useSavedSets';
+import type { useSavedSet, useSavedSets } from './useSavedSets';
+import type { LibraryRouteData } from './LibraryRoute';
 import type { LibraryBrowsing } from './LibraryBrowsingLayout';
 import { CreateDeckLink, MyDecks } from './MyDecks';
-import { useDecks } from './useDecks';
+import type { useDecks } from './useDecks';
 import { SavedSets } from './SavedSets';
-import { LIBRARY_PATH, isPositiveLongId, savedSetListParams } from '../../../shared/navigation/paths';
-import { SessionExpiredRedirect } from '../../../shared/navigation/SessionExpiredRedirect';
+import { savedSetListParams } from '../../../shared/navigation/paths';
 import { routeState } from '../../../shared/navigation/routeState';
 import { PageControls } from '../../../shared/ui/PageControls';
 import { usePageCursor } from '../../../shared/navigation/usePageCursor';
 import { secondaryButton } from '../../../shared/ui/buttonStyles';
-import { WhenSlow } from '../../../shared/ui/WhenSlow';
-import { useFirstLoadNotice } from '../../../shared/ui/useFirstLoadNotice';
 import { LoadingPlaceholder, LoadingStatus } from '../../../shared/ui/LoadingFeedback';
 import { WorkspacePage } from '../../../shared/ui/WorkspacePage';
 import { FocusRequestContext } from '../../../shared/ui/FocusRequestContext';
@@ -22,20 +19,16 @@ import { CollectionLayoutSwitch } from './CollectionLayoutSwitch';
 
 const REMOVAL_NOTICE_MS = 6_000;
 
-export function LibraryPage() {
+export function LibraryPage({ data, showLoading }: Readonly<{ data: LibraryRouteData; showLoading: boolean }>) {
   const profile = useOutletContext<LibraryBrowsing>();
   const { cursor: after, previousPage, nextPage } = usePageCursor();
   const [params, setParams] = useSearchParams();
-  const { group, browsingSet, library, decks, linkedSet, signedOut } = useLibraryRouteData(
-    profile.username,
-    params,
-    after,
-  );
+  const location = useLocation();
+  const { group, browsingSet, library, decks, linkedSet } = data;
   const firstPage = after === undefined;
   const { deletedDeckTitle, focusDeletedDeckNotice } = useDeletedDeckNotice(profile, firstPage);
   const savedShelfButton = useRef<HTMLButtonElement>(null);
   const { notice, removed, setRemoved } = useRemovalNotice(savedShelfButton, browsingSet);
-  const location = useLocation();
   const [stack, setStack] = useState(false);
   const nextCursor = library.data?.nextCursor;
   const counts = library.data?.counts;
@@ -44,23 +37,11 @@ export function LibraryPage() {
   const showCollections = showLibraryCollections(shelf, firstPage, library.isFetched, savedCount);
   const createInHeading = firstPage && Boolean(decks.data?.length);
   const nothingFollowsDecks = savedCount === 0 && !removed;
-  const saved =
-    browsingSet || isSavedShelf(shelf, firstPage, showCollections, decks.data?.length === 0 && !deletedDeckTitle);
-  const firstLoad = useLibraryFirstLoad(browsingSet, linkedSet.loading, firstPage && !removed, decks, library);
-  if (signedOut) {
-    return <SessionExpiredRedirect returnTo={LIBRARY_PATH + location.search} />;
-  }
-  if (firstLoad.library) {
-    return (
-      <WorkspacePage title="Library" focusHeading={!focusDeletedDeckNotice}>
-        {firstLoad.notice && (
-          <LoadingPlaceholder kind="collection" blue={params.get('shelf') === 'saved'} stack={stack}>
-            Loading your Library…
-          </LoadingPlaceholder>
-        )}
-      </WorkspacePage>
-    );
-  }
+  const defaultToSaved = decks.data?.length === 0 && !deletedDeckTitle;
+  const saved = browsingSet || isSavedShelf(shelf, firstPage, showCollections, defaultToSaved);
+  const loadingShelf =
+    !browsingSet && firstPage && !removed && isLoadingLibraryShelf(shelf, saved, defaultToSaved, decks, library);
+  const showLinkedSetNotice = showLoading && linkedSet.loadingDetail;
   function chooseShelf(value: string) {
     const next = new URLSearchParams();
     next.set('shelf', value);
@@ -96,98 +77,92 @@ export function LibraryPage() {
         )
       }
     >
-      <CollectionStackContext value={stack}>
-        <div className="library-collections" data-stack={stack || undefined}>
-          {!saved && (
-            <MyDecks
-              decks={decks}
-              fillsScreen={nothingFollowsDecks || showCollections}
-              deletedDeckTitle={deletedDeckTitle}
-              focusDeletedDeckNotice={focusDeletedDeckNotice}
-            />
-          )}
-          {!browsingSet && removed && (
-            <output
-              ref={notice}
-              tabIndex={-1}
-              className="mb-6 block rounded-control bg-accent-soft p-compact-gutter text-support text-accent-strong wrap-anywhere focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-            >
-              Removed “{removed.title}” from your Library. Your progress is kept.
-            </output>
-          )}
-          {saved && (library.data || browsingSet || library.isError) && (
-            <>
-              <SavedSets
-                sets={library.data?.items}
-                detail={firstLoad.notice ? undefined : linkedSet.detail}
-                linkedId={linkedSet.id}
-                detailFeedback={
-                  browsingSet && (
-                    <SavedSetLoadFeedback
-                      selectedSet={linkedSet.selected}
-                      unavailable={linkedSet.unavailable}
-                      showNotice={firstLoad.notice}
-                    />
-                  )
-                }
-                loading={library.isPlaceholderData}
-                group={group}
-                counts={counts}
-                username={profile.username}
-                paginated={Boolean(after || nextCursor)}
-                onRemoved={showRemoval}
+      {loadingShelf && showLoading && (
+        <LoadingPlaceholder kind="collection" blue={shelf === 'saved'} stack={stack}>
+          Loading your Library…
+        </LoadingPlaceholder>
+      )}
+      {!loadingShelf && (
+        <CollectionStackContext value={stack}>
+          <div
+            className="library-collections loading-reveal"
+            data-stack={stack || undefined}
+            data-loading-slot={!browsingSet && library.isPending ? 'saved-reviewers' : undefined}
+          >
+            {!saved && (
+              <MyDecks
+                decks={decks}
+                fillsScreen={nothingFollowsDecks || showCollections}
+                deletedDeckTitle={deletedDeckTitle}
+                focusDeletedDeckNotice={focusDeletedDeckNotice}
               />
-              {!browsingSet && !library.isPlaceholderData && !library.isError && (
-                <LibraryPaging after={after} nextCursor={nextCursor} previousPage={previousPage} nextPage={nextPage} />
-              )}
-            </>
-          )}
-          {!browsingSet && (
-            <LibraryLoadFeedback library={library} onPrevious={after === undefined ? undefined : previousPage} />
-          )}
-        </div>
-      </CollectionStackContext>
+            )}
+            {!browsingSet && removed && (
+              <output
+                ref={notice}
+                tabIndex={-1}
+                className="mb-6 block rounded-control bg-accent-soft p-compact-gutter text-support text-accent-strong wrap-anywhere focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              >
+                Removed “{removed.title}” from your Library. Your progress is kept.
+              </output>
+            )}
+            {saved && (library.data || browsingSet || library.isError) && (
+              <>
+                <SavedSets
+                  sets={library.data?.items}
+                  linkedSet={linkedSet}
+                  showLoading={showLoading}
+                  detailFeedback={
+                    browsingSet && (
+                      <SavedSetLoadFeedback
+                        selectedSet={linkedSet.selected}
+                        unavailable={linkedSet.unavailable}
+                        showNotice={showLinkedSetNotice}
+                      />
+                    )
+                  }
+                  loading={library.isPlaceholderData}
+                  group={group}
+                  counts={counts}
+                  username={profile.username}
+                  paginated={Boolean(after || nextCursor)}
+                  onRemoved={showRemoval}
+                />
+                {!browsingSet && !library.isPlaceholderData && !library.isError && (
+                  <LibraryPaging
+                    after={after}
+                    nextCursor={nextCursor}
+                    previousPage={previousPage}
+                    nextPage={nextPage}
+                  />
+                )}
+              </>
+            )}
+            {!browsingSet && (
+              <LibraryLoadFeedback
+                library={library}
+                showLoading={showLoading}
+                onPrevious={after === undefined ? undefined : previousPage}
+              />
+            )}
+          </div>
+        </CollectionStackContext>
+      )}
     </WorkspacePage>
   );
 }
 
-function useLibraryRouteData(username: string, params: URLSearchParams, after: string | undefined) {
-  const group: ReviewGroup = params.get('setStatus') === 'paused' ? 'paused' : 'active';
-  const linkedId = params.get('shelf') === 'saved' ? params.get('set') : null;
-  const browsingSet = linkedId !== null;
-  const library = useSavedSets(username, after, group, !browsingSet);
-  const decks = useDecks(username, after === undefined && !browsingSet);
-  const linkedSet = useLinkedSavedSet(username, linkedId, library);
-  const error = browsingSet ? linkedSet.selected.error : library.error;
-  const signedOut = error instanceof LibraryFailure && error.reason === 'signed-out';
-  return { group, browsingSet, library, decks, linkedSet, signedOut };
-}
-
-function useLinkedSavedSet(username: string, id: string | null, library: ReturnType<typeof useSavedSets>) {
-  const listed = library.isPlaceholderData ? undefined : library.data?.items.find((set) => set.id === id);
-  const validId = id !== null && isPositiveLongId(id);
-  const needsDetail = validId && !listed;
-  const selected = useSavedSet(username, id ?? '', needsDetail);
-  return {
-    id: validId ? id : undefined,
-    selected,
-    detail: listed ?? selected.data,
-    loading: needsDetail && selected.isPending,
-    unavailable: !validId || (selected.error instanceof LibraryFailure && selected.error.reason === 'unavailable'),
-  };
-}
-
-function useLibraryFirstLoad(
-  browsingSet: boolean,
-  loadingSet: boolean,
-  firstPage: boolean,
+function isLoadingLibraryShelf(
+  shelf: string | null,
+  saved: boolean,
+  defaultToSaved: boolean,
   decks: ReturnType<typeof useDecks>,
   library: ReturnType<typeof useSavedSets>,
 ) {
-  const loadingLibrary =
-    !browsingSet && firstPage && [decks, library].some((query) => !query.isFetched && query.data === undefined);
-  const notice = useFirstLoadNotice(loadingSet || loadingLibrary);
-  return { notice, library: !browsingSet && (loadingLibrary || notice) };
+  // When there are no decks, the saved count determines the default shelf.
+  const waitingForSaved = !library.isFetched && library.data === undefined;
+  if (waitingForSaved && (shelf === 'saved' || (shelf === null && defaultToSaved))) return true;
+  return !saved && !decks.isFetched && decks.data === undefined;
 }
 
 function SavedSetLoadFeedback({
@@ -339,15 +314,12 @@ function useRemovalNotice(savedShelfButton: Readonly<{ current: HTMLButtonElemen
 
 function LibraryLoadFeedback({
   library,
+  showLoading,
   onPrevious,
-}: Readonly<{ library: ReturnType<typeof useSavedSets>; onPrevious?: () => void }>) {
+}: Readonly<{ library: ReturnType<typeof useSavedSets>; showLoading: boolean; onPrevious?: () => void }>) {
   return (
     <>
-      {library.isPending && (
-        <WhenSlow>
-          <LoadingStatus>Loading saved reviewers…</LoadingStatus>
-        </WhenSlow>
-      )}
+      {library.isPending && showLoading && <LoadingStatus>Loading saved reviewers…</LoadingStatus>}
       {library.isError && (
         <div className={library.data ? 'mt-4' : undefined}>
           <p role="alert" className="mb-4 text-muted">

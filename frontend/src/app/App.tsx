@@ -1,17 +1,19 @@
 import { UnsavedDeckChanges } from '../features/catalog/presentation/UnsavedDeckChanges';
 import { PendingLoginReads } from './PendingLoginReads';
 import { ReviewProvider } from '../features/study/presentation/ReviewProvider';
-import { TodayPage } from '../features/study/presentation/TodayPage';
-import { ReviewPage } from '../features/study/presentation/ReviewPage';
+import { ReviewHeading } from '../features/study/presentation/ReviewHeading';
+import { loadTodayOverview, TodayPage } from '../features/study/presentation/TodayPage';
 import { httpReviews } from '../features/study/infrastructure/httpReviews';
 import { LibraryProvider } from '../features/catalog/presentation/LibraryProvider';
-import { LibraryPage } from '../features/catalog/presentation/LibraryPage';
 import { LibraryBrowsingLayout } from '../features/catalog/presentation/LibraryBrowsingLayout';
+import {
+  LibraryRoute,
+  preloadLibraryPage,
+  preloadSavedSetBrowser,
+} from '../features/catalog/presentation/LibraryRoute';
 import { httpLibrary } from '../features/catalog/infrastructure/httpLibrary';
 import { DeckProvider } from '../features/catalog/presentation/DeckProvider';
 import { DeckPage, preloadDeckContent } from '../features/catalog/presentation/DeckPage';
-import { preloadSavedSetBrowser } from '../features/catalog/presentation/SavedSets';
-import { NewDeckPage } from '../features/catalog/presentation/NewDeckPage';
 import { httpDecks } from '../features/catalog/infrastructure/httpDecks';
 import { httpAccount } from '../features/account/infrastructure/httpAccount';
 import { AccountProvider } from '../features/account/presentation/AccountProvider';
@@ -22,9 +24,10 @@ import { TermsPage } from '../features/account/presentation/TermsPage';
 import { PrivacyPage } from '../features/account/presentation/PrivacyPage';
 import { httpPublicContent } from '../features/catalog/infrastructure/httpPublicContent';
 import { PublicContentProvider } from '../features/catalog/presentation/PublicContentProvider';
-import { lazy, Suspense, useEffect, useLayoutEffect, type ReactNode } from 'react';
+import { Suspense, useEffect, useLayoutEffect, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { GuestRoute, PublicSessionLayout } from './PublicSessionLayout';
-import { matchPath, Route, Routes, useLocation, useNavigate } from 'react-router';
+import { matchPath, Navigate, Route, Routes, useLocation, useNavigate, useOutletContext } from 'react-router';
 import { LandingPage } from './pages/LandingPage';
 import { HowItWorksPage } from './pages/HowItWorksPage';
 import { HelpPage } from './pages/HelpPage';
@@ -33,7 +36,8 @@ import { SetPage } from '../features/catalog/presentation/SetPage';
 import { SetsPage } from '../features/catalog/presentation/SetsPage';
 import { TrialPage } from '../features/study/presentation/TrialPage';
 import { shouldWaitForSession } from '../shared/navigation/signedInHint';
-import { LoadingStatus } from '../shared/ui/LoadingFeedback';
+import { deferredPage } from '../shared/navigation/deferredPage';
+import { LoadingPlaceholder, LoadingStatus } from '../shared/ui/LoadingFeedback';
 import { WhenSlow } from '../shared/ui/WhenSlow';
 import { WorkspacePage } from '../shared/ui/WorkspacePage';
 import {
@@ -62,27 +66,44 @@ import {
   isPositiveLongId,
 } from '../shared/navigation/paths';
 
-const loadAccountPage = () => import('../features/account/presentation/AccountPage');
-const loadPublishedPage = () => import('../features/catalog/presentation/PublishedPage');
-const AccountPage = lazy(() => loadAccountPage().then(({ AccountPage }) => ({ default: AccountPage })));
-const PublishedPage = lazy(() => loadPublishedPage().then(({ PublishedPage }) => ({ default: PublishedPage })));
+const { Page: AccountPage, preload: loadAccountPage } = deferredPage(() =>
+  import('../features/account/presentation/AccountPage').then(({ AccountPage }) => AccountPage),
+);
+const { Page: PublishedPage, preload: loadPublishedPage } = deferredPage(() =>
+  import('../features/catalog/presentation/PublishedPage').then(({ PublishedPage }) => PublishedPage),
+);
+const { Page: NewDeckPage, preload: loadNewDeckPage } = deferredPage(() =>
+  import('../features/catalog/presentation/NewDeckPage').then(({ NewDeckPage }) => NewDeckPage),
+);
+const { Page: ReviewPage, preload: loadReviewPage } = deferredPage(() =>
+  import('../features/study/presentation/ReviewPage').then(({ ReviewPage }) => ReviewPage),
+);
+
+const workspacePages = [
+  [NEW_DECK_PATH, loadNewDeckPage],
+  [TODAY_PATH, loadTodayOverview],
+  [REVIEW_TOPIC_ROUTE, loadReviewPage],
+  [START_TOPIC_ROUTE, loadReviewPage],
+  [ACCOUNT_PATH, loadAccountPage],
+  [PUBLISHED_PATH, loadPublishedPage],
+] as const;
+
+function preload(load: () => Promise<unknown>) {
+  void load().catch(() => {
+    // The route error boundary handles a failed download if the page opens.
+  });
+}
 
 /** Downloads only the requested private page's code while the account boundary verifies the session. */
-export function preloadInitialWorkspacePage({ pathname, search }: Pick<Location, 'pathname' | 'search'>) {
+export function preloadWorkspacePage({ pathname, search }: Pick<Location, 'pathname' | 'search'>) {
   if (!shouldWaitForSession()) return;
-  const deckId = matchPath(DECK_ROUTE, pathname)?.params.deckId;
-  if (deckId && isPositiveLongId(deckId)) preloadDeckContent();
-  else if (matchPath(LIBRARY_PATH, pathname)) {
+  const page = workspacePages.find(([pattern]) => matchPath(pattern, pathname));
+  if (page) preload(page[1]);
+  if (matchPath(LIBRARY_PATH, pathname)) {
     const params = new URLSearchParams(search);
-    if (params.get('shelf') === 'saved' && isPositiveLongId(params.get('set') ?? '')) preloadSavedSetBrowser();
-  } else if (matchPath(ACCOUNT_PATH, pathname)) {
-    void loadAccountPage().catch(() => {
-      // The account route reports a failed download when it opens.
-    });
-  } else if (matchPath(PUBLISHED_PATH, pathname)) {
-    void loadPublishedPage().catch(() => {
-      // The published route reports a failed download when it opens.
-    });
+    if (params.get('shelf') === 'saved' && isPositiveLongId(params.get('set') ?? '')) {
+      preload(preloadSavedSetBrowser);
+    }
   }
 }
 
@@ -117,9 +138,16 @@ export function App() {
                 <Route element={<AccountLayout pendingReads={PendingLoginReads} />}>
                   <Route path={TODAY_PATH} element={<TodayPage />} />
                   <Route element={<LibraryBrowsingLayout />}>
-                    <Route path={LIBRARY_PATH} element={<LibraryPage />} />
+                    <Route path={LIBRARY_PATH} element={<LibraryRoute />} />
                     <Route element={<UnsavedDeckChanges />}>
-                      <Route path={NEW_DECK_PATH} element={<NewDeckPage />} />
+                      <Route
+                        path={NEW_DECK_PATH}
+                        element={
+                          <DeferredWorkspacePage title="Create a deck">
+                            <NewDeckPage />
+                          </DeferredWorkspacePage>
+                        }
+                      />
                       <Route path={DECK_ROUTE} element={<DeckPage />} />
                     </Route>
                   </Route>
@@ -134,18 +162,19 @@ export function App() {
                   <Route
                     path={ACCOUNT_PATH}
                     element={
-                      <DeferredWorkspacePage title="Your account">
+                      <DeferredWorkspacePage title="Your account" className="settings-page">
                         <AccountPage />
                       </DeferredWorkspacePage>
                     }
                   />
                 </Route>
-                <Route element={<AccountLayout focused />}>
-                  <Route path={REVIEW_PATH} element={<ReviewPage />} />
-                  <Route path={REVIEW_TOPIC_ROUTE} element={<ReviewPage />} />
-                  <Route path={START_TOPIC_ROUTE} element={<ReviewPage includeNew />} />
+                <Route path={REVIEW_PATH} element={<Navigate to={TODAY_PATH} replace />} />
+                <Route element={<AccountLayout focused loadingHeader={<ReviewHeading />} />}>
+                  <Route path={REVIEW_TOPIC_ROUTE} element={<DeferredReview />} />
+                  <Route path={START_TOPIC_ROUTE} element={<DeferredReview includeNew />} />
                 </Route>
               </Routes>
+              <PreloadCollectionPage />
             </PublicContentProvider>
           </DeckProvider>
         </LibraryProvider>
@@ -154,11 +183,45 @@ export function App() {
   );
 }
 
-function DeferredWorkspacePage({ title, children }: Readonly<{ title: string; children: ReactNode }>) {
+/** Run after the route mounts so account verification can start before requesting these bundles. */
+function PreloadCollectionPage() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    if (!shouldWaitForSession()) return;
+    if (matchPath(LIBRARY_PATH, pathname)) preload(preloadLibraryPage);
+    const deckId = matchPath(DECK_ROUTE, pathname)?.params.deckId;
+    if (deckId && isPositiveLongId(deckId)) preload(preloadDeckContent);
+  }, [pathname]);
+  return null;
+}
+
+function DeferredReview({ includeNew }: Readonly<{ includeNew?: boolean }>) {
+  const { reviewHeader } = useOutletContext<{ reviewHeader: HTMLElement | null }>();
   return (
     <Suspense
       fallback={
-        <WorkspacePage title={title} focusHeading={false}>
+        <div className="review-flow pb-4 sm:pb-6">
+          {reviewHeader ? createPortal(<ReviewHeading />, reviewHeader) : <ReviewHeading />}
+          <WhenSlow>
+            <LoadingPlaceholder kind="study">Loading your cards…</LoadingPlaceholder>
+          </WhenSlow>
+        </div>
+      }
+    >
+      <ReviewPage includeNew={includeNew} />
+    </Suspense>
+  );
+}
+
+function DeferredWorkspacePage({
+  title,
+  className,
+  children,
+}: Readonly<{ title: string; className?: string; children: ReactNode }>) {
+  return (
+    <Suspense
+      fallback={
+        <WorkspacePage title={title} className={className} focusHeading={false}>
           <WhenSlow>
             <LoadingStatus>Loading this page…</LoadingStatus>
           </WhenSlow>
@@ -185,7 +248,8 @@ function SignupPage() {
  * change of page or section counts. Section targets are scrolled after React renders them.
  */
 function ScrollOnNavigation() {
-  const { pathname, hash } = useLocation();
+  const { pathname, hash, search } = useLocation();
+  useEffect(() => preloadWorkspacePage({ pathname, search }), [pathname, search]);
   useLayoutEffect(() => {
     if (hash !== '') {
       document.getElementById(hash.slice(1))?.scrollIntoView();

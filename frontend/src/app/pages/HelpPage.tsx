@@ -1,3 +1,4 @@
+import { useCallback, useRef, type Ref } from 'react';
 import { Link, useLocation } from 'react-router';
 import { TODAY_PATH, HOME_PATH, PRIVACY_PATH, TERMS_PATH } from '../../shared/navigation/paths';
 import { OPENED_FROM_HELP, routeState } from '../../shared/navigation/routeState';
@@ -5,58 +6,64 @@ import { usePublicSession } from '../../shared/navigation/publicSession';
 import { BackButton, HomeLink } from '../../shared/ui/HeaderLinks';
 import { PageLayout } from '../../shared/ui/PageLayout';
 import { SupportLink } from '../../shared/ui/SupportLink';
-import { SessionCheckScreen } from '../../shared/ui/MessageScreen';
 import { setSolidControls, useSolidControls } from '../../shared/ui/solidControls';
-import { useFocusOnMount } from '../../shared/ui/useFocusOnMount';
 import { WorkspaceLayout } from '../../shared/ui/WorkspaceLayout';
 import { ArrowUpRight, ChevronRight, FileText, Mail, ShieldCheck } from 'lucide-react';
 
 const helpLink = 'help-directory-row pressable';
-const helpIcon = 'size-9 shrink-0 rounded-xl bg-subtle/70 p-2 text-muted @max-[16rem]/help:hidden';
+const helpIcon = 'size-9 shrink-0 rounded-xl bg-accent-soft p-2 text-accent @max-[16rem]/help:hidden';
 const linkArrow = 'size-4 shrink-0 text-muted';
 
 export function HelpPage() {
   const session = usePublicSession();
   const location = useLocation();
   const openedFromWorkspace = routeState(location).fromWorkspace === true;
-  // The workspace's Help link vouches for the session, so its layout stays while the check finishes.
-  if (session === 'signed-in' || (session === 'checking' && openedFromWorkspace)) {
-    return (
-      <WorkspaceLayout>
-        <HelpContent signedIn />
-      </WorkspaceLayout>
-    );
-  }
-  if (session === 'checking') return <SessionCheckScreen />;
+  const useWorkspace = session === 'signed-in' || (session === 'checking' && openedFromWorkspace);
+  const focusedControlIndex = useRef(-1);
+  const helpSection = useCallback((section: HTMLElement | null) => {
+    if (!section) return;
+    const shell = section.closest('[data-help-layout]');
+    const controls = [
+      ...(shell?.querySelectorAll<HTMLElement>('a[href="#main-content"], [data-home-link]') ?? []),
+      ...section.querySelectorAll<HTMLElement>('a[href], button, input'),
+    ];
+    const target = controls[focusedControlIndex.current];
+    target?.focus();
+    if (!target || document.activeElement !== target) section.querySelector('h1')?.focus();
+    return () => {
+      const activeControl = document.activeElement;
+      focusedControlIndex.current = activeControl instanceof HTMLElement ? controls.indexOf(activeControl) : -1;
+    };
+  }, []);
+  const content = <HelpContent sectionRef={helpSection} signedIn={useWorkspace} />;
   return (
-    <PageLayout top={<HomeLink />}>
-      <HelpContent signedIn={false} />
-    </PageLayout>
+    <div className="contents" data-help-layout>
+      {useWorkspace ? (
+        <WorkspaceLayout>{content}</WorkspaceLayout>
+      ) : (
+        <PageLayout top={<HomeLink />}>{content}</PageLayout>
+      )}
+    </div>
   );
 }
 
-function HelpContent({ signedIn }: Readonly<{ signedIn: boolean }>) {
-  const headingFocus = useFocusOnMount<HTMLHeadingElement>();
+function HelpContent({ signedIn, sectionRef }: Readonly<{ signedIn: boolean; sectionRef: Ref<HTMLElement> }>) {
   const solidControls = useSolidControls();
-  const directoryWidth = signedIn ? 'max-w-[40.625rem] workspace-help-directory' : '';
 
   return (
-    <section className={signedIn ? 'workspace-page' : 'py-6 sm:py-8'}>
+    <section ref={sectionRef} className={`settings-page ${signedIn ? 'workspace-page' : 'py-6 sm:py-8'}`}>
       <div className={signedIn ? 'workspace-page-header' : undefined}>
         <BackButton
           label="Back"
           fallbackPath={signedIn ? TODAY_PATH : HOME_PATH}
           className={signedIn ? '@min-[40rem]/workspace:-mt-3' : ''}
         />
-        <h1 {...headingFocus} className="text-title font-extrabold tracking-tight outline-none lg:text-title-lg">
+        <h1 tabIndex={-1} className="text-title font-extrabold tracking-tight outline-none lg:text-title-lg">
           Help
         </h1>
       </div>
-      <nav
-        aria-label="Help and policies"
-        className={`@container/help mt-[1.125rem] grid gap-3 lg:mt-6 ${directoryWidth}`}
-      >
-        <div className="help-directory-links rounded-[1.25rem] border border-line bg-surface p-1.5">
+      <nav aria-label="Help and policies" className="@container/help mt-4">
+        <div className="help-directory-links rounded-card border border-line bg-surface p-1.5">
           <SupportLink className={helpLink}>
             <Mail aria-hidden="true" className={helpIcon} />
             <span className="flex-1">Contact support</span>
@@ -76,20 +83,24 @@ function HelpContent({ signedIn }: Readonly<{ signedIn: boolean }>) {
       </nav>
       <section
         aria-labelledby="display-settings-title"
-        className={`mt-3 rounded-[1.25rem] border border-line bg-surface p-4 ${directoryWidth}`}
+        className="mt-3 rounded-card border border-line bg-surface p-4 sm:p-5"
       >
         <h2 id="display-settings-title" className="text-label font-bold">
           Display
         </h2>
         <label className="flex min-h-12 cursor-pointer items-center justify-between gap-3 text-label font-semibold">
           <span>Solid controls</span>
-          <input
-            type="checkbox"
-            checked={solidControls}
-            onChange={(event) => setSolidControls(event.currentTarget.checked)}
-            aria-describedby="solid-controls-description"
-            className="size-5 shrink-0 accent-accent"
-          />
+          <span className="relative h-6 w-11 shrink-0">
+            <input
+              type="checkbox"
+              role="switch"
+              checked={solidControls}
+              onChange={(event) => setSolidControls(event.currentTarget.checked)}
+              aria-describedby="solid-controls-description"
+              className="absolute inset-0 size-full cursor-pointer opacity-0"
+            />
+            <span className="settings-switch-track" aria-hidden="true" />
+          </span>
         </label>
         <p id="solid-controls-description" className="text-support text-muted">
           Turn off blur on floating navigation and study controls in this browser.

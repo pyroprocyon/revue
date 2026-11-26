@@ -1,4 +1,5 @@
 import { useContext, useEffect, useRef, useState, type MouseEvent } from 'react';
+import { Plus } from 'lucide-react';
 import { Link, useOutletContext } from 'react-router';
 import { DeckFailure, type Deck } from '../application/decks';
 import type { useDecks } from './useDecks';
@@ -18,8 +19,12 @@ import { DECKS_UNAVAILABLE_TEXT, decksUnavailable } from './decksUnavailable';
 
 export function CreateDeckLink() {
   return (
-    <Link to={NEW_DECK_PATH} className={`${primaryButton} @max-[20rem]:min-h-[48px] @max-[20rem]:px-2`}>
-      Create a deck
+    <Link
+      to={NEW_DECK_PATH}
+      className="create-deck-pill pressable tonal-control-gradient inline-flex min-h-12 max-w-full items-center justify-center gap-1.5 rounded-full border px-4 py-2 text-center text-body font-semibold text-accent-strong @max-[20rem]:min-h-[48px] @max-[20rem]:px-2 @max-[20rem]:text-label"
+    >
+      <Plus aria-hidden="true" className="size-4 shrink-0" />
+      <span className="min-w-0 wrap-anywhere">Create a deck</span>
     </Link>
   );
 }
@@ -50,7 +55,7 @@ export function MyDecks({
       {deletedDeckTitle && <DeletedDeckNotice title={deletedDeckTitle} focusOnEntry={focusDeletedDeckNotice} />}
       {decks.data &&
         (decks.data.length === 0 ? (
-          <div className="flex flex-wrap items-center justify-between gap-4 rounded-card border border-line bg-surface p-compact-gutter sm:p-6">
+          <div className="library-empty-state flex flex-wrap items-center justify-between gap-4 rounded-card border border-line bg-surface p-compact-gutter sm:p-6">
             <p className="text-body text-muted">Make private flashcards for a class or exam.</p>
             <CreateDeckLink />
           </div>
@@ -71,11 +76,7 @@ export function MyDecks({
             >
               {decks.isFetching ? 'Retrying…' : 'Retry decks'}
             </button>
-            {!decks.data && !unavailable && (
-              <Link to={NEW_DECK_PATH} className={secondaryButton}>
-                Create a deck
-              </Link>
-            )}
+            {!decks.data && !unavailable && <CreateDeckLink />}
           </div>
         </div>
       )}

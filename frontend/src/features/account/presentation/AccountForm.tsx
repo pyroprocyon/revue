@@ -1,7 +1,7 @@
 import { useFirstInput } from '../../../shared/ui/useFirstInput';
 import { useQueryClient } from '@tanstack/react-query';
 import { deckKeys, libraryKeys, pendingLoginKey, reviewKeys } from '../../../shared/cache/queryKeys';
-import { publicSessionKey } from '../../../shared/navigation/publicSession';
+import { publicSessionKey, usePublicSession } from '../../../shared/navigation/publicSession';
 import { saveSignedInHint } from '../../../shared/navigation/signedInHint';
 import { Eye, EyeOff } from 'lucide-react';
 import { useEffect, useRef, useState, type SubmitEvent } from 'react';
@@ -23,6 +23,7 @@ const inputStyle =
 
 export function AccountForm({ register = false }: Readonly<{ register?: boolean }>) {
   const gateway = useAccountGateway();
+  const checking = usePublicSession() === 'checking';
   const firstInput = useFirstInput(gateway.prepareWrite);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -41,11 +42,12 @@ export function AccountForm({ register = false }: Readonly<{ register?: boolean 
     if (error) errorRef.current?.focus();
   }, [error]);
   const idleAction = register ? 'Create account' : 'Sign in';
-  const actionLabel = busy ? 'Please wait…' : idleAction;
+  const readyAction = checking ? 'Checking your session…' : idleAction;
+  const actionLabel = busy ? 'Please wait…' : readyAction;
 
   async function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busy) return;
+    if (busy || checking) return;
     if (register && password !== passwordConfirmation) {
       setError(PASSWORD_MISMATCH);
       return;
@@ -200,7 +202,7 @@ export function AccountForm({ register = false }: Readonly<{ register?: boolean 
             {error}
           </p>
         )}
-        <button className={`${primaryButton} w-full`} type="submit" disabled={busy}>
+        <button className={`${primaryButton} w-full`} type="submit" disabled={busy || checking}>
           {actionLabel}
         </button>
       </form>

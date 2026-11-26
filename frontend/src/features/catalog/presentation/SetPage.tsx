@@ -132,12 +132,17 @@ function SetDetails({
   const showSample = trialAvailable && (trial.isPending || Boolean(question));
   const refetchTrial = trial.refetch;
   const recheckTrial = conflictingRead && trial.fetchStatus === 'idle' && canRecheckTrial(trial.error, previewFinished);
+  const checkingTrial = publicSet.trialAvailable && (trial.isPending || trial.isFetching || recheckTrial);
   useEffect(() => {
     if (recheckTrial) void refetchTrial({ cancelRefetch: false });
   }, [recheckTrial, refetchTrial]);
 
   return (
-    <article className="set-detail screen-enter mt-3" data-published={publicSet.saveAllowed || undefined}>
+    <article
+      className="set-detail mt-3"
+      data-published={publicSet.saveAllowed || undefined}
+      data-loading-slot={checkingTrial ? 'trial-availability' : undefined}
+    >
       <header className="set-detail-header">
         <p className="flex items-center gap-2 text-support font-semibold text-saved-set">
           <ReviewerSubjectIcon subject={publicSet.subject} />
@@ -157,11 +162,11 @@ function SetDetails({
             Sample question
           </h2>
           {question ? (
-            <p className="mt-2 text-section font-bold whitespace-pre-wrap wrap-anywhere">{question}</p>
+            <p className="loading-reveal mt-2 text-section font-bold whitespace-pre-wrap wrap-anywhere">{question}</p>
           ) : (
-            <div className="mt-2 flex min-h-[1lh] items-center text-section">
-              <span className="loading-bar" aria-hidden="true" />
+            <div data-loading-slot="sample" className="mt-2 flex min-h-[1lh] items-center text-section">
               <WhenSlow>
+                <span className="loading-bar" data-loading-indicator aria-hidden="true" />
                 <output className="sr-only">Loading the sample question…</output>
               </WhenSlow>
             </div>
@@ -184,7 +189,9 @@ function SetDetails({
         <legend className="sr-only">Reviewer actions</legend>
         <TrialAction setKey={publicSet.setKey} available={trialAvailable} previewKey={previewKey} />
         {publicSet.saveAllowed && (
-          <SaveSetAction key={publicSet.setKey} shareCode={publicSet.shareCode} setKey={publicSet.setKey} />
+          <div className="min-h-12">
+            <SaveSetAction key={publicSet.setKey} shareCode={publicSet.shareCode} setKey={publicSet.setKey} />
+          </div>
         )}
       </fieldset>
     </article>

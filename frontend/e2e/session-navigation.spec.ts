@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test';
 import { test, expect } from './fixtures';
-import { historyCards } from '../src/test/fixtures';
+import { historyCards, historySet } from '../src/test/fixtures';
 import { SIGNED_IN_HINT_KEY } from '../src/shared/navigation/signedInHint';
 
 test('Today redirects after one account check and rechecks sign-in on reload', async ({ page, pilot }) => {
@@ -180,6 +180,79 @@ test('a guest sees the homepage at once while the session check is still pending
     release();
   }
 });
+
+test('a remembered session can open reviewers from Home while the session check is pending', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.addInitScript((key) => localStorage.setItem(key, 'true'), SIGNED_IN_HINT_KEY);
+  const release = await delaySession(page, false);
+  await page.route('**/api/v1/public-sets/catalog/onboarding', (route) => route.fulfill({ json: [historySet] }));
+  try {
+    await page.goto('/');
+    const browse = page.getByRole('link', { name: 'Browse reviewers' });
+    const initialPosition = await browse.boundingBox();
+    await expect(page.getByText('Checking your session…')).toBeVisible();
+    expect(await browse.boundingBox()).toEqual(initialPosition);
+    await browse.click();
+    await expect(page).toHaveURL(/\/sets$/);
+    await expect(page.getByRole('link', { name: /Philippine History/ })).toBeVisible();
+  } finally {
+    release();
+  }
+});
+
+test('a guest can type sign-in details while the session check is pending', async ({ page }) => {
+  const release = await delaySession(page, false);
+  const username = page.getByLabel('Username');
+  const password = page.getByLabel('Password', { exact: true });
+  const typedPassword = crypto.randomUUID();
+  try {
+    await page.goto('/sign-in');
+    await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
+    await username.fill('testlearner');
+    await password.fill(typedPassword);
+    await expect(page.getByRole('button', { name: 'Checking your session…' })).toBeDisabled();
+    release();
+    await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeEnabled();
+    await expect(username).toHaveValue('testlearner');
+    await expect(password).toHaveValue(typedPassword);
+  } finally {
+    release();
+  }
+});
+
+test('direct Help controls work while the session check is pending', async ({ page }) => {
+  const release = await delaySession(page, false);
+  try {
+    await page.goto('/help');
+    await expect(page.getByRole('heading', { name: 'Help', exact: true })).toBeVisible();
+    const solidControls = page.getByRole('switch', { name: 'Solid controls' });
+    await solidControls.press('Space');
+    await expect(solidControls).toBeChecked();
+    await expect(page.getByRole('link', { name: 'Privacy notice' })).toBeVisible();
+  } finally {
+    release();
+  }
+});
+
+for (const control of ['Solid controls', 'Terms', 'Revue', 'Skip to content'] as const) {
+  test(`direct Help keeps focus on ${control} after sign-in confirmation`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const release = await delaySession(page, true);
+    try {
+      await page.goto('/help');
+      const target = page.getByRole(control === 'Solid controls' ? 'switch' : 'link', { name: control, exact: true });
+      await target.focus();
+      if (control === 'Solid controls') await target.press('Space');
+      await expect(target).toBeFocused();
+      release();
+      await expect(page.getByRole('navigation', { name: 'Your workspace' })).toBeVisible();
+      await expect(target).toBeFocused();
+      if (control === 'Solid controls') await expect(target).toBeChecked();
+    } finally {
+      release();
+    }
+  });
+}
 
 test('an old desktop guide link scrolls after the session check reveals the landing page', async ({ page }, info) => {
   await page.setViewportSize({ width: 1366, height: 768 });

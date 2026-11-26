@@ -6,6 +6,7 @@
 // type checking needs no Node types.
 import { readdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { verifyDist } from './verify-dist.mjs';
+import { writeWorkspacePreloader } from './workspace-preloads.mjs';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { brotliCompress, constants, gzip } from 'node:zlib';
@@ -22,6 +23,7 @@ if (!buildDir) {
 
 const manifestPath = join(buildDir, '.vite', 'manifest.json');
 const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+await writeWorkspacePreloader(buildDir, manifest);
 await unlink(manifestPath);
 
 const entries = await readdir(buildDir, { recursive: true, withFileTypes: true });
