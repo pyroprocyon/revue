@@ -41,6 +41,7 @@ class AccountRulesTests {
     void eligibilityKeepsIndependentRestrictions() {
         Account pending = account(null, null, false, null);
         assertThat(pending.accessAt(NOW)).isEqualTo(Account.Access.EMAIL_UNVERIFIED);
+        assertThat(account(null, null, true, null).accessAt(NOW)).isEqualTo(Account.Access.EMAIL_UNVERIFIED);
         assertThat(pending.accessAt(NOW.plus(Duration.ofDays(7)))).isEqualTo(Account.Access.REGISTRATION_EXPIRED);
         assertThat(account(NOW, null, false, null).accessAt(NOW)).isEqualTo(Account.Access.ACTIVE);
         assertThat(account(NOW, NOW, true, null).accessAt(NOW)).isEqualTo(Account.Access.SUSPENDED);
@@ -52,7 +53,7 @@ class AccountRulesTests {
             NOW,
             null,
             0,
-            false,
+            true,
             null,
             null,
             null,
