@@ -153,8 +153,12 @@ export function FlashCard({
     );
     dockResize.current = animation;
     animation.onfinish = () => {
-      const answer = answerRef.current;
-      if (answer === document.activeElement) keepSideTextInView(answer);
+      const focused = document.activeElement;
+      if (focused === answerRef.current) {
+        keepSideTextInView(answerRef.current);
+      } else if (focused instanceof HTMLButtonElement && dock.contains(focused) && focused.matches(':focus-visible')) {
+        focused.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' });
+      }
     };
     return () => {
       animation.onfinish = null;
