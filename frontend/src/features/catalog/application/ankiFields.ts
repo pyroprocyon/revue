@@ -152,12 +152,18 @@ function remembered(cache: Map<string, string>, text: string, convert: (text: st
   return result;
 }
 
-/** A match holds only "&", "#", letters, digits and ";", so parsing it can't create an element. */
+/**
+ * A match holds only "&", "#", letters, digits and ";", so parsing it can't create an element. For an unknown name that
+ * starts with an old entity name, such as "&notifier;", the HTML parser decodes only "&not" and keeps the rest of the
+ * name. A match decodes only when the parser used all of it.
+ */
 function decodedEntities(text: string) {
   const decoder = document.createElement('template');
   return text.replaceAll(HTML_ENTITIES, (entity) => {
     decoder.innerHTML = entity;
-    return (decoder.content.textContent ?? entity).replaceAll(NO_BREAK_SPACE, ' ');
+    const decoded = decoder.content.textContent ?? entity;
+    const lastLetterAndSemicolon = entity.slice(-2);
+    return decoded.endsWith(lastLetterAndSemicolon) ? entity : decoded.replaceAll(NO_BREAK_SPACE, ' ');
   });
 }
 

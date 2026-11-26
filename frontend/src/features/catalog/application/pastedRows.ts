@@ -18,10 +18,11 @@ type RowLayout = {
 type RowOrBlock = { row: string[] } | { lines: string[] };
 
 const TAB = '\t';
-const REVUE_NOTE_TYPE = 'Revue';
-const WRITTEN_ROWS_HEADER = `#separator:tab\n#notetype:${REVUE_NOTE_TYPE}`;
-const ANKI_HEADER =
-  /^#(separator|html|tags|columns|notetype|deck|notetype column|deck column|tags column|guid column):(.*)$/i;
+/** Anki lets a learner name a note type "Revue", so Edit text marks its rows with a header Anki doesn't write. */
+const AS_TYPED_KEY = 'revue';
+const WRITTEN_ROWS_HEADER = `#separator:tab\n#${AS_TYPED_KEY}:as typed`;
+const HEADER_LINE =
+  /^#(separator|html|tags|columns|notetype|deck|notetype column|deck column|tags column|guid column|revue):(.*)$/i;
 const COLUMN_NAMES = new Set([
   'question',
   'questions',
@@ -86,9 +87,9 @@ function headerLayout(text: string): RowLayout | null {
   const layout: RowLayout = { source: 'anki', separator: TAB, html: null, skippedColumns: new Set(), body: '' };
   let headerLines = 0;
   for (const line of lines) {
-    const header = ANKI_HEADER.exec(line.trim());
+    const header = HEADER_LINE.exec(line.trim());
     if (!header) break;
-    applyAnkiHeader(layout, header[1].toLowerCase(), header[2].trim());
+    applyHeader(layout, header[1].toLowerCase(), header[2].trim());
     headerLines += 1;
   }
   if (headerLines === 0) return null;
@@ -96,10 +97,10 @@ function headerLayout(text: string): RowLayout | null {
   return layout;
 }
 
-function applyAnkiHeader(layout: RowLayout, key: string, value: string) {
+function applyHeader(layout: RowLayout, key: string, value: string) {
   if (key === 'separator') layout.separator = SEPARATOR_NAMES[value.toLowerCase()] ?? (value || TAB);
   else if (key === 'html') layout.html = value.toLowerCase() === 'true';
-  else if (key === 'notetype' && value === REVUE_NOTE_TYPE) layout.source = 'revue';
+  else if (key === AS_TYPED_KEY) layout.source = 'revue';
   else if (key.endsWith(' column')) {
     const column = Number(value);
     if (Number.isInteger(column) && column > 0) layout.skippedColumns.add(column - 1);
@@ -215,8 +216,8 @@ function withoutColumnNames(parts: RowOrBlock[]): RowOrBlock[] {
 
 /**
  * Writes cards as tab-separated rows that `readPastedRows` reads back as the same cards. The header lines make every
- * row a note, and the Revue note type keeps each field as typed, so no row is taken for column names and no field for
- * HTML, a cloze or a sound tag.
+ * row a note and keep each field as typed, so no row is taken for column names and no field for HTML, a cloze or a
+ * sound tag.
  */
 export function writePastedRows(cards: PastedCard[]): string {
   const rows = cards.map((card) => {

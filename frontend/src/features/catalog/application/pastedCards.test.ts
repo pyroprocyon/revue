@@ -73,7 +73,7 @@ describe('pasted cards', () => {
       { question: 'Read the dialogue.', answer: 'Hello\nQ: How are you?\nA: Fine' },
     ];
     expect(formatPastedCards(edited)).toBe(
-      '#separator:tab\n#notetype:Revue\nName the steps.\t"First\n\nSecond"\nRead the dialogue.\t"Hello\nQ: How are you?\nA: Fine"',
+      '#separator:tab\n#revue:as typed\nName the steps.\t"First\n\nSecond"\nRead the dialogue.\t"Hello\nQ: How are you?\nA: Fine"',
     );
     expect(parsePastedCards(formatPastedCards(edited))).toEqual(edited);
   });
@@ -206,7 +206,7 @@ describe('pasted rows from a spreadsheet, Quizlet or Anki', () => {
       { question: 'Organ', answer: '' },
     ];
     expect(formatPastedCards(cards)).toBe(
-      '#separator:tab\n#notetype:Revue\nCell "wall"\t"Rigid layer\noutside"\tPlants only\nOrgan\t',
+      '#separator:tab\n#revue:as typed\nCell "wall"\t"Rigid layer\noutside"\tPlants only\nOrgan\t',
     );
     expect(parsePastedCards(formatPastedCards(cards))).toEqual(cards);
     const lookLikeAnkiOrHeadings = [
@@ -256,6 +256,8 @@ describe('pasted rows from a spreadsheet, Quizlet or Anki', () => {
       'Condition?\tx<a && y>b',
       'Type?\tList<A>',
       'Reference?\tstd::vector<int>&items;',
+      'Listener?\tstd::vector<int>&notifier;',
+      'Not in?\tx &notin; A',
       'Escaped?\t&lt;b&gt; means bold &amp; List<A> stays',
       'Link?\t<a href="https://example.com">site</a>',
       'Ratio?\t5<hr>10',
@@ -270,6 +272,8 @@ describe('pasted rows from a spreadsheet, Quizlet or Anki', () => {
       { question: 'Condition?', answer: 'x<a && y>b' },
       { question: 'Type?', answer: 'List<A>' },
       { question: 'Reference?', answer: 'std::vector<int>&items;' },
+      { question: 'Listener?', answer: 'std::vector<int>&notifier;' },
+      { question: 'Not in?', answer: 'x ∉ A' },
       { question: 'Escaped?', answer: '<b> means bold & List<A> stays' },
       { question: 'Link?', answer: 'site' },
       { question: 'Ratio?', answer: '5\n10' },
@@ -277,6 +281,13 @@ describe('pasted rows from a spreadsheet, Quizlet or Anki', () => {
     ]);
     expect(parsePastedCards('#html:true\nCompare\tA < B and C > D')).toEqual([
       { question: 'Compare', answer: 'A < B and C > D' },
+    ]);
+  });
+
+  it('reads clozes and HTML in an Anki export whose note type is named Revue', () => {
+    const ankiExport = '#separator:tab\n#html:true\n#notetype:Revue\nWhere is {{c1::Manila}}?\t<b>Philippines</b>';
+    expect(parsePastedCards(ankiExport)).toEqual([
+      { question: 'Where is [...]?', answer: 'Manila', explanation: 'Philippines' },
     ]);
   });
 
