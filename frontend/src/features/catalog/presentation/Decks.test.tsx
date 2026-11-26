@@ -1,7 +1,7 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { loadPage, reloadPage } from '../../../shared/navigation/pageLoads';
-import { jsonResponse, renderApp } from '../../../test/renderApp';
+import { jsonResponse, renderApp, requestBodyJson } from '../../../test/renderApp';
 
 vi.mock('../../../shared/navigation/pageLoads', () => ({ loadPage: vi.fn(), reloadPage: vi.fn() }));
 
@@ -82,7 +82,7 @@ function api({
       }
       return jsonResponse(404);
     }
-    const body: unknown = init?.body ? JSON.parse(String(init.body)) : undefined;
+    const body = init?.body ? requestBodyJson(init) : undefined;
     writes.push({ method, path, body, csrf: new Headers(init?.headers).get('X-XSRF-TOKEN') });
     if (failWrite) return failWrite();
     if (method === 'POST' && path === '/api/v1/decks') {
@@ -121,13 +121,13 @@ function api({
   return {
     writes,
     fetcher,
-    replaceCards(next: StoredCard[]) {
+    replaceCards: (next: StoredCard[]) => {
       stored = [...next];
     },
-    removeDeck() {
+    removeDeck: () => {
       deckTitle = null;
     },
-    setNewCardsLeftToday(left: number) {
+    setNewCardsLeftToday: (left: number) => {
       leftToday = left;
     },
   };
@@ -172,7 +172,7 @@ function resizableLayout() {
   );
   return {
     widen: () =>
-      act(() => {
+      act(async () => {
         for (const { report, target } of watched.values()) {
           report([{ target, contentRect: { width: 1000 } } as unknown as ResizeObserverEntry], {} as never);
         }

@@ -63,14 +63,14 @@ export class DeckFailure extends Error {
 
 /** A learner's private decks and cards. Every result is confirmed by the server. */
 export interface DeckGateway {
-  prepareWrite(): void;
-  list(): Promise<Deck[]>;
-  create(title: string, requestId: string): Promise<Deck>;
-  rename(deckId: string, title: string): Promise<Deck>;
-  setArchived(deckId: string, archived: boolean): Promise<void>;
-  remove(deckId: string): Promise<void>;
-  cards(deckId: string, query: DeckCardQuery, signal?: AbortSignal): Promise<DeckCardPage>;
-  addCard(deckId: string, draft: CardDraft, requestId: string): Promise<DeckCard>;
-  editCard(cardId: string, draft: CardDraft, expectedVersion: number): Promise<DeckCard>;
-  removeCard(cardId: string): Promise<void>;
+  prepareWrite: () => void;
+  list: () => Promise<Deck[]>;
+  create: (title: string, requestId: string) => Promise<Deck>;
+  rename: (deckId: string, title: string) => Promise<Deck>;
+  setArchived: (deckId: string, archived: boolean) => Promise<void>;
+  remove: (deckId: string) => Promise<void>;
+  cards: (deckId: string, query: DeckCardQuery, signal?: AbortSignal) => Promise<DeckCardPage>;
+  addCard: (deckId: string, draft: CardDraft, requestId: string) => Promise<DeckCard>;
+  editCard: (cardId: string, draft: CardDraft, expectedVersion: number) => Promise<DeckCard>;
+  removeCard: (cardId: string) => Promise<void>;
 }

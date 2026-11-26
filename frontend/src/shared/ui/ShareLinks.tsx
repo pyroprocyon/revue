@@ -58,14 +58,14 @@ export function ShareLinks({ title, path }: Readonly<ShareLinksProps>) {
     <div className="min-w-0">
       <div className="flex flex-wrap gap-2 pt-2.5">
         {canShare && (
-          <button type="button" onClick={share} className={`${shareButton} ${quiet}`}>
+          <button type="button" onClick={() => void share()} className={`${shareButton} ${quiet}`}>
             <Share2 aria-hidden="true" size={20} strokeWidth={2} className="shrink-0" />
             Share
           </button>
         )}
         <button
           type="button"
-          onClick={copyLink}
+          onClick={() => void copyLink()}
           aria-label={copied ? 'Copied. Copy link again' : undefined}
           className={`${shareButton} ${copied ? copiedStyle : quiet}`}
         >

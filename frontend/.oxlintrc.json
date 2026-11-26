@@ -10,9 +10,11 @@
   },
   "rules": {
     "react/rules-of-hooks": "error",
-    "react/exhaustive-deps": "error"
+    "react/exhaustive-deps": "error",
+    "typescript/no-misused-promises": "error"
   },
   "options": {
+    "typeAware": true,
     "denyWarnings": true,
     "reportUnusedDisableDirectives": "error"
   },
