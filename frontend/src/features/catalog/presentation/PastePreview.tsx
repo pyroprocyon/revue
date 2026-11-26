@@ -558,6 +558,8 @@ type CardEditorProps = {
 function CardEditor({ row, number, cardCount, onClose, onChange, onRemove }: Readonly<CardEditorProps>) {
   const fieldsId = useId();
   const problems = cardProblems(row);
+  // Kept while the card is open, so the field stays put as text moves out of a long answer.
+  const [explanationShown] = useState(() => row.explanation !== undefined || problems.answer === 'too-long');
   return (
     <li
       data-preview-card={row.key}
@@ -594,19 +596,20 @@ function CardEditor({ row, number, cardCount, onClose, onChange, onRemove }: Rea
           growWithText
           rows={2}
           note="Keep it to one idea"
+          nearLimitNote={explanationShown ? 'Move extra details to Explanation.' : undefined}
           value={row.answer}
           maxLength={CARD_FIELD_MAX_LENGTH.answer}
           error={problems.answer && FIELD_PROBLEM_TEXT.answer[problems.answer]}
           onChange={(answer) => onChange({ answer })}
         />
-        {row.explanation !== undefined && (
+        {explanationShown && (
           <TextField
             label="Explanation"
             note="Optional"
             growWithText
             rows={3}
             optional
-            value={row.explanation}
+            value={row.explanation ?? ''}
             maxLength={CARD_FIELD_MAX_LENGTH.explanation}
             error={problems.explanation && FIELD_PROBLEM_TEXT.explanation[problems.explanation]}
             onChange={(explanation) => onChange({ explanation })}

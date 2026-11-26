@@ -1,6 +1,6 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { jsonResponse, renderApp } from '../../../test/renderApp';
+import { jsonResponse, renderApp, requestBodyJson } from '../../../test/renderApp';
 
 type Card = { question: string; answer: string };
 type ImportRequest = { cards: Card[]; key: string | null; learner: string | null };
@@ -52,7 +52,7 @@ function fakeDeckServer({
     if (method === 'POST' && path === '/api/v1/decks/7/import') {
       const headers = new Headers(init?.headers);
       const request = {
-        cards: (JSON.parse(String(init?.body)) as { cards: Card[] }).cards,
+        cards: (requestBodyJson(init) as { cards: Card[] }).cards,
         key: headers.get('Idempotency-Key'),
         learner: headers.get('X-Revue-Learner'),
       };
@@ -130,6 +130,30 @@ describe('paste import', () => {
       },
     ]);
     expect(await screen.findByRole('button', { name: /What is a strait\?/ })).toBeDefined();
+  });
+
+  it('offers Explanation for a pasted answer over 300 characters, so its extra details can move there', async () => {
+    const server = fakeDeckServer();
+    renderApp(pastePage);
+    const keyIdea = 'Typhoons form over warm ocean water.';
+    const details = ' They draw energy from the heat and moisture.'.repeat(7);
+    await paste(`What powers a typhoon?\t${keyIdea}${details}`);
+    fireEvent.click(screen.getByRole('button', { name: `Preview ${count(1, 'card')}` }));
+    await screen.findByRole('heading', { name: 'Preview cards' });
+
+    const answer = screen.getByLabelText('Answer');
+    expect(screen.getByText('Shorten the answer to 300 characters.')).toBeDefined();
+    expect(answer.getAttribute('aria-describedby')).toContain(
+      screen.getByText(/Move extra details to Explanation\.$/).id,
+    );
+    fireEvent.change(answer, { target: { value: keyIdea } });
+    fireEvent.change(screen.getByLabelText('Explanation'), { target: { value: details.trim() } });
+    fireEvent.click(screen.getByRole('button', { name: `Import ${count(1, 'card')}` }));
+
+    expect(await screen.findByText('1 card imported.')).toBeDefined();
+    expect(server.imports[0].cards).toEqual([
+      { question: 'What powers a typhoon?', answer: keyIdea, explanation: details.trim() },
+    ]);
   });
 
   it('removes a card from the import, offers Undo in its place and counts what will be saved', async () => {
@@ -396,6 +420,7 @@ describe('paste import', () => {
   it('opens the paste page from a new card form', async () => {
     fakeDeckServer();
     renderApp('/library/decks/7');
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Add card' }))[0]);
     fireEvent.click(await screen.findByRole('link', { name: 'Paste many cards at once' }));
     expect(await screen.findByRole('heading', { name: 'Paste cards', level: 1 })).toBeDefined();
     expect((await screen.findByRole('link', { name: 'Philippine geography' })).getAttribute('href')).toBe(

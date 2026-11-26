@@ -1,6 +1,6 @@
 import { CARD_FIELD_MAX_LENGTH } from './decks';
 import { readPastedBlocks } from './pastedBlocks';
-import type { ConvertedHtml } from './ankiFields';
+import { noConvertedFields, type ConvertedFields } from './ankiFields';
 import { readPastedRows, writePastedRows } from './pastedRows';
 
 /** The server refuses larger imports, so the preview stops at the same count. */
@@ -20,9 +20,9 @@ export type CardProblems = {
  * Splits pasted notes into cards. Rows from a spreadsheet, Quizlet or Anki read one card per row; other text reads as
  * blocks separated by blank lines, with optional "Q:" and "A:" labels.
  */
-export function parsePastedCards(text: string, convertedHtml: ConvertedHtml = new Map()): PastedCard[] {
+export function parsePastedCards(text: string, converted: ConvertedFields = noConvertedFields()): PastedCard[] {
   const cleanText = withoutNullCharacters(text);
-  return readPastedRows(cleanText, convertedHtml) ?? readPastedBlocks(cleanText);
+  return readPastedRows(cleanText, converted) ?? readPastedBlocks(cleanText);
 }
 
 /** Pasted text can carry invisible null characters, which the server refuses. */
