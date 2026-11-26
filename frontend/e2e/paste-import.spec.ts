@@ -56,7 +56,7 @@ test.describe('on a touch screen', () => {
     await createDeckAndOpenPaste(page, 'Philippine geography');
     await previewPaste(page, MIXED_PASTE);
 
-    const toFix = page.getByRole('button', { name: '1 to fix' });
+    const toFix = page.getByRole('button', { name: /^1\scard to fix$/ });
     const importButton = page.getByRole('button', { name: /^Import 3\scards$/ });
     await expect(toFix).toBeVisible();
     await page.getByRole('button', { name: /^Card 3, What is an isthmus/ }).tap();
@@ -68,7 +68,7 @@ test.describe('on a touch screen', () => {
     await page.screenshot({ path: info.outputPath('paste-preview-320.png') });
 
     await page.keyboard.type('A narrow channel of water.');
-    await expect(page.getByText('Ready', { exact: true })).toBeVisible();
+    await expect(page.getByText('Ready to import', { exact: true })).toBeVisible();
     await importButton.tap();
     await expect(page.getByText(/^3\scards imported\.$/)).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Philippine geography', level: 1 })).toBeVisible();
@@ -102,7 +102,7 @@ test('the preview fits 320 pixels at 200% text and keeps every action reachable'
   expect(await hasSidewaysScroll(page)).toBe(false);
   await previewPaste(page, MIXED_PASTE);
   expect(await hasSidewaysScroll(page)).toBe(false);
-  for (const name of [/^Import 3\scards$/, /^1 to fix$/, /^Remove card$/, /^Done$/]) {
+  for (const name of [/^Import 3\scards$/, /^1\scard to fix$/, /^Remove card$/, /^Done$/]) {
     const control = page.getByRole('button', { name });
     await control.scrollIntoViewIfNeeded();
     const box = (await control.boundingBox())!;
@@ -110,6 +110,23 @@ test('the preview fits 320 pixels at 200% text and keeps every action reachable'
     expect(box.x + box.width).toBeLessThanOrEqual(320);
   }
   await page.screenshot({ path: info.outputPath('paste-preview-320-200.png'), fullPage: true });
+});
+
+test('on a tablet the preview shows the chosen card beside the list and keeps Import in reach', async ({
+  page,
+  pilot,
+}) => {
+  await page.setViewportSize({ width: 768, height: 1024 });
+  await signup(page, pilot.signupUrl);
+  await createDeckAndOpenPaste(page, 'Tablet preview');
+  await previewPaste(page, MIXED_PASTE);
+
+  const selectedCard = page.getByRole('region', { name: 'Selected card' });
+  await expect(selectedCard.getByRole('heading', { name: 'Card 2 of 3' })).toBeVisible();
+  await page.getByRole('button', { name: /^Card 3, What is an isthmus/ }).click();
+  await expect(selectedCard.getByRole('heading', { name: 'Card 3 of 3' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Import 3\scards$/ })).toBeInViewport({ ratio: 1 });
+  expect(await hasSidewaysScroll(page)).toBe(false);
 });
 
 test('rows from Quizlet, a spreadsheet or an older Anki import one card per row, and only HTML fields read as HTML', async ({
@@ -133,7 +150,7 @@ test('rows from Quizlet, a spreadsheet or an older Anki import one card per row,
       'heart\tFour<br>chambers<img src="/pasted-image.png">',
     ].join('\n'),
   );
-  await expect(page.getByText('Ready', { exact: true })).toBeVisible();
+  await expect(page.getByText('Ready to import', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: /^Card 5, heart Four chambers Had an image$/ })).toBeVisible();
   await page.getByRole('button', { name: /^Import 5\scards$/ }).click();
   await expect(page.getByText(/^5\scards imported\.$/)).toBeVisible();
@@ -201,20 +218,18 @@ test('an import problem shows beside the Import button after scrolling to the en
   await expect(page.getByRole('alert')).toBeInViewport({ ratio: 1 });
 });
 
-async function labelClearsImportBar(page: Page, label: string) {
+async function fieldClearsDock(page: Page, label: string) {
   return page.evaluate((text) => {
     const fieldLabel = [...document.querySelectorAll('label')].find((item) => item.textContent === text);
-    const importButton = [...document.querySelectorAll('button')].find((item) =>
-      /^Import/.test(item.textContent ?? ''),
-    );
-    let bar = importButton?.parentElement ?? null;
-    while (bar && bar !== document.body && getComputedStyle(bar).position !== 'sticky') bar = bar.parentElement;
-    const coveredTo = bar && bar !== document.body ? bar.getBoundingClientRect().bottom : 0;
-    return fieldLabel !== undefined && fieldLabel.getBoundingClientRect().top >= coveredTo;
+    const field = fieldLabel?.control;
+    const dock = document.querySelector('.paste-dock');
+    if (!fieldLabel || !field || !dock) return false;
+    const visibleBottom = Math.min(dock.getBoundingClientRect().top, window.innerHeight);
+    return fieldLabel.getBoundingClientRect().top >= 0 && field.getBoundingClientRect().bottom <= visibleBottom;
   }, label);
 }
 
-test('the card to fix and its label stay below the sticky bar with the keyboard open, beside an import problem', async ({
+test('the card to fix and its label stay clear of the dock beside an import problem, also with the keyboard open', async ({
   page,
   pilot,
 }) => {
@@ -231,6 +246,7 @@ test('the card to fix and its label stay below the sticky bar with the keyboard 
   await page.getByRole('button', { name: 'Done' }).click();
 
   for (const [width, height, textSize] of [
+    [375, 667, '100%'],
     [375, 360, '100%'],
     [320, 300, '200%'],
   ] as const) {
@@ -239,9 +255,9 @@ test('the card to fix and its label stay below the sticky bar with the keyboard 
       document.documentElement.style.fontSize = size;
       window.scrollTo(0, 0);
     }, textSize);
-    await page.getByRole('button', { name: '1 to fix' }).click();
+    await page.getByRole('button', { name: /^1\scard to fix$/ }).click();
     await expect(page.getByRole('textbox', { name: 'Answer' })).toBeFocused();
-    expect(await labelClearsImportBar(page, 'Answer')).toBe(true);
+    expect(await fieldClearsDock(page, 'Answer')).toBe(true);
   }
 });
 

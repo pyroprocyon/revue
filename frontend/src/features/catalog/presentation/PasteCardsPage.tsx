@@ -12,6 +12,7 @@ import {
 } from '../application/pastedCards';
 import { useDeckGateway } from './DeckProvider';
 import type { LibraryBrowsing } from './LibraryBrowsingLayout';
+import { PasteDock } from './PasteDock';
 import { PastePreview, type ImportDestination } from './PastePreview';
 import { decksUnavailable } from './decksUnavailable';
 import { textFieldStyle } from './TextField';
@@ -203,10 +204,12 @@ function PasteStep({
             </p>
           )}
         </div>
-        <button type="submit" className={`${primaryButton} w-full sm:w-auto sm:justify-self-start`}>
-          {cards.length > 0 && !tooMany ? `Preview ${cardCountLabel(cards.length)}` : 'Preview cards'}
-          <ChevronRight aria-hidden="true" className="size-5 shrink-0" />
-        </button>
+        <PasteDock>
+          <button type="submit" className={primaryButton}>
+            {cards.length > 0 && !tooMany ? `Preview ${cardCountLabel(cards.length)}` : 'Preview cards'}
+            <ChevronRight aria-hidden="true" className="size-5 shrink-0" />
+          </button>
+        </PasteDock>
       </form>
     </WorkspacePage>
   );

@@ -1,6 +1,7 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { jsonResponse, renderApp, requestBodyJson } from '../../../test/renderApp';
+import { wideLayout } from '../../../test/wideLayout';
 
 type Card = { question: string; answer: string };
 type ImportRequest = { cards: Card[]; key: string | null; learner: string | null };
@@ -113,7 +114,7 @@ describe('paste import', () => {
     expect(document.activeElement).toBe(answer);
 
     fireEvent.change(answer, { target: { value: 'A narrow channel of water.' } });
-    expect(screen.getByText('Ready')).toBeDefined();
+    expect(screen.getByText('Ready to import')).toBeDefined();
     fireEvent.click(screen.getByRole('button', { name: `Import ${count(3, 'cards')}` }));
 
     expect(await screen.findByText('3 cards imported.')).toBeDefined();
@@ -130,6 +131,60 @@ describe('paste import', () => {
       },
     ]);
     expect(await screen.findByRole('button', { name: /What is a strait\?/ })).toBeDefined();
+  });
+
+  it('on a wide screen shows the chosen card beside the list, moved by arrow keys, and opens the card to fix there', async () => {
+    wideLayout();
+    const server = fakeDeckServer();
+    renderApp(pastePage);
+    await paste(MIXED_PASTE);
+    fireEvent.click(screen.getByRole('button', { name: `Preview ${count(3, 'cards')}` }));
+    await screen.findByRole('heading', { name: 'Preview cards', level: 1 });
+    const selectedCard = () => screen.getByRole('region', { name: 'Selected card' });
+
+    expect(within(selectedCard()).getByRole('heading', { name: 'Card 2 of 3' })).toBeDefined();
+    expect(within(selectedCard()).queryByRole('button', { name: 'Done' })).toBeNull();
+    const strait = previewRow(/^Card 2, What is a strait\? Needs an answer$/);
+    expect(strait.getAttribute('aria-pressed')).toBe('true');
+    expect(previewRow(/^Card 1, What is an archipelago\?/).tabIndex).toBe(-1);
+
+    fireEvent.keyDown(strait, { key: 'ArrowDown' });
+    const isthmus = previewRow(/^Card 3, What is an isthmus\?/);
+    expect(document.activeElement).toBe(isthmus);
+    expect(isthmus.getAttribute('aria-pressed')).toBe('true');
+    expect(within(selectedCard()).getByRole('heading', { name: 'Card 3 of 3' })).toBeDefined();
+
+    fireEvent.click(screen.getByRole('button', { name: `${count(1, 'card')} to fix` }));
+    const answer = within(selectedCard()).getByLabelText('Answer');
+    await waitFor(() => expect(document.activeElement).toBe(answer));
+    fireEvent.change(answer, { target: { value: 'A narrow channel of water.' } });
+    expect(screen.getByText('Ready to import')).toBeDefined();
+    fireEvent.click(screen.getByRole('button', { name: `Import ${count(3, 'cards')}` }));
+
+    expect(await screen.findByText('3 cards imported.')).toBeDefined();
+    expect(server.imports[0].cards[1]).toEqual({ question: 'What is a strait?', answer: 'A narrow channel of water.' });
+  });
+
+  it('on a wide screen shows another card after the shown one is removed, and Undo brings it back to the pane', async () => {
+    wideLayout();
+    fakeDeckServer();
+    renderApp(pastePage);
+    await paste(MIXED_PASTE);
+    fireEvent.click(screen.getByRole('button', { name: `Preview ${count(3, 'cards')}` }));
+    await screen.findByRole('heading', { name: 'Preview cards', level: 1 });
+    const selectedCard = () => screen.getByRole('region', { name: 'Selected card' });
+
+    fireEvent.click(within(selectedCard()).getByRole('button', { name: 'Remove card' }));
+    const undo = await screen.findByRole('button', { name: 'Undo' });
+    await waitFor(() => expect(document.activeElement).toBe(undo));
+    expect(within(selectedCard()).getByRole('heading', { name: 'Card 1 of 2' })).toBeDefined();
+    expect(previewRow(/^Card 1, What is an archipelago\?/).getAttribute('aria-pressed')).toBe('true');
+
+    fireEvent.click(undo);
+    const strait = previewRow(/^Card 2, What is a strait\? Needs an answer$/);
+    await waitFor(() => expect(document.activeElement).toBe(strait));
+    expect(strait.getAttribute('aria-pressed')).toBe('true');
+    expect(within(selectedCard()).getByRole('heading', { name: 'Card 2 of 3' })).toBeDefined();
   });
 
   it('offers Explanation for a pasted answer over 300 characters, so its extra details can move there', async () => {
@@ -216,7 +271,7 @@ describe('paste import', () => {
     );
     fireEvent.change(text, { target: { value: `${text.value}\n\nWhat is a bay?\nA wide inlet.` } });
     fireEvent.click(screen.getByRole('button', { name: `Preview ${count(4, 'cards')}` }));
-    await screen.findByText('Ready');
+    await screen.findByText('Ready to import');
   });
 
   it('imports a Quizlet export row by row, and Anki rows with their explanation and removed image marked', async () => {
@@ -225,7 +280,7 @@ describe('paste import', () => {
     await paste('archipelago\tA group of islands\nstrait\tA narrow channel\nthat joins two seas');
     expect(screen.getByText('2 cards found')).toBeDefined();
     fireEvent.click(screen.getByRole('button', { name: `Preview ${count(2, 'cards')}` }));
-    expect(await screen.findByText('Ready')).toBeDefined();
+    expect(await screen.findByText('Ready to import')).toBeDefined();
     fireEvent.click(screen.getByRole('button', { name: 'Edit text' }));
 
     await paste(
@@ -233,7 +288,7 @@ describe('paste import', () => {
     );
     fireEvent.click(screen.getByRole('button', { name: `Preview ${count(1, 'card')}` }));
     const valve = await screen.findByRole('button', { name: /^Card 1, Which valve\? Mitral Had an image$/ });
-    expect(screen.getByText('Ready')).toBeDefined();
+    expect(screen.getByText('Ready to import')).toBeDefined();
     fireEvent.click(valve);
     expect(await screen.findByText('Image removed. Check that the card still makes sense.')).toBeDefined();
     const explanation = screen.getByLabelText('Explanation');

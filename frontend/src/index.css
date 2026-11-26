@@ -582,6 +582,13 @@ details[open] > .review-draft-toggle > .draft-icon::before { content: '−'; }
 @container workspace (width < 40rem) and (width >= 20rem) {
   .workspace-layout {
     --workspace-nav-bottom: var(--phone-dock-inset);
+    --workspace-tab-width: 3rem;
+    --workspace-active-tab-width: 6.875rem;
+    --workspace-tab-gap: 0.25rem;
+    --workspace-nav-inline-size: calc(
+      3 * var(--workspace-tab-width) + var(--workspace-active-tab-width) + 3 * var(--workspace-tab-gap) +
+        2 * (var(--workspace-tab-gap) + 1px)
+    );
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-rows: auto minmax(0, 1fr);
@@ -624,9 +631,7 @@ details[open] > .review-draft-toggle > .draft-icon::before { content: '−'; }
   }
 
   .workspace-navigation {
-    --workspace-tab-width: 3rem;
-    --workspace-active-tab-width: 6.875rem;
-    --workspace-tab-step: calc(var(--workspace-tab-width) + 0.25rem);
+    --workspace-tab-step: calc(var(--workspace-tab-width) + var(--workspace-tab-gap));
     grid-row: 1 / -1;
     justify-self: center;
     align-self: end;
@@ -635,11 +640,11 @@ details[open] > .review-draft-toggle > .draft-icon::before { content: '−'; }
     z-index: 20;
     display: flex;
     overflow: clip;
-    gap: 0.25rem;
+    gap: var(--workspace-tab-gap);
     margin-inline: max(1rem, var(--phone-edge-gutter), env(safe-area-inset-left)) max(1rem, var(--phone-edge-gutter), env(safe-area-inset-right));
     border: 1px solid var(--color-line);
     border-radius: 999px;
-    padding: 0.25rem;
+    padding: var(--workspace-tab-gap);
     @apply floating-control-surface;
   }
 
@@ -1589,9 +1594,160 @@ details[open] > .review-draft-toggle > .draft-icon::before { content: '−'; }
   }
 }
 
+.paste-dock {
+  position: relative;
+  z-index: 12;
+  display: grid;
+  gap: 0.5rem;
+  pointer-events: none;
+}
+
+.paste-dock > * { pointer-events: auto; }
+
+.paste-dock-glass {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  padding: 0.375rem;
+  border: 1px solid var(--color-line);
+  border-radius: calc(var(--radius-control) + 0.375rem);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-control);
+}
+
+.paste-dock-glass > button { flex: 1; }
+
+.paste-dock-glass > button:not(:disabled) {
+  background-image: linear-gradient(180deg, rgb(255 255 255 / 12%), transparent 55%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 30%),
+    inset 0 -1px 0 color-mix(in srgb, var(--color-accent-strong) 45%, transparent),
+    0 1px 2px color-mix(in srgb, var(--color-elevation) 25%, transparent);
+}
+
+@supports (color: color-mix(in srgb, white, transparent)) and
+  ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .paste-dock-glass {
+    border-color: color-mix(in srgb, var(--color-surface) 65%, transparent);
+    background:
+      linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--color-surface) 55%, transparent),
+        color-mix(in srgb, var(--color-surface) 16%, transparent) 52%,
+        color-mix(in srgb, var(--color-surface) 32%, transparent)
+      ),
+      color-mix(in srgb, var(--color-accent-soft) 38%, transparent);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    backdrop-filter: blur(16px) saturate(180%);
+    box-shadow:
+      inset 0 1px 0.5px color-mix(in srgb, var(--color-surface) 95%, transparent),
+      inset 0 -1px 1px color-mix(in srgb, var(--color-accent-strong) 7%, transparent),
+      inset 0 0 0 1px color-mix(in srgb, var(--color-surface) 18%, transparent),
+      0 0 0 0.5px color-mix(in srgb, var(--color-accent-strong) 14%, transparent),
+      0 2px 6px color-mix(in srgb, var(--color-elevation) 6%, transparent),
+      0 14px 32px -14px color-mix(in srgb, var(--color-accent) 42%, transparent);
+  }
+
+  .paste-dock-glass::before {
+    content: '';
+    position: absolute;
+    inset: 1px;
+    z-index: -1;
+    border-radius: inherit;
+    background:
+      radial-gradient(70% 140% at 18% -20%, color-mix(in srgb, var(--color-surface) 75%, transparent), transparent 62%),
+      radial-gradient(50% 120% at 88% 125%, color-mix(in srgb, var(--color-surface) 40%, transparent), transparent 60%);
+    pointer-events: none;
+  }
+}
+
+@media (width < 40rem) and (height >= 33rem) and (orientation: portrait) {
+  @container workspace (20rem <= width < 40rem) {
+    .workspace-content:has(.paste-dock) {
+      --paste-dock-bottom: calc(var(--workspace-nav-bottom) + 4.625rem);
+      padding-block-end: var(--paste-dock-bottom);
+      overflow-x: clip;
+    }
+
+    .workspace-content:has(.paste-dock) :is(textarea, button) {
+      scroll-margin-block-end: calc(var(--paste-dock-bottom) + 4.5rem);
+    }
+
+    .paste-dock {
+      position: sticky;
+      inset-block-end: var(--paste-dock-bottom);
+    }
+
+    .paste-dock::before {
+      content: '';
+      position: absolute;
+      inset: -0.75rem calc(50% - 50vw) calc(-1 * var(--paste-dock-bottom));
+      z-index: -1;
+      background: linear-gradient(
+        transparent,
+        color-mix(in srgb, var(--color-page) 78%, transparent) 2.5rem,
+        color-mix(in srgb, var(--color-page) 92%, transparent)
+      );
+      -webkit-backdrop-filter: blur(6px);
+      backdrop-filter: blur(6px);
+      mask-image: linear-gradient(transparent, black 2.5rem);
+    }
+  }
+}
+
+@container workspace (20rem <= width < 40rem) {
+  .paste-dock-glass {
+    justify-self: center;
+    inline-size: min(100%, var(--workspace-nav-inline-size));
+  }
+}
+
+@container workspace (width >= 40rem) {
+  .paste-dock {
+    position: sticky;
+    inset-block-end: max(1.5rem, env(safe-area-inset-bottom));
+    justify-items: end;
+  }
+
+  .paste-dock > :not(.paste-dock-glass) { max-inline-size: 30rem; }
+  .paste-dock-glass > button { flex: none; }
+}
+
+:root[data-solid-controls] .paste-dock-glass {
+  border-color: var(--color-line);
+  background: var(--color-surface);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: var(--shadow-control);
+}
+
+:root[data-solid-controls] .paste-dock::before {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+:root[data-solid-controls] .paste-dock-glass::before { display: none; }
+
+@media (prefers-reduced-transparency: reduce), (forced-colors: active) {
+  .paste-dock-glass {
+    border-color: var(--color-line);
+    background: var(--color-surface);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: var(--shadow-control);
+  }
+
+  .paste-dock-glass::before { display: none; }
+
+  .paste-dock::before {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
 @container workspace (40rem <= width < 64rem) {
-  .workspace-layout[data-compact]:not([data-main-tab], [data-help-page]) .workspace-brand,
-  .workspace-layout[data-compact]:not([data-main-tab]) .workspace-help {
+  .workspace-layout[data-compact]:not([data-compact="phone"], [data-main-tab], [data-help-page]) .workspace-brand,
+  .workspace-layout[data-compact]:not([data-compact="phone"], [data-main-tab]) .workspace-help {
     display: none;
   }
   .workspace-layout[data-main-tab] .workspace-titlebar {

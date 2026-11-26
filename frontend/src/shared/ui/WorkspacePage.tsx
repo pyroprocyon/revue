@@ -8,6 +8,7 @@ type WorkspacePageProps = {
   headingIcon?: ReactNode;
   aboveTitle?: ReactNode;
   subtitle?: ReactNode;
+  status?: ReactNode;
   headingAction?: ReactNode;
   headerControls?: ReactNode;
   focusHeading?: boolean;
@@ -22,6 +23,7 @@ export function WorkspacePage({
   headingIcon,
   aboveTitle,
   subtitle,
+  status,
   headingAction,
   headerControls,
   focusHeading = true,
@@ -51,6 +53,7 @@ export function WorkspacePage({
                 <div className="min-w-0">
                   {heading}
                   <p className="mt-1 text-support text-muted">{subtitle}</p>
+                  {status && <div className="mt-2">{status}</div>}
                 </div>
               ) : (
                 heading
