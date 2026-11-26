@@ -159,9 +159,9 @@ function isLoadingLibraryShelf(
   decks: ReturnType<typeof useDecks>,
   library: ReturnType<typeof useSavedSets>,
 ) {
-  // When there are no decks, the saved count determines the default shelf.
+  const savedCountChoosesShelf = shelf === null && defaultToSaved;
   const waitingForSaved = !library.isFetched && library.data === undefined;
-  if (waitingForSaved && (shelf === 'saved' || (shelf === null && defaultToSaved))) return true;
+  if (waitingForSaved && (shelf === 'saved' || savedCountChoosesShelf)) return true;
   return !saved && !decks.isFetched && decks.data === undefined;
 }
 
