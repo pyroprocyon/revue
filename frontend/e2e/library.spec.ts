@@ -23,7 +23,7 @@ async function signIn(page: Page, username: string) {
   await page.getByRole('button', { name: 'Sign in' }).click();
 }
 
-test('Back restores the Saved shelf after its reviewer bundle fails to load', async ({ page, pilot }) => {
+test('Back restores the Saved shelf after its reviewer bundle fails to load offline', async ({ page, pilot }) => {
   pilot.addSaveableSet();
   await register(page, pilot.signupUrl);
   await page.goto('/sets/published-test-set');
@@ -31,11 +31,17 @@ test('Back restores the Saved shelf after its reviewer bundle fails to load', as
   await expect(page.getByRole('link', { name: 'Open Library' })).toBeVisible();
   await page.goto('/library?shelf=saved');
 
+  await page.evaluate(() => Object.defineProperty(navigator, 'onLine', { value: false }));
+  let documentRequests = 0;
+  page.on('request', (request) => {
+    if (request.isNavigationRequest()) documentRequests++;
+  });
   await page.route('**/assets/SavedSetBrowser-*.js', (route) => route.abort('failed'));
   const reviewer = page.getByRole('link', { name: 'Open Published test set', exact: true });
   await reviewer.click();
   const failure = page.getByRole('heading', { name: 'Something went wrong' });
   await expect(failure).toBeFocused();
+  expect(documentRequests).toBe(0);
 
   await page.goBack();
   await expect(page).toHaveURL(/\/library\?shelf=saved$/);
