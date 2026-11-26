@@ -187,6 +187,36 @@ describe('paste import', () => {
     expect(within(selectedCard()).getByRole('heading', { name: 'Card 2 of 3' })).toBeDefined();
   });
 
+  it('on a wide screen keeps the card shown after a removal while its answer is typed', async () => {
+    wideLayout();
+    const server = fakeDeckServer();
+    renderApp(pastePage);
+    await paste('Capital of Spain?\n\nCapital of France?\n\nCapital of Italy?');
+    fireEvent.click(screen.getByRole('button', { name: `Preview ${count(3, 'cards')}` }));
+    await screen.findByRole('heading', { name: 'Preview cards', level: 1 });
+    const selectedCard = () => screen.getByRole('region', { name: 'Selected card' });
+
+    fireEvent.click(within(selectedCard()).getByRole('button', { name: 'Remove card' }));
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Undo' })));
+    const answer = within(selectedCard()).getByLabelText('Answer');
+    answer.focus();
+    for (const typed of ['P', 'Pa', 'Par', 'Pari', 'Paris']) {
+      fireEvent.change(answer, { target: { value: typed } });
+      expect(document.activeElement).toBe(answer);
+      expect(within(selectedCard()).getByRole('heading', { name: 'Card 1 of 2' })).toBeDefined();
+    }
+    expect(previewRow(/^Card 1, Capital of France\? Paris$/)).toBeDefined();
+
+    fireEvent.click(previewRow(/^Card 2, Capital of Italy\?/));
+    fireEvent.change(within(selectedCard()).getByLabelText('Answer'), { target: { value: 'Rome' } });
+    fireEvent.click(screen.getByRole('button', { name: `Import ${count(2, 'cards')}` }));
+    expect(await screen.findByText('2 cards imported.')).toBeDefined();
+    expect(server.imports[0].cards).toEqual([
+      { question: 'Capital of France?', answer: 'Paris' },
+      { question: 'Capital of Italy?', answer: 'Rome' },
+    ]);
+  });
+
   it('offers Explanation for a pasted answer over 300 characters, so its extra details can move there', async () => {
     const server = fakeDeckServer();
     renderApp(pastePage);
@@ -297,7 +327,7 @@ describe('paste import', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Edit text' }));
 
     const text = (await screen.findByLabelText('Your text')) as HTMLTextAreaElement;
-    expect(text.value).toBe('#separator:tab\n#notetype:Revue\nWhich valve?\tMitral\tAlso called the bicuspid valve.');
+    expect(text.value).toBe('#separator:tab\n#revue:as typed\nWhich valve?\tMitral\tAlso called the bicuspid valve.');
     fireEvent.click(screen.getByRole('button', { name: `Preview ${count(1, 'card')}` }));
     fireEvent.click(await screen.findByRole('button', { name: `Import ${count(1, 'card')}` }));
     await screen.findByText('1 card imported.');

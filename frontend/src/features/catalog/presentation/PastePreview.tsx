@@ -110,6 +110,8 @@ export function PastePreview({
   const keysHintId = useId();
   const cardsToFix = rows.filter(needsFix).length;
   const paneRow = wide ? rowInPane(rows, openKey) : undefined;
+  // Fixing the fallback card changes which card the fallback picks, so the pane keeps the card it shows.
+  if (paneRow && paneRow.key !== openKey) setOpenKey(paneRow.key);
   const listOpenKey = wide ? null : openKey;
 
   useEffect(() => {
