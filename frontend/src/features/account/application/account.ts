@@ -16,7 +16,7 @@ export type Signup = { username: string; password: string };
 export type StudySettings = { dailyNewCardLimit: DailyNewCardLimit };
 
 export interface AccountGateway {
-  prepareWrite: () => void;
+  prepareWrite: (this: void) => void;
   signedIn: (signal?: AbortSignal) => Promise<boolean>;
   current: (signal?: AbortSignal) => Promise<AccountProfile | null>;
   studySettings: (signal?: AbortSignal) => Promise<StudySettings>;

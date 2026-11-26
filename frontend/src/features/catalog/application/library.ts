@@ -34,7 +34,7 @@ export interface LibraryGateway {
   list: (after?: string, group?: ReviewGroup, signal?: AbortSignal) => Promise<LibraryPage>;
   savedKeys: (signal: AbortSignal) => Promise<string[]>;
   detail: (id: string) => Promise<SavedSet>;
-  cards: (setId: string, query: DeckCardQuery, signal?: AbortSignal) => Promise<DeckCardPage>;
+  cards: (this: void, setId: string, query: DeckCardQuery, signal?: AbortSignal) => Promise<DeckCardPage>;
 }
 
 /** Share identifiers are base 36; BigInt preserves the database's full bigint identifier. */
