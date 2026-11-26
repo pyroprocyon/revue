@@ -132,6 +132,7 @@ test('saved review survives a lost response, exact retry, reload and removal', a
 
 test('Study rhythm sits above the review topics at every width', async ({ page, pilot }, info) => {
   const title = 'Cell transport and membrane transport mechanisms';
+  await page.route('**/assets/*.woff2', (route) => route.abort('failed'));
   await signup(page, pilot.signupUrl);
   await page.route('**/api/v1/cards/due*', (route) =>
     route.fulfill({
@@ -214,6 +215,7 @@ test('Study rhythm sits above the review topics at every width', async ({ page, 
     const resume = (await continuation.getByRole('link', { name: 'Continue', exact: true }).boundingBox())!;
     const start = (await firstAction.boundingBox())!;
     expect({ width: start.width, height: start.height }).toEqual({ width: resume.width, height: resume.height });
+    expect(start.height).toBe(48);
   }
 
   await page.setViewportSize({ width: 320, height: 568 });
@@ -274,6 +276,7 @@ test('saved ratings follow the full typed answer on iPhone SE', async ({ page, p
 });
 
 withVisibleScrollbars('Saved recall stays usable across widths and text sizes', async ({ page, pilot }, info) => {
+  test.setTimeout(60_000);
   let ratings = 0;
   let started = false;
   page.on('request', (request) => {

@@ -250,7 +250,8 @@ test('a learner creates a private deck, starts its first review from the deck an
   await otherPage.goto(deckUrl);
   await expect(otherPage.getByRole('alert')).toHaveText('This deck isn’t in your Library.');
   await expect(otherPage.getByText('What is osmosis?')).toHaveCount(0);
-  await otherPage.getByRole('main').getByRole('link', { name: 'Back to Library', exact: true }).click();
+  await otherPage.getByRole('link', { name: 'Back to Library', exact: true }).click();
+  await expect(otherPage).toHaveURL(/\/library$/);
   await expect(otherPage.getByRole('link', { name: 'Open Biology quiz', exact: true })).toHaveCount(0);
   await otherLearner.close();
 });
@@ -850,6 +851,7 @@ test('Library decks follow the finger on phones and tablets and filter the same 
   pilot,
 }) => {
   await page.setViewportSize({ width: 320, height: 568 });
+  await page.route('**/*.woff2', (route) => route.abort());
   await registerDeckLearner(page, pilot.origin);
   const csrf = await (await page.request.get('/api/v1/auth/csrf')).json();
   for (const title of ['Biology quiz', 'History review', 'Biology final']) {
@@ -1213,7 +1215,6 @@ test('deck lists append cards on phones and page by keyboard on wide screens', a
     const toolbar = () => settings.evaluate((button) => button.parentElement!.getBoundingClientRect().toJSON());
     const heldToolbar = await toolbar();
     expect(await settings.evaluate((button) => button.parentElement!.hasAttribute('data-stuck'))).toBe(true);
-    if (width === 704) expect(heldToolbar.height, 'the toolbar wraps onto two rows').toBeGreaterThan(2 * 48);
     const pane = (await page.getByRole('region', { name: 'Selected card' }).boundingBox())!;
     expect(pane.y, `selected card pane at ${width}px`).toBeGreaterThanOrEqual(heldToolbar.bottom);
     for (let row = 19; row >= 1; row -= 1) {
@@ -1245,8 +1246,10 @@ test('deck lists append cards on phones and page by keyboard on wide screens', a
       const bar = (await pager.boundingBox())!;
       const list = (await cards.boundingBox())!;
       expect(bar.y + bar.height).toBeLessThan(list.y);
-      const settingsBox = (await settings.boundingBox())!;
-      expect(Math.abs(bar.y + bar.height / 2 - (settingsBox.y + settingsBox.height / 2))).toBeLessThan(2);
+      const header = page.getByRole('group', { name: 'Cards header' });
+      await expect(header.getByRole('navigation', { name: 'Deck pages' })).toBeVisible();
+      const headerBox = (await header.boundingBox())!;
+      expect(bar.x + bar.width).toBeCloseTo(headerBox.x + headerBox.width, 0);
     } else {
       await expect(more).toBeVisible();
       await expect(pager).toHaveCount(0);

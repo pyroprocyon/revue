@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router';
 import { safeAccountReturnPath } from '../application/account';
 import type { AccountProfile } from '../application/account';
@@ -20,9 +20,10 @@ import {
   onSessionMismatch,
 } from '../../../shared/http/sameOriginRequest';
 import { loadPage } from '../../../shared/navigation/pageLoads';
-import { TODAY_PATH, signInPath } from '../../../shared/navigation/paths';
+import { SETS_PATH, TODAY_PATH, signInPath } from '../../../shared/navigation/paths';
 import { HomeLink } from '../../../shared/ui/HeaderLinks';
 import { LoadingStatus } from '../../../shared/ui/LoadingFeedback';
+import { NavigationLink } from '../../../shared/ui/NavigationLink';
 import { RouteErrorBoundary, RouteErrorCard } from '../../../shared/ui/RouteError';
 import { primaryButton } from '../../../shared/ui/buttonStyles';
 import { StudyLayout } from '../../../shared/ui/StudyLayout';
@@ -46,8 +47,13 @@ const OUTDATED_PAGE_MESSAGE =
  */
 export function AccountLayout({
   focused = false,
+  loadingHeader,
   pendingReads: PendingReads,
-}: Readonly<{ focused?: boolean; pendingReads?: React.ComponentType<{ username: string }> }>) {
+}: Readonly<{
+  focused?: boolean;
+  loadingHeader?: ReactNode;
+  pendingReads?: React.ComponentType<{ username: string }>;
+}>) {
   const location = useLocation();
   const navigate = useNavigate();
   const pendingTab = useRef<{ from: string; to: string; learner: string | null } | null>(null);
@@ -262,6 +268,7 @@ export function AccountLayout({
           >
             {session.status === 'loading' ? 'Loading your account…' : 'Checking your session…'}
           </LoadingStatus>
+          {session.status === 'loading' && <NavigationLink to={SETS_PATH}>Browse reviewers</NavigationLink>}
         </WhenSlow>
       )}
       {verificationError && (
@@ -300,7 +307,9 @@ export function AccountLayout({
     <StudyLayout
       top={
         <>
-          <div ref={setReviewHeader} className="active-review-header empty:hidden" />
+          <div ref={setReviewHeader} className="active-review-header empty:hidden">
+            {session.status === 'loading' && loadingHeader}
+          </div>
           <HomeLink to={TODAY_PATH} compact />
         </>
       }

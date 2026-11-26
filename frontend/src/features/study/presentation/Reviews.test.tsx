@@ -146,19 +146,24 @@ describe('saved daily study', () => {
     expect(localStorage.getItem('revue.paused-review.learner')).toBeNull();
   });
 
-  it('opens a paused Today visit with one summary request', async () => {
+  it('shows the next batch on a paused Today visit with one summary request', async () => {
     localStorage.setItem('revue.paused-review.learner', 'set-1');
     const { fetcher } = api({
-      ...ready,
-      continuation: { topicTitle: 'Plant life', dueCards: 0, newCards: 2, unintroducedCards: 3 },
+      ...empty,
+      totalCards: 24,
+      availableCards: 24,
+      dueCards: 16,
+      newCards: 6,
+      continuation: { topicTitle: 'Plant life', dueCards: 15, newCards: 6, unintroducedCards: 8 },
       topics: [
-        { id: 'set-1', title: 'Plant life', dueCards: 1 },
+        { id: 'set-1', title: 'Plant life', dueCards: 15 },
         { id: 'set-2', title: 'Chemistry', dueCards: 1 },
       ],
     });
     renderApp('/today');
-    await screen.findByRole('link', { name: 'Continue' });
-    expect(screen.getByText('2 cards remain.')).toBeDefined();
+    const continuation = await screen.findByRole('region', { name: 'Continue review' });
+    expect(within(continuation).getByText('Next batch · 5 cards')).toBeDefined();
+    expect(within(continuation).queryByText(/21 cards/)).toBeNull();
     const next = screen.getByRole('region', { name: 'Up next' });
     expect(within(next).getByRole('heading', { name: 'Chemistry' })).toBeDefined();
     expect(within(next).getByRole('link', { name: 'Review 1 card' })).toHaveProperty('pathname', '/review/set-2');
@@ -192,7 +197,7 @@ describe('saved daily study', () => {
     fireEvent.click(workspace.getByRole('link', { name: 'Today' }));
     await waitFor(() => expect(fetchRefresh).toHaveBeenCalledOnce());
     const continuation = screen.getByRole('link', { name: 'Continue' });
-    expect(screen.getByText('2 cards remain.')).toBeDefined();
+    expect(screen.getByText('Next batch · 2 cards')).toBeDefined();
     const next = screen.getByRole('region', { name: 'Up next' });
     expect(within(next).getByRole('link', { name: 'Review 1 card' })).toBeDefined();
 
@@ -205,7 +210,7 @@ describe('saved daily study', () => {
         }),
       );
     });
-    await screen.findByText('1 card remains.');
+    await screen.findByText('Next batch · 1 card');
     expect(screen.getByRole('link', { name: 'Continue' })).toBe(continuation);
     expect(within(next).getByRole('link', { name: 'Review 2 cards' })).toBeDefined();
   });
@@ -971,7 +976,7 @@ describe('signed-in navigation without flicker', () => {
     expect(screen.getByRole('heading', { name: 'Help' })).toBeDefined();
   });
 
-  it('chooses the Help layout only after the session check on a direct visit', async () => {
+  it('opens Help immediately and adds workspace navigation after sign-in is confirmed', async () => {
     const { fetcher } = api();
     const respond = fetcher.getMockImplementation()!;
     let answerSession: (() => void) | undefined;
@@ -984,7 +989,9 @@ describe('signed-in navigation without flicker', () => {
     );
     renderApp('/help');
     await waitFor(() => expect(answerSession).toBeDefined());
-    expect(screen.queryByRole('heading', { name: 'Help' })).toBeNull();
+    expect(screen.getByRole('heading', { name: 'Help' })).toBeDefined();
+    expect(screen.getByRole('switch', { name: 'Solid controls' })).toBeDefined();
+    expect(screen.queryByRole('navigation', { name: 'Your workspace' })).toBeNull();
     await act(async () => answerSession!());
     expect(await screen.findByRole('heading', { name: 'Help' })).toBeDefined();
     expect(screen.getByRole('navigation', { name: 'Your workspace' })).toBeDefined();

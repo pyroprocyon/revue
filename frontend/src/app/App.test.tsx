@@ -65,7 +65,7 @@ describe('App', () => {
     const password = crypto.randomUUID();
     fireEvent.change(screen.getByLabelText('Password'), { target: { value: password } });
     fireEvent.change(screen.getByLabelText('Confirm password'), { target: { value: password + 'x' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Create account' }));
     expect((await screen.findByRole('alert')).textContent).toBe('Passwords don’t match.');
     fireEvent.click(screen.getByRole('link', { name: 'Sign in' }));
     expect(screen.getByRole('heading', { name: 'Welcome back' })).toBeDefined();

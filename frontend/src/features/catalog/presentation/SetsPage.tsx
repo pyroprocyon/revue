@@ -45,7 +45,7 @@ export function SetsPage() {
             </LoadingPlaceholder>
           </WhenSlow>
         )}
-        <ul aria-busy={publicSets.isPending} className="mt-6 grid gap-3">
+        <ul aria-busy={publicSets.isPending} className={`mt-6 grid gap-3 ${items.length > 0 ? 'loading-reveal' : ''}`}>
           {items.map((publicSet) => (
             <li key={publicSet.setKey} className="min-w-0">
               <SetChoice publicSet={publicSet} />

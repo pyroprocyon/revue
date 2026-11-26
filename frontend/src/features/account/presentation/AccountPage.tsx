@@ -70,8 +70,8 @@ export function AccountPage() {
   }
 
   return (
-    <WorkspacePage title="Your account">
-      <div className="screen-enter max-w-[54rem] overflow-hidden rounded-card border border-line bg-surface">
+    <WorkspacePage title="Your account" className="settings-page">
+      <div className="account-settings-group screen-enter rounded-card border border-line bg-surface">
         <div className="p-4 sm:p-5">
           <div className="flex min-w-0 flex-wrap items-center gap-3">
             <span className="grid size-13 shrink-0 place-items-center rounded-[1.125rem] bg-accent-soft text-accent">
@@ -91,7 +91,7 @@ export function AccountPage() {
             aria-labelledby="sign-out-title"
             aria-describedby="sign-out-description"
             aria-busy={busy}
-            className={`${signOutScrollMargin} border-t border-line p-4 sm:p-5`}
+            className={`${signOutScrollMargin} p-4 sm:p-5`}
           >
             <h2 id="sign-out-title" className="text-label font-bold">
               Sign out of Revue?
@@ -128,10 +128,10 @@ export function AccountPage() {
             </div>
           </section>
         ) : (
-          <div className="border-t border-line px-3 py-1 sm:px-4">
+          <div className="px-1 py-1 sm:px-2">
             <button
               type="button"
-              className={`${accountLink} ${signOutScrollMargin} gap-1.5`}
+              className={`${accountLink} ${signOutScrollMargin} gap-1.5 @max-[12rem]:px-2!`}
               ref={trigger}
               onClick={() => {
                 setError('');

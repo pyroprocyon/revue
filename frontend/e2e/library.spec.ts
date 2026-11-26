@@ -581,6 +581,13 @@ test('Library read failures retain an explicit retry instead of showing an empty
   await expect(page.getByRole('alert')).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'Create a deck', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Saved reviewers', exact: true })).toHaveCount(0);
+  const createDeck = page.getByRole('link', { name: 'Create a deck', exact: true });
+  const emptyActionStyle = await createDeck.getAttribute('class');
+  await page.route('**/api/v1/decks', (route) => route.fulfill({ status: 503 }));
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Retry decks' })).toBeVisible();
+  await expect(createDeck).toHaveAttribute('class', emptyActionStyle!);
+  await expect(createDeck).toHaveAttribute('href', '/library/decks/new');
 });
 
 test('the collection switch opens Saved by keyboard and keeps its count beside the label', async ({ page, pilot }) => {

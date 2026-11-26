@@ -6,7 +6,7 @@ import type { DeckCard, DeckCardQuery } from '../application/decks';
 import { LibraryFailure, type SavedSet } from '../application/library';
 import { CardPreview } from './CardPreview';
 import { CardScreen } from './CardScreen';
-import { DeckCardList } from './DeckCardList';
+import { DeckCardList, DeckCardsHeader } from './DeckCardList';
 import { cardToolButton, DeckStatus, DeckToolbar } from './DeckToolbar';
 import { DueFilter } from './DueFilter';
 import { RemoveSetAction, useRemoveSetAction } from './RemoveSetAction';
@@ -26,19 +26,19 @@ import { NavigationLink } from '../../../shared/ui/NavigationLink';
 import { WorkspacePage } from '../../../shared/ui/WorkspacePage';
 import { useFocusOnMount } from '../../../shared/ui/useFocusOnMount';
 import { PageControls } from '../../../shared/ui/PageControls';
-import { WhenSlow } from '../../../shared/ui/WhenSlow';
 import { LoadingPlaceholder, LoadingStatus } from '../../../shared/ui/LoadingFeedback';
 import { secondaryButton } from '../../../shared/ui/buttonStyles';
 
 type Props = {
   set: SavedSet;
   cards: ReturnType<typeof useSavedSetCards>;
+  showLoading: boolean;
   username: string;
   backTo: string;
   onRemoved: (title: string, restoreFocus: boolean) => void;
 };
 
-export function SavedSetBrowser({ set, cards, username, backTo, onRemoved }: Readonly<Props>) {
+export function SavedSetBrowser({ set, cards, showLoading, username, backTo, onRemoved }: Readonly<Props>) {
   const location = useLocation();
   const { search, dueOnly, after, view, onSearch, onDue, pageTo, cursors } = useSavedCardFilters();
   const { items, dueIds, deck, progress, unavailable, signedOut, nextCursor } = useSavedCardPage(
@@ -90,7 +90,6 @@ export function SavedSetBrowser({ set, cards, username, backTo, onRemoved }: Rea
         onSearch={onSearch}
         onClearSearch={() => onSearch('')}
         savedSetBack={backTo}
-        pagination={wide && pagination}
         stickyBottom={toolbarBottom}
         onHeldBottomChange={setToolbarBottom}
         settings={settings.control}
@@ -128,15 +127,16 @@ export function SavedSetBrowser({ set, cards, username, backTo, onRemoved }: Rea
       {set.retired && <p className="my-2 text-support font-semibold">No longer offered · Still in your Library</p>}
       <SavedCardsFeedback
         cards={cards}
+        showLoading={showLoading}
         unavailable={unavailable}
         search={search}
         filtered={dueOnly || Boolean(after)}
       />
       <div ref={panes} className={wide ? twoPanes : onePane} style={belowToolbar(toolbarBottom)}>
+        <DeckCardsHeader filter={wide && filter} pagination={wide && pagination} />
         <DeckCardList
           cards={items}
           dueIds={dueIds}
-          filter={wide && filter}
           emptyMessage={emptyMessage}
           wide={wide}
           selectedId={selected?.id ?? null}
@@ -434,21 +434,25 @@ function savedCardEmptyMessage(empty: boolean, search: string, dueOnly: boolean,
 
 function SavedCardsFeedback({
   cards,
+  showLoading,
   unavailable,
   search,
   filtered,
-}: Readonly<{ cards: ReturnType<typeof useSavedSetCards>; unavailable: boolean; search: string; filtered: boolean }>) {
+}: Readonly<{
+  cards: ReturnType<typeof useSavedSetCards>;
+  showLoading: boolean;
+  unavailable: boolean;
+  search: string;
+  filtered: boolean;
+}>) {
   if (cards.isPending) {
-    return (
-      <WhenSlow>
-        {search || filtered ? (
-          <LoadingStatus>{search ? 'Searching cards…' : 'Loading cards…'}</LoadingStatus>
-        ) : (
-          <LoadingPlaceholder kind="rows" blue>
-            Loading cards…
-          </LoadingPlaceholder>
-        )}
-      </WhenSlow>
+    if (!showLoading) return null;
+    return search || filtered ? (
+      <LoadingStatus>{search ? 'Searching cards…' : 'Loading cards…'}</LoadingStatus>
+    ) : (
+      <LoadingPlaceholder kind="rows" blue>
+        Loading cards…
+      </LoadingPlaceholder>
     );
   }
   if (!unavailable && (!cards.isError || cards.isFetchNextPageError)) return null;

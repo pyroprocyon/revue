@@ -29,6 +29,29 @@
 /* Small, short phones such as the iPhone SE (375 x 667) and 360 x 640 Androids, where saved Review compacts its card. */
 @custom-variant short-phone (@media (width < 40rem) and (height < 44rem));
 
+.settings-page {
+  width: 100%;
+  max-inline-size: 36rem;
+  margin-inline: auto;
+}
+
+.settings-page.workspace-page { margin-inline: 0; }
+.settings-page .workspace-titlebar { margin-block-end: 1rem; }
+
+@container (width < 12rem) {
+  .library-empty-state .create-deck-pill { order: -1; }
+}
+
+.account-settings-group {
+  --account-divider-inset: 1rem;
+}
+
+.account-settings-group > * + * { position: relative; }
+
+@media (width >= 40rem) {
+  .account-settings-group { --account-divider-inset: 1.25rem; }
+}
+
 .help-directory-row {
   display: flex;
   align-items: center;
@@ -46,13 +69,44 @@
   overflow-wrap: anywhere;
 }
 
-.help-directory-links > a + a::before {
+.help-directory-links > a + a::before,
+.account-settings-group > * + *::before {
   content: '';
   position: absolute;
-  inset: 0 0.75rem auto;
-  height: 1px;
+  inset-block-start: 0;
+  block-size: 1px;
   background: var(--color-line);
+  pointer-events: none;
 }
+
+.help-directory-links > a + a::before { inset-inline: 3.625rem 0.75rem; }
+.account-settings-group > * + *::before { inset-inline: var(--account-divider-inset); }
+
+.settings-switch-track {
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: var(--color-subtle);
+  pointer-events: none;
+}
+
+.settings-switch-track::before {
+  content: '';
+  position: absolute;
+  inset-block-start: 2px;
+  inset-inline-start: 2px;
+  inline-size: calc(1.5rem - 6px);
+  aspect-ratio: 1;
+  border: 1px solid var(--color-line);
+  border-radius: 50%;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-control);
+}
+
+:checked + .settings-switch-track { background: var(--color-accent); }
+:checked + .settings-switch-track::before { inset-inline: auto 2px; }
+:focus-visible + .settings-switch-track { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 
 .help-install-card {
   --help-install-edge: color-mix(in srgb, var(--color-saved-set) 18%, var(--color-surface));
@@ -64,27 +118,11 @@
 
 @container help (width < 16rem) {
   .help-directory-row { padding-inline: 0.5rem; }
+  .help-directory-links > a + a::before { inset-inline: 0.5rem; }
 }
 
 .help-directory-row:focus-visible {
   outline-offset: -3px;
-}
-
-@container workspace (width >= 40rem) {
-  .workspace-help-directory { max-width: 54rem; }
-
-  .workspace-help-directory .help-directory-links {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .workspace-help-directory .help-directory-links > a + a {
-    border-inline-start: 1px solid var(--color-line);
-    border-start-start-radius: 0;
-    border-end-start-radius: 0;
-  }
-
-  .workspace-help-directory .help-directory-links > a + a::before { content: none; }
 }
 
 .active-review-header:not(:empty) + .workspace-home-link { display: none; }
@@ -104,16 +142,20 @@
 .active-review-header { width: 100%; }
 html:has(.review-card-frame) { overflow-y: scroll; }
 
-.review-card-frame {
+:is(.review-card-frame, [data-loading-shape='study']) {
   --review-card-height: 288px;
+}
+.review-card-frame {
   display: flex;
   flex-direction: column;
   min-height: var(--review-card-height);
   border-radius: 1.25rem;
 }
-@media (max-width: 21rem) { .review-card-frame { --review-card-height: 276px; } }
+@media (max-width: 21rem) {
+  :is(.review-card-frame, [data-loading-shape='study']) { --review-card-height: 276px; }
+}
 @media (min-width: 46rem) {
-  .review-card-frame { --review-card-height: 308px; }
+  :is(.review-card-frame, [data-loading-shape='study']) { --review-card-height: 308px; }
 }
 .review-face {
   --review-face-shadow: 0 3px 8px -3px color-mix(in srgb, var(--color-elevation) 22%, transparent);
@@ -121,6 +163,7 @@ html:has(.review-card-frame) { overflow-y: scroll; }
   position: relative;
   grid-area: 1 / 1;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: minmax(min-content, 1fr) auto minmax(var(--review-strip-height), 1fr);
   min-width: 0;
   min-height: 0;
@@ -175,7 +218,7 @@ html:has(.review-card-frame) { overflow-y: scroll; }
   text-align: start;
 }
 .review-strip button:focus-visible { outline-color: currentColor; outline-offset: -4px; }
-.review-reading { padding: 0.8rem 1rem; }
+.review-reading { padding: 0.8rem var(--spacing-compact-gutter); }
 .review-credit {
   align-self: end;
   display: flex;
@@ -224,11 +267,11 @@ html:has(.review-card-frame) { overflow-y: scroll; }
   .study-layout:has(.active-review-header:not(:empty)) > main > div { padding-top: 0; }
   .study-layout > header .study-session-heading { min-height: 3.5rem; }
 
-  .review-flow:has(> .active-review-card) {
+  .review-flow:has(> .active-review-card, > [data-loading-shape='study']) {
     padding-block-start: clamp(0rem, calc((100svh - 40rem) * 0.33), 7rem);
   }
 
-  .review-flow .review-card-frame {
+  .review-flow :is(.review-card-frame, [data-loading-shape='study']) {
     --review-card-height: clamp(19rem, 40svh, 27rem);
   }
 
@@ -244,7 +287,7 @@ html:has(.review-card-frame) { overflow-y: scroll; }
 }
 
 @media (min-width: 22rem) and (width < 40rem) and (min-height: 44rem) and (orientation: portrait) {
-  .review-flow .active-review-card:not(.saved-review-card) .review-card-frame {
+  .review-flow[data-trial] :is(.review-card-frame, [data-loading-shape='study']) {
     --review-card-height: clamp(18rem, calc(100svh - 25rem), 32rem);
   }
 }
@@ -301,9 +344,13 @@ html:has(.review-card-frame) { overflow-y: scroll; }
       padding-block-end: var(--phone-dock-inset);
     }
     .study-layout .review-flow:has(.review-dock-after-reveal) { padding-block-end: 0; }
+    .active-review-card > .review-card-content,
+    .review-flow[data-trial] > [data-loading-shape='study'] {
+      padding-block-start: 0.125rem;
+    }
     .active-review-card > .review-card-content {
       margin-inline: -0.125rem;
-      padding: 0.125rem 0.125rem 0;
+      padding-inline: 0.125rem;
       overflow-y: auto;
       scrollbar-width: thin;
       scrollbar-gutter: stable;
@@ -675,7 +722,6 @@ details[open] > .review-draft-toggle > .draft-icon::before { content: '−'; }
 
 @media (prefers-reduced-motion: no-preference) {
   .workspace-layout:not([data-main-tab]) .workspace-page,
-  .workspace-layout[data-main-tab] :is(.library-collections, .reviewer-collections),
   .review-detail-dialog[open],
   .screen-enter { animation: screen-enter 160ms var(--ease-enter); }
   .review-detail-dialog[open]::backdrop { animation: var(--animate-fade-in); }
@@ -1083,6 +1129,7 @@ details[open] > .review-draft-toggle > .draft-icon::before { content: '−'; }
   .landing-hero {
     display: flex;
     flex-direction: column;
+    --text-hero-compact: min(2.75rem, 0.875rem + 10vw);
   }
 
   .landing-hero-copy {
@@ -1091,7 +1138,7 @@ details[open] > .review-draft-toggle > .draft-icon::before { content: '−'; }
 
   .landing-browse-in-hero {
     display: block;
-    margin-top: 1rem;
+    margin-top: 0.75rem;
   }
 
   .landing-browse-in-hero > a {
@@ -1110,8 +1157,7 @@ details[open] > .review-draft-toggle > .draft-icon::before { content: '−'; }
  * dark text, and the strong shade as text.
  */
 @theme {
-  /* Self-hosted Inter Variable (imported in main.tsx) with its optical-size axis, which gives large
-     headings Inter's broader display letterforms. The system fonts show until it loads.
+  /* Self-hosted Inter Variable uses the smaller weight-only files. A slow load keeps the system font for the page.
      License: public/fonts/inter-LICENSE.txt, served at /fonts/inter-LICENSE.txt. */
   --font-sans: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 
@@ -1129,7 +1175,7 @@ details[open] > .review-draft-toggle > .draft-icon::before { content: '−'; }
   --text-lead-lg--line-height: 1.15;
   --text-title-lg: 2.75rem;
   --text-title-lg--line-height: 1.1;
-  --text-title: min(1.75rem, 1rem + 6vw);
+  --text-title: min(1.75rem, 0.75rem + 7vw);
   --text-title--line-height: 1.2;
   --text-section: 1.25rem;
   --text-section--line-height: 1.35;
@@ -1321,6 +1367,12 @@ details[open] > .review-draft-toggle > .draft-icon::before { content: '−'; }
 
   .tonal-control-gradient:where(:not(:disabled, [aria-disabled="true"])) {
     background-image: var(--tonal-control-gradient);
+  }
+
+  .create-deck-pill {
+    border-color: color-mix(in srgb, var(--color-accent) 25%, var(--color-surface));
+    background-color: color-mix(in srgb, var(--color-accent) 10%, var(--color-accent-soft));
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 65%), var(--shadow-control);
   }
 
   .neutral-control-gradient:where(:not(:disabled, [aria-disabled="true"])),
@@ -1610,10 +1662,14 @@ details[open] > .review-draft-toggle > .draft-icon::before { content: '−'; }
 .set-detail-sample {
   grid-area: sample;
   display: grid;
-  align-content: center;
-  min-block-size: 8rem;
+  align-content: start;
+  min-block-size: 12.5rem;
   padding: 1rem;
   border-color: var(--set-detail-edge);
+}
+@container (width < 20rem) {
+  .set-detail-sample,
+  [data-loading-shape='preview'] .loading-companion { min-block-size: 14.25rem; }
 }
 .set-detail-actions {
   grid-area: actions;

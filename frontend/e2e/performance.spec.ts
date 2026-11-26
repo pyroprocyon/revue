@@ -1,20 +1,59 @@
 import { test, expect } from './fixtures';
 import { historyCards } from '../src/test/fixtures';
+import { SIGNED_IN_HINT_KEY } from '../src/shared/navigation/signedInHint';
+
+test('a direct review starts downloading before the shared app finishes loading', async ({ page }) => {
+  await page.addInitScript((key) => localStorage.setItem(key, 'true'), SIGNED_IN_HINT_KEY);
+  let releaseShell!: () => void;
+  const shell = new Promise<void>((resolve) => {
+    releaseShell = resolve;
+  });
+  await page.route('**/assets/vendor-*.js', async (route) => {
+    await shell;
+    await route.continue();
+  });
+  let release!: () => void;
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('**/api/v1/me', async (route) => {
+    await pending;
+    await route.fulfill({ status: 401 });
+  });
+  const reviewCode = page.waitForEvent('response', (response) => /\/assets\/ReviewPage-.*\.js$/.test(response.url()));
+  try {
+    const [, chunk] = await Promise.all([page.goto('/review/deck-1', { waitUntil: 'commit' }), reviewCode]);
+    expect(chunk.ok()).toBe(true);
+    releaseShell();
+    await expect(page.getByRole('link', { name: 'Finish for now' })).toBeVisible();
+    await expect(page.locator('[data-card-frame]')).toHaveCount(0);
+  } finally {
+    releaseShell();
+    release();
+  }
+  await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
+});
 
 test('a deck downloads its editor while the cards are loading', async ({ page }) => {
+  await page.addInitScript((key) => localStorage.setItem(key, 'true'), SIGNED_IN_HINT_KEY);
   await page.route('**/api/v1/me', (route) => route.fulfill({ json: { username: 'startup_learner' } }));
   await page.route('**/api/v1/cards/due*', (route) =>
     route.fulfill({ json: { totalCards: 0, availableCards: 0, dueCards: 0, newCards: 0, cards: [] } }),
   );
   const editorFiles: string[] = [];
+  const requests: string[] = [];
   page.on('request', (request) => {
-    if (/\/assets\/DeckContent-.*\.js$/.test(new URL(request.url()).pathname)) {
-      editorFiles.push(request.url());
+    const path = new URL(request.url()).pathname;
+    if (path === '/api/v1/me' || path === '/api/v1/decks/7/cards') requests.push(path);
+    if (/\/assets\/DeckContent-.*\.js$/.test(path)) {
+      requests.push('view');
+      editorFiles.push(path);
     }
   });
   await page.goto('/today');
   await expect(page.getByRole('heading', { name: 'Your review', exact: true })).toBeVisible();
   expect(editorFiles).toHaveLength(0);
+  requests.length = 0;
 
   let releaseCards!: () => void;
   const cards = new Promise<void>((resolve) => {
@@ -28,13 +67,107 @@ test('a deck downloads its editor while the cards are loading', async ({ page })
     await page.goto('/library/decks/7', { waitUntil: 'commit' });
     await expect(page.getByText('Loading your deck…')).toBeVisible();
     await expect.poll(() => editorFiles.length).toBe(1);
+    expect(requests[0]).toBe('/api/v1/me');
+    expect(requests.slice(1).sort()).toEqual(['/api/v1/decks/7/cards', 'view']);
   } finally {
     releaseCards();
   }
   await expect(page.getByRole('alert')).toHaveText('Your deck couldn’t load. Check your connection and try again.');
 });
 
+test('Library reads the selected shelf while its view code is still loading', async ({ page }) => {
+  await page.addInitScript((key) => localStorage.setItem(key, 'true'), SIGNED_IN_HINT_KEY);
+  const requests: string[] = [];
+  page.on('request', (request) => {
+    const path = new URL(request.url()).pathname;
+    if (path === '/api/v1/me' || path === '/api/v1/decks') requests.push(path);
+    if (/\/assets\/LibraryPage-.*\.js$/.test(path)) requests.push('view');
+  });
+  await page.route('**/api/v1/me', (route) => route.fulfill({ json: { username: 'startup_learner' } }));
+  await page.route('**/api/v1/me/saved-sets?*', (route) => route.fulfill({ json: { items: [], nextCursor: null } }));
+  let deckReads = 0;
+  await page.route('**/api/v1/decks', (route) => {
+    deckReads++;
+    return route.fulfill({ json: { items: [{ id: '7', title: 'Cell Biology', cardCount: 1, archived: false }] } });
+  });
+  let release!: () => void;
+  const view = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('**/assets/LibraryPage-*.js', async (route) => {
+    await view;
+    await route.continue();
+  });
+  try {
+    await page.goto('/library', { waitUntil: 'commit' });
+    await expect.poll(() => deckReads).toBe(1);
+    await expect(page.getByText('Loading your Library…')).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Open Cell Biology' })).toHaveCount(0);
+    expect(requests[0]).toBe('/api/v1/me');
+    expect(requests.slice(1).sort()).toEqual(['/api/v1/decks', 'view']);
+  } finally {
+    release();
+  }
+  await expect(page.getByRole('link', { name: 'Open Cell Biology' })).toBeVisible();
+  expect(deckReads).toBe(1);
+});
+
+test('a deck shows its cards before loading the editing and settings panels', async ({ page }) => {
+  await page.route('**/api/v1/me', (route) => route.fulfill({ json: { username: 'startup_learner' } }));
+  await page.route('**/api/v1/decks/7/cards', (route) =>
+    route.fulfill({
+      json: {
+        deck: { id: '7', title: 'Cell Biology', cardCount: 1, archived: false },
+        progress: { dueCards: 0, newCards: 1, nextReviewDate: null },
+        items: [{ id: '71', version: 1, question: 'What is osmosis?', answer: 'Water crossing a membrane.' }],
+        dueCardIds: [],
+        nextCursor: null,
+      },
+    }),
+  );
+  const panels = new Set<string>();
+  page.on('request', (request) => {
+    const name = /\/assets\/(CardForm|DeckSettings)-[^/]+\.js$/.exec(new URL(request.url()).pathname)?.[1];
+    if (name) panels.add(name);
+  });
+  await page.goto('/library/decks/7');
+  await expect(page.getByRole('link', { name: 'Start review' })).toBeVisible();
+  await expect(page.getByText('What is osmosis?', { exact: true })).toBeVisible();
+  expect([...panels]).toEqual([]);
+  await page.getByRole('button', { name: 'Deck settings', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Deck settings', exact: true })).toBeFocused();
+  expect([...panels]).toEqual(['DeckSettings']);
+  await page.getByRole('button', { name: 'Back to cards' }).click();
+  let release!: () => void;
+  const editor = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('**/assets/CardForm-*.js', async (route) => {
+    await editor;
+    await route.continue();
+  });
+  try {
+    await page.getByRole('button', { name: 'Add card', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: 'New card', exact: true });
+    await expect(dialog.getByText('Loading card editor…')).toBeVisible();
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.locator('[data-card-row]').filter({ hasText: 'What is osmosis?' }).click();
+    const edit = page.getByRole('button', { name: 'Edit card', exact: true });
+    await edit.press('Enter');
+    const cancel = page.getByRole('button', { name: 'Cancel', exact: true });
+    await cancel.press('Enter');
+    await expect(edit).toBeFocused();
+  } finally {
+    release();
+  }
+});
+
 test('a slow account chunk keeps the workspace in place and a failure offers an explicit reload', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.route('**/api/v1/me', (route) => route.fulfill({ json: { username: 'startup_learner' } }));
   let failChunk!: () => void;
   const pending = new Promise<void>((resolve) => {
@@ -45,17 +178,22 @@ test('a slow account chunk keeps the workspace in place and a failure offers an 
     await route.abort('failed');
   });
   const nav = page.getByRole('navigation', { name: 'Your workspace' });
+  const heading = page.getByRole('heading', { name: 'Your account', exact: true });
+  let loadingHeading: Awaited<ReturnType<typeof heading.boundingBox>>;
   try {
     await page.goto('/account', { waitUntil: 'domcontentloaded' });
     await expect(nav.getByRole('link', { name: 'Account' })).toHaveAttribute('aria-current', 'page');
     await expect(page.getByText('Loading this page…')).toBeVisible();
+    loadingHeading = await heading.boundingBox();
   } finally {
     failChunk();
   }
   await expect(page.getByRole('heading', { name: 'Something went wrong', exact: true })).toBeFocused();
   await page.unroute('**/assets/AccountPage-*.js');
   await page.getByRole('button', { name: 'Try again', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Your account', exact: true })).toBeFocused();
+  await expect(heading).toBeFocused();
+  const loadedHeading = (await heading.boundingBox())!;
+  expect({ x: loadedHeading.x, y: loadedHeading.y }).toEqual({ x: loadingHeading!.x, y: loadingHeading!.y });
 });
 
 test('a slow tab keeps the header steady and fades in the content once it arrives', async ({ page }) => {
@@ -84,7 +222,7 @@ test('a slow tab keeps the header steady and fades in the content once it arrive
     await expect(page.getByText('Cell Biology', { exact: true })).toHaveCount(0);
     release();
     await expect(page.getByText('Cell Biology', { exact: true })).toBeVisible();
-    await expect(page.locator('.library-collections')).toHaveCSS('animation-name', 'screen-enter');
+    await expect(page.locator('.library-collections')).toHaveCSS('animation-name', 'loading-reveal');
     await expect(heading).toBeFocused();
     await expect(page.getByText('Loading your Library…')).toHaveCount(0);
 
@@ -100,6 +238,7 @@ test('a slow tab keeps the header steady and fades in the content once it arrive
 
 test('a slow direct trial keeps its exit in place while the first card loads', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   let release!: () => void;
   const pending = new Promise<void>((resolve) => {
     release = resolve;
@@ -110,14 +249,18 @@ test('a slow direct trial keeps its exit in place while the first card loads', a
   });
   await page.goto('/sets/philippine-history/try');
   const exit = page.getByRole('button', { name: 'Exit trial' });
+  const skeleton = page.locator('[data-loading-shape="study"] .loading-card');
   try {
     await expect(exit).toBeVisible();
     await expect(page.getByText('Loading the cards…')).toBeVisible();
     await page.evaluate(() => document.fonts.ready);
     const waitingPosition = await exit.boundingBox();
+    const placeholder = (await skeleton.boundingBox())!;
     release();
     await expect(page.getByRole('heading', { name: 'Question 1?' })).toBeFocused();
     expect(await exit.boundingBox()).toEqual(waitingPosition);
+    const card = (await page.locator('.review-card-frame').boundingBox())!;
+    expect({ top: card.y, height: card.height }).toEqual({ top: placeholder.y, height: placeholder.height });
     await expect(page.getByText('Loading the cards…')).toHaveCount(0);
   } finally {
     release();

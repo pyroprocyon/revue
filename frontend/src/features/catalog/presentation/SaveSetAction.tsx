@@ -136,10 +136,12 @@ function SaveSetMembership({ id, setKey, session }: Readonly<{ id: string; setKe
   const hasConfirmedSavedStatus = sessionRevision() !== undefined && typeof membership.data === 'boolean';
   if (membership.isPending || (membership.isFetching && !membership.isFetchedAfterMount && !hasConfirmedSavedStatus))
     return (
-      <div className="grid min-h-12 place-items-center rounded-control border border-line px-2">
-        <span className="loading-bar" aria-hidden="true" />
+      <div data-loading-slot="save" className="min-h-12">
         <WhenSlow>
-          <output className="sr-only">Checking saved status…</output>
+          <div className="grid min-h-12 place-items-center rounded-control border border-line px-2">
+            <span className="loading-bar" data-loading-indicator aria-hidden="true" />
+            <output className="sr-only">Checking saved status…</output>
+          </div>
         </WhenSlow>
       </div>
     );
@@ -165,7 +167,7 @@ function SaveSetMembership({ id, setKey, session }: Readonly<{ id: string; setKe
     );
   if (membership.data === null)
     return (
-      <Link ref={focusResult} to={signIn} className={saveButton}>
+      <Link ref={focusResult} to={signIn} className={`${saveButton} loading-reveal`}>
         Sign in to save
       </Link>
     );
@@ -176,7 +178,7 @@ function SaveSetMembership({ id, setKey, session }: Readonly<{ id: string; setKe
         to={`${LIBRARY_PATH}?shelf=saved&set=${id}`}
         aria-labelledby={`${savedStatusId}-link`}
         aria-describedby={savedStatusId}
-        className={`${saveButton} flex-wrap gap-x-2 gap-y-1`}
+        className={`${saveButton} loading-reveal flex-wrap gap-x-2 gap-y-1`}
       >
         <span id={`${savedStatusId}-link`}>Open Library</span>
         <span
@@ -195,7 +197,7 @@ function SaveSetMembership({ id, setKey, session }: Readonly<{ id: string; setKe
     <button
       type="button"
       ref={focusResult}
-      className={saveButton}
+      className={`${saveButton} loading-reveal`}
       aria-disabled={membership.isFetching}
       onClick={(event) => {
         if (!membership.isFetching) void save(event.currentTarget);

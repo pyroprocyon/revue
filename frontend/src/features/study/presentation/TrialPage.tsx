@@ -62,7 +62,13 @@ function TrialEntry({
   }, [recheckTrial, refetchTrial]);
 
   if (trialCards.isPending || recheckTrial || (needsFreshCards && trialCards.fetchStatus !== 'idle')) {
-    return <LoadingScreen text="Loading the cards…" top={<TrialHeader setKey={setKey} title="Try 5 cards" />} />;
+    return (
+      <LoadingScreen
+        trial
+        text="Loading the cards…"
+        top={<TrialHeader setKey={setKey} title={preview?.value?.title ?? 'Try 5 cards'} />}
+      />
+    );
   }
   if (trialCards.isLoadingError || needsFreshCards) {
     return <LoadFailed onRetry={() => void trialCards.refetch()} retrying={trialCards.isFetching} />;
@@ -103,7 +109,7 @@ function Trial({ setKey, initialContent }: Readonly<{ setKey: string; initialCon
   return (
     <StudyLayout top={<TrialHeader setKey={setKey} title={content.setTitle} />}>
       <h1 className="sr-only">Try {cardCount} cards</h1>
-      <div className="review-flow pt-(--review-card-top-gap) pb-4 sm:pb-6">
+      <div data-trial className="review-flow loading-reveal pt-(--review-card-top-gap) pb-4 sm:pb-6">
         {/* A new key per card, so each card starts on its front instead of turning back over. */}
         <FlashCard
           key={card.key}

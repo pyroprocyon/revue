@@ -6,7 +6,6 @@ import { cardExtras } from './CardPreview';
 type DeckCardListProps = {
   cards: DeckCard[];
   dueIds: ReadonlySet<string>;
-  filter: ReactNode;
   emptyMessage: string | null;
   /** Wide screens select a card for the side pane; phones open it full screen. */
   wide: boolean;
@@ -36,10 +35,22 @@ function moveSelection(event: KeyboardEvent<HTMLButtonElement>) {
   next.click();
 }
 
+export function DeckCardsHeader({ filter, pagination }: Readonly<{ filter: ReactNode; pagination: ReactNode }>) {
+  if (!filter && !pagination) return null;
+  return (
+    <fieldset className="col-span-full min-w-0">
+      <legend className="sr-only">Cards header</legend>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        {filter}
+        {pagination && <div className="ml-auto">{pagination}</div>}
+      </div>
+    </fieldset>
+  );
+}
+
 export function DeckCardList({
   cards,
   dueIds,
-  filter,
   emptyMessage,
   wide,
   selectedId,
@@ -52,14 +63,13 @@ export function DeckCardList({
   const tabStopId = cards.some((card) => card.id === selectedId) ? selectedId : cards[0]?.id;
   return (
     <section ref={resultsRef} aria-label="Cards" tabIndex={-1} className="min-w-0 outline-none">
-      {filter}
       {cards.length === 0 && emptyMessage && <output className="block text-body text-muted">{emptyMessage}</output>}
       {cards.length > 0 && (
         <ul
           aria-label="Cards"
           data-due-column={dotColumn || undefined}
           data-wide={wide || undefined}
-          className="deck-card-list @container/cards grid rounded-card bg-surface p-1 shadow-control"
+          className="deck-card-list loading-reveal @container/cards grid rounded-card bg-surface p-1 shadow-control"
         >
           {cards.map((card) => (
             <li key={card.id} className="grid min-w-0">

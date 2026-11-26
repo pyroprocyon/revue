@@ -8,6 +8,8 @@ import { reviewTopicPath, TODAY_PATH } from '../../../shared/navigation/paths';
 import { primaryButton } from '../../../shared/ui/buttonStyles';
 import { WhenSlow } from '../../../shared/ui/WhenSlow';
 import { LoadingStatus } from '../../../shared/ui/LoadingFeedback';
+import { cardCountLabel } from '../../../shared/ui/cardCount';
+import { REVIEW_BATCH_SIZE } from '../../../shared/product/studyRules';
 
 export function ContinueReview({
   username,
@@ -62,13 +64,14 @@ export function ContinueReview({
     );
   }
   if (remaining === 0) return fallback;
+  const nextBatchCount = Math.min(remaining, REVIEW_BATCH_SIZE);
 
   return (
     <>
       <TodayReviewCard
         kind="continue"
         title={summary?.topicTitle}
-        detail={`${remaining} ${remaining === 1 ? 'card remains' : 'cards remain'}.`}
+        detail={`Next batch · ${cardCountLabel(nextBatchCount)}`}
         to={reviewTopicPath(topic, true)}
         action="Continue"
       />

@@ -191,6 +191,7 @@ withVisibleScrollbars(
 test('landing action and study headings fit at 320 pixels with 200% text', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 568 });
   await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.route('**/*.woff2', (route) => route.abort());
   await page.goto('/');
   await page.evaluate(() => {
     document.documentElement.style.fontSize = '200%';
@@ -262,6 +263,7 @@ test('account help and trial source links offer a 48-pixel target', async ({ pag
 
 test('invitation and guide text keep room for whole words at 320 pixels with 200% text', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 568 });
+  await page.route('**/*.woff2', (route) => route.abort());
   await page.goto('/join');
   await page.evaluate(() => {
     document.documentElement.style.fontSize = '200%';
@@ -335,6 +337,7 @@ test('keyboard reveal and tabbing keep enlarged answers and ratings reachable wi
   page,
 }) => {
   await page.setViewportSize({ width: 320, height: 568 });
+  await page.route('**/*.woff2', (route) => route.abort());
   for (const reducedMotion of ['no-preference', 'reduce'] as const) {
     await page.emulateMedia({ reducedMotion });
     await page.goto('/sets/philippine-history/try');
@@ -492,7 +495,7 @@ test('Solid controls in Help changes the trial dock and persists on reload', asy
   await expect(page.getByRole('heading', { name: 'Reviewers', exact: true })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Help', exact: true })).toHaveCount(0);
   await page.goto('/help');
-  const solidControls = page.getByRole('checkbox', { name: 'Solid controls' });
+  const solidControls = page.getByRole('switch', { name: 'Solid controls' });
   await expect(solidControls).toBeVisible();
   await expect(solidControls).not.toBeChecked();
 
@@ -502,7 +505,9 @@ test('Solid controls in Help changes the trial dock and persists on reload', asy
   const dock = trial.locator('.review-dock');
   await expect(dock).toHaveCSS('backdrop-filter', /^blur\(/);
 
-  await solidControls.check();
+  await solidControls.focus();
+  await solidControls.press('Space');
+  await expect(solidControls).toBeChecked();
   await page.reload();
   await expect(solidControls).toBeChecked();
   await expect(dock).toHaveCSS('backdrop-filter', 'none');
@@ -676,14 +681,18 @@ test('workspace navigation stays unique and reachable across layouts and enlarge
       }
 
       if (destination === 'Help' && width >= 768 && textSize === '100%') {
+        const directory = page.getByRole('navigation', { name: 'Help and policies' });
         const [support, privacy, terms] = await Promise.all(
-          ['Contact support', 'Privacy notice', 'Terms'].map((name) =>
-            page.getByRole('link', { name, exact: true }).boundingBox(),
-          ),
+          ['Contact support', 'Privacy notice', 'Terms'].map(async (name) => {
+            const link = directory.getByRole('link', { name, exact: true });
+            await expectTouchTarget(link);
+            return (await link.boundingBox())!;
+          }),
         );
-        expect(support!.y).toBeCloseTo(terms!.y);
-        expect(privacy!.x).toBeGreaterThan(support!.x);
-        expect(terms!.x).toBeGreaterThan(privacy!.x);
+        expect(privacy.x).toBeCloseTo(support.x);
+        expect(terms.x).toBeCloseTo(support.x);
+        expect(support.y + support.height).toBeLessThanOrEqual(privacy.y);
+        expect(privacy.y + privacy.height).toBeLessThanOrEqual(terms.y);
       }
 
       if (destination === 'Account') {

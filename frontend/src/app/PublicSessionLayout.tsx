@@ -13,7 +13,7 @@ import { SIGN_IN_PATH, TODAY_PATH } from '../shared/navigation/paths';
 import { PublicSessionContext, publicSessionKey, usePublicSession } from '../shared/navigation/publicSession';
 import { routeState } from '../shared/navigation/routeState';
 import { onSessionChange, sessionRevision } from '../shared/navigation/sessionChanges';
-import { saveSignedInHint } from '../shared/navigation/signedInHint';
+import { saveSignedInHint, shouldWaitForSession } from '../shared/navigation/signedInHint';
 import { SessionCheckScreen } from '../shared/ui/MessageScreen';
 import { RouteErrorBoundary, RouteErrorPage } from '../shared/ui/RouteError';
 
@@ -87,7 +87,7 @@ export function PublicSessionLayout() {
 export function GuestRoute() {
   const session = usePublicSession();
   const [search] = useSearchParams();
-  if (session === 'checking') return <SessionCheckScreen />;
+  if (session === 'checking' && shouldWaitForSession()) return <SessionCheckScreen />;
   if (session === 'signed-in') {
     return <Navigate to={safeAccountReturnPath(search.get('returnTo')) ?? TODAY_PATH} replace />;
   }

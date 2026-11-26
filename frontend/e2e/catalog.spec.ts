@@ -414,12 +414,16 @@ test('a slow preview keeps its sample label and study actions in place', async (
   const membershipResponse = new Promise<void>((resolve) => {
     showMembership = resolve;
   });
+  const question =
+    '“Nag-heart siya sa story ko. May gusto to sakin.” “Beh, delulu ka na naman.” Anong ibig sabihin ng tropa mo?';
   await page.route('**/api/v1/public-sets/philippine-history', (route) =>
     route.fulfill({ json: { ...historySet, saveAllowed: true } }),
   );
   await page.route('**/api/v1/public-sets/philippine-history/demo-cards', async (route) => {
     await sampleResponse;
-    await route.fulfill({ json: historyCards });
+    await route.fulfill({
+      json: { ...historyCards, cards: [{ ...historyCards.cards[0]!, question }, ...historyCards.cards.slice(1)] },
+    });
   });
   await page.route('**/api/v1/sets/1/save', async (route) => {
     await membershipResponse;
@@ -429,24 +433,43 @@ test('a slow preview keeps its sample label and study actions in place', async (
   const actions = page.getByRole('group', { name: 'Reviewer actions' });
   const trial = actions.getByRole('link', { name: 'Try 5 cards' });
   const save = actions.getByRole('button', { name: 'Save to Library' });
+  const copy = page.getByRole('button', { name: 'Copy link' });
+  const slots = page.locator('[data-loading-slot="sample"], [data-loading-slot="save"]');
+  const indicators = slots.locator('[data-loading-indicator]');
   try {
-    await openHistoryFromReviewers(page);
+    await page.goto('/sets');
+    await page.getByRole('link', { name: /^Philippine History/ }).focus();
+    await page.clock.pauseAt(await page.evaluate(() => Date.now() + 100));
+    await page.keyboard.press('Enter');
+    await expect
+      .poll(async () => {
+        await page.clock.runFor(1);
+        return slots.count();
+      })
+      .toBe(2);
     await expect(trial).toBeVisible();
+    await expect(slots.locator('.loading-bar')).toHaveCount(0);
     await page.evaluate(() => document.fonts.ready);
     const initialActions = await actions.boundingBox();
     await page.clock.fastForward(400);
+    await expect(indicators).toHaveCount(2);
     await expect(sample).toBeVisible();
     await expect(save).toHaveCount(0);
     const initialSample = await sample.boundingBox();
+    const initialCopy = await copy.boundingBox();
     expect(await actions.boundingBox()).toEqual(initialActions);
 
+    await page.clock.resume();
     showSample();
-    await expect(page.getByText(historyCards.cards[0]!.question, { exact: true })).toBeVisible();
+    await expect(page.getByText(question, { exact: true })).toBeVisible();
+    await expect(indicators).toHaveCount(1);
     expect(await sample.boundingBox()).toEqual(initialSample);
     expect(await actions.boundingBox()).toEqual(initialActions);
+    expect(await copy.boundingBox()).toEqual(initialCopy);
 
     showMembership();
     await expect(save).toBeEnabled();
+    await expect(indicators).toHaveCount(0);
     expect(await actions.boundingBox()).toEqual(initialActions);
   } finally {
     showSample();

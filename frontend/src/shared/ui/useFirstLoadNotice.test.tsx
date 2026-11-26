@@ -15,36 +15,35 @@ describe('first-load notice', () => {
     vi.useFakeTimers();
     const { result, rerender } = renderHook(useFirstLoadNotice, { initialProps: true });
 
-    advance(340);
+    advance(299);
     expect(result.current).toBe(false);
     rerender(false);
     advance(1000);
     expect(result.current).toBe(false);
   });
 
-  it('gives a shown notice time to be read when the load finishes just after the delay', () => {
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
+  it('releases ready content immediately after a notice becomes visible', () => {
+    vi.useFakeTimers();
     const { result, rerender } = renderHook(useFirstLoadNotice, { initialProps: true });
 
-    advance(499);
+    advance(299);
     expect(result.current).toBe(false);
-    advance(21);
+    advance(1);
     expect(result.current).toBe(true);
     rerender(false);
-    advance(179);
-    expect(result.current).toBe(true);
-    advance(1);
     expect(result.current).toBe(false);
   });
 
-  it('releases a slow load as soon as the notice has already had time to display', () => {
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
+  it('starts a fresh delay when another load begins', () => {
+    vi.useFakeTimers();
     const { result, rerender } = renderHook(useFirstLoadNotice, { initialProps: true });
 
     advance(800);
     expect(result.current).toBe(true);
     rerender(false);
-    advance(0);
+    rerender(true);
     expect(result.current).toBe(false);
+    advance(300);
+    expect(result.current).toBe(true);
   });
 });

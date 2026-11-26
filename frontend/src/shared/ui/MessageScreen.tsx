@@ -1,4 +1,7 @@
 import type { ReactNode } from 'react';
+import { Link } from 'react-router';
+import { SETS_PATH } from '../navigation/paths';
+import { primaryButton } from './buttonStyles';
 import { HomeLink } from './HeaderLinks';
 import { LoadingPlaceholder, LoadingStatus } from './LoadingFeedback';
 import { PageLayout } from './PageLayout';
@@ -35,21 +38,26 @@ export function MessageScreen({ title, icon, action, children }: Readonly<Messag
 export function SessionCheckScreen() {
   return (
     <PageLayout top={<HomeLink />}>
-      <WhenSlow>
-        <LoadingStatus className="my-3">Checking your session…</LoadingStatus>
-      </WhenSlow>
+      <div className="pt-3">
+        <Link to={SETS_PATH} className={`${primaryButton} w-full sm:w-auto`}>
+          Browse reviewers
+        </Link>
+        <WhenSlow>
+          <LoadingStatus className="mt-3">Checking your session…</LoadingStatus>
+        </WhenSlow>
+      </div>
     </PageLayout>
   );
 }
 
-export function LoadingScreen({ text, top }: Readonly<{ text: string; top?: ReactNode }>) {
+export function LoadingScreen({ text, top, trial }: Readonly<{ text: string; top?: ReactNode; trial?: boolean }>) {
   return (
     <StudyLayout top={top ?? <HomeLink />}>
-      <WhenSlow>
-        <LoadingPlaceholder kind="study" className="my-3">
-          {text}
-        </LoadingPlaceholder>
-      </WhenSlow>
+      <div data-trial={trial || undefined} className="review-flow pt-(--review-card-top-gap) pb-4 sm:pb-6">
+        <WhenSlow>
+          <LoadingPlaceholder kind="study">{text}</LoadingPlaceholder>
+        </WhenSlow>
+      </div>
     </StudyLayout>
   );
 }

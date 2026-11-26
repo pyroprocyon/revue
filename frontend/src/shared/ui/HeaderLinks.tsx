@@ -12,6 +12,7 @@ export function HomeLink({ to, compact = false }: Readonly<{ to?: string; compac
   return (
     <Link
       to={to ?? destination}
+      data-home-link
       className={`pressable -ml-2 inline-flex min-h-12 items-center gap-2 rounded-control px-2 text-[1.5rem] font-extrabold tracking-tight ${compact ? 'workspace-home-link' : 'lg:text-[2.1875rem]'}`}
     >
       <BrandMark className={`size-8 ${compact ? '' : 'lg:size-12'}`} />
