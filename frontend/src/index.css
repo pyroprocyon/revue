@@ -1157,7 +1157,8 @@ details[open] > .review-draft-toggle > .draft-icon::before { content: '−'; }
  * dark text, and the strong shade as text.
  */
 @theme {
-  /* Self-hosted Inter Variable uses the smaller weight-only files. A slow load keeps the system font for the page.
+  /* Self-hosted Inter Variable (imported in main.tsx) with its optical-size axis, which gives large
+     headings Inter's broader display letterforms. The system fonts show until it loads.
      License: public/fonts/inter-LICENSE.txt, served at /fonts/inter-LICENSE.txt. */
   --font-sans: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 
