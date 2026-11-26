@@ -17,21 +17,6 @@ export default defineConfig(({ mode }) => {
   const backend = env.API_PROXY_TARGET || 'http://127.0.0.1:8080';
   return {
     plugins: [react(), tailwindcss()],
-    css: {
-      postcss: {
-        plugins: [
-          {
-            postcssPlugin: 'inter-font-display',
-            Declaration: {
-              'font-display': (declaration) => {
-                const source = declaration.source?.input.file?.replaceAll('\\', '/');
-                if (source?.endsWith('/@fontsource-variable/inter/index.css')) declaration.value = 'optional';
-              },
-            },
-          },
-        ],
-      },
-    },
     build: {
       rolldownOptions: {
         output: {
