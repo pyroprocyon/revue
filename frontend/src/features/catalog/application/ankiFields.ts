@@ -1,11 +1,19 @@
 import type { PastedCard, RemovedMedia } from './pastedCards';
 
-type Field = { text: string; isHtml: boolean };
+type FieldFormat = 'html' | 'entities' | 'text';
+type Field = { text: string; format: FieldFormat };
 type Cloze = { numbers: number[]; content: ClozeText; hint: string };
 type ClozeText = (string | Cloze)[];
 type ClozeSpan = { numbers: number[]; contentStart: number; end: number };
-/** Converted text of each HTML field, kept by the paste page while it is open. */
-export type ConvertedHtml = Map<string, string>;
+/**
+ * Converted text of each field, kept by the paste page while it is open. HTML and entity-only fields convert the same
+ * text differently, such as "List<A>", so each format has its own map.
+ */
+export type ConvertedFields = Record<Exclude<FieldFormat, 'text'>, Map<string, string>>;
+
+export function noConvertedFields(): ConvertedFields {
+  return { html: new Map(), entities: new Map() };
+}
 
 const TAG = /<(\/?)([a-z][a-z0-9]*)\b[^<>]*>/gi;
 const FIELD_TAG_NAMES = new Set([
@@ -44,7 +52,8 @@ const FIELD_TAG_NAMES = new Set([
   'code',
   'hr',
 ]);
-const HTML_ENTITY_HINT = /&(#\d+|#x[0-9a-f]+|[a-z][a-z0-9]{1,31});/i;
+const HTML_ENTITY = /&(#\d+|#x[0-9a-f]+|[a-z][a-z0-9]{1,31});/i;
+const HTML_ENTITIES = new RegExp(HTML_ENTITY.source, 'gi');
 const SOUND_TAG = /\[sound:[^\]]*\]/g;
 const IMAGE_TAG = /<img\b/i;
 const TEXT_THAT_IS_NOT_SHOWN = 'script, style';
@@ -60,9 +69,14 @@ const HINT_SEPARATOR = '::';
 const MAX_CLOZE_DEPTH = 20;
 const MAX_REMEMBERED_FIELDS = 10_000;
 
-/** Exports from Anki before 2.1.54 have no header lines, but their fields still carry HTML. */
-export function looksLikeHtml(field: string) {
-  return HTML_ENTITY_HINT.test(field) || hasFieldTag(field);
+/**
+ * Exports from Anki before 2.1.54 have no header lines, but their fields still carry HTML. A field whose only sign of
+ * HTML is an entity, such as "90&deg;", keeps the rest of its text, so "std::vector<int>&items;" stays as typed.
+ */
+function formatOf(field: string, html: boolean | null): FieldFormat {
+  if (html !== null) return html ? 'html' : 'text';
+  if (hasFieldTag(field)) return 'html';
+  return HTML_ENTITY.test(field) ? 'entities' : 'text';
 }
 
 /**
@@ -91,13 +105,14 @@ function hasFieldTag(field: string) {
  * explanation. When the export doesn't say whether it holds HTML, only fields that look like HTML are read as HTML, so a
  * plain answer such as "A < B" stays as typed.
  *
- * The paste box reads its whole text again on every keystroke, and parsing HTML made a 150,000-character Anki export
- * take about 40 ms each time in Chromium on November 20, 2026. `convertedHtml` lets each field convert once.
+ * The paste box reads its whole text again on every keystroke. In Chromium, converting every field made a
+ * 150,000-character Anki export take about 40 ms each time on November 20, 2026, and decoding entity-only fields took
+ * 38 ms on November 26. `converted` lets each field convert once.
  */
-export function cardsFromFields(texts: string[], html: boolean | null, convertedHtml: ConvertedHtml): PastedCard[] {
-  const fields = texts.map((text) => ({ text, isHtml: html ?? looksLikeHtml(text) }));
+export function cardsFromFields(texts: string[], html: boolean | null, converted: ConvertedFields): PastedCard[] {
+  const fields = texts.map((text) => ({ text, format: formatOf(text, html) }));
   const removedMedia = mediaIn(fields);
-  const [first = '', ...rest] = fields.map((field) => plainText(field, convertedHtml));
+  const [first = '', ...rest] = fields.map((field) => plainText(field, converted));
   const flagged = removedMedia.length > 0 ? { removedMedia } : {};
   const clozeText = readClozes(first);
   const clozeNumbers = [...new Set(numbersIn(clozeText))].sort((first, second) => first - second);
@@ -116,23 +131,34 @@ export function cardsFromFields(texts: string[], html: boolean | null, converted
 
 function mediaIn(fields: Field[]): RemovedMedia[] {
   const media: RemovedMedia[] = [];
-  if (fields.some((field) => field.isHtml && IMAGE_TAG.test(field.text))) media.push('image');
+  if (fields.some((field) => field.format === 'html' && IMAGE_TAG.test(field.text))) media.push('image');
   if (fields.some((field) => field.text.includes('[sound:'))) media.push('audio');
   return media;
 }
 
-function plainText(field: Field, convertedHtml: ConvertedHtml) {
+function plainText(field: Field, converted: ConvertedFields) {
   const withoutSound = field.text.replaceAll(SOUND_TAG, '');
-  return (field.isHtml ? htmlToText(withoutSound, convertedHtml) : withoutSound).trim();
+  if (field.format === 'text') return withoutSound.trim();
+  const convert = field.format === 'html' ? textOf : decodedEntities;
+  return remembered(converted[field.format], withoutSound, convert).trim();
 }
 
-function htmlToText(html: string, convertedHtml: ConvertedHtml) {
-  const remembered = convertedHtml.get(html);
-  if (remembered !== undefined) return remembered;
-  const text = textOf(html);
-  if (convertedHtml.size >= MAX_REMEMBERED_FIELDS) convertedHtml.clear();
-  convertedHtml.set(html, text);
-  return text;
+function remembered(cache: Map<string, string>, text: string, convert: (text: string) => string) {
+  const known = cache.get(text);
+  if (known !== undefined) return known;
+  const result = convert(text);
+  if (cache.size >= MAX_REMEMBERED_FIELDS) cache.clear();
+  cache.set(text, result);
+  return result;
+}
+
+/** A match holds only "&", "#", letters, digits and ";", so parsing it can't create an element. */
+function decodedEntities(text: string) {
+  const decoder = document.createElement('template');
+  return text.replaceAll(HTML_ENTITIES, (entity) => {
+    decoder.innerHTML = entity;
+    return (decoder.content.textContent ?? entity).replaceAll(NO_BREAK_SPACE, ' ');
+  });
 }
 
 /**

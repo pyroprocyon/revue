@@ -23,6 +23,11 @@ const editedField = fc
   .filter((text) => text !== '');
 const editedCard = fc.record({ question: editedField, answer: editedField });
 
+function withTrimmedFields({ question, answer, explanation }: PastedCard): PastedCard {
+  const card = { question: question.trim(), answer: answer.trim() };
+  return explanation === undefined ? card : { ...card, explanation: explanation.trim() };
+}
+
 function plainText(cards: PastedCard[]) {
   return cards.map((item) => `${item.question}\n${item.answer}`).join('\n\n');
 }
@@ -40,11 +45,14 @@ describe('pasted cards, for generated notes', () => {
   it('reads rows written for cards with explanations back as typed, with tabs, quotes, line breaks and Anki markup', () => {
     const rowWord = fc.oneof(
       fc.stringMatching(/^[A-Za-z0-9?.,'"()-]{1,12}$/),
-      fc.constantFrom('{{c1::Paris}}', '[sound:a.mp3]', '<b>bold</b>', '&amp;', 'Question'),
+      fc.constantFrom('{{c1::Paris}}', '[sound:a.mp3]', '<b>bold</b>', '&amp;', 'Question', '#tags:x', '#html:true'),
     );
     const rowField = fc
-      .array(fc.tuple(fc.constantFrom(' ', '\t', '\n'), rowWord), { minLength: 1, maxLength: 6 })
-      .map((parts) => parts.map(([gap, word], index) => (index === 0 ? word : gap + word)).join(''));
+      .tuple(
+        fc.constantFrom('', ' ', '  '),
+        fc.array(fc.tuple(fc.constantFrom(' ', '\t', '\n'), rowWord), { minLength: 1, maxLength: 6 }),
+      )
+      .map(([indent, parts]) => indent + parts.map(([gap, word], index) => (index === 0 ? word : gap + word)).join(''));
     const explained = fc.record({ question: rowField, answer: rowField, explanation: rowField });
     const maybeExplained = fc.record(
       { question: rowField, answer: rowField, explanation: rowField },
@@ -53,7 +61,7 @@ describe('pasted cards, for generated notes', () => {
     fc.assert(
       fc.property(explained, fc.array(maybeExplained, { maxLength: 15 }), (first, rest) => {
         const cards = [first, ...rest];
-        expect(parsePastedCards(formatPastedCards(cards))).toEqual(cards);
+        expect(parsePastedCards(formatPastedCards(cards))).toEqual(cards.map(withTrimmedFields));
       }),
       RUNS,
     );

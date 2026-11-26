@@ -39,18 +39,24 @@ describe('pasted cards', () => {
     expect(parsePastedCards(' \n\n\t\n')).toEqual([]);
   });
 
-  it('flags a missing or blank field, a question or answer over 500 characters and an explanation over 2,000', () => {
+  it('flags a missing or blank field, a question over 500 characters, an answer over 300 and an explanation over 2,000', () => {
     expect(cardProblems({ question: '  ', answer: 'Answer' })).toEqual({
       question: 'missing',
       answer: null,
       explanation: null,
     });
-    expect(cardProblems({ question: 'Question', answer: 'a'.repeat(501), explanation: 'e'.repeat(2001) })).toEqual({
-      question: null,
-      answer: 'too-long',
-      explanation: 'too-long',
-    });
-    const longest = { question: ` ${'q'.repeat(500)} `, answer: 'Answer', explanation: ` ${'e'.repeat(2000)} ` };
+    expect(cardProblems({ question: 'q'.repeat(501), answer: 'a'.repeat(301), explanation: 'e'.repeat(2001) })).toEqual(
+      {
+        question: 'too-long',
+        answer: 'too-long',
+        explanation: 'too-long',
+      },
+    );
+    const longest = {
+      question: ` ${'q'.repeat(500)} `,
+      answer: ` ${'a'.repeat(300)} `,
+      explanation: ` ${'e'.repeat(2000)} `,
+    };
     expect(needsFix(longest)).toBe(false);
   });
 
@@ -218,6 +224,14 @@ describe('pasted rows from a spreadsheet, Quizlet or Anki', () => {
       { question: 'Second', answer: 'Two' },
     ];
     expect(parsePastedCards(formatPastedCards(headerFirst))).toEqual(headerFirst);
+    const indentedHeader = [
+      { question: '  #tags: still a question?', answer: 'Yes', explanation: 'Spaces come first' },
+      { question: 'Second', answer: 'Two' },
+    ];
+    expect(parsePastedCards(formatPastedCards(indentedHeader))).toEqual([
+      { question: '#tags: still a question?', answer: 'Yes', explanation: 'Spaces come first' },
+      { question: 'Second', answer: 'Two' },
+    ]);
   });
 
   it('reads a spreadsheet row added below Edit text rows the same as a fresh paste, with every extra column', () => {
@@ -241,6 +255,8 @@ describe('pasted rows from a spreadsheet, Quizlet or Anki', () => {
       'Less?\ta<b',
       'Condition?\tx<a && y>b',
       'Type?\tList<A>',
+      'Reference?\tstd::vector<int>&items;',
+      'Escaped?\t&lt;b&gt; means bold &amp; List<A> stays',
       'Link?\t<a href="https://example.com">site</a>',
       'Ratio?\t5<hr>10',
       'Snippets?\t<pre>return x</pre><pre>return y</pre>',
@@ -253,6 +269,8 @@ describe('pasted rows from a spreadsheet, Quizlet or Anki', () => {
       { question: 'Less?', answer: 'a<b' },
       { question: 'Condition?', answer: 'x<a && y>b' },
       { question: 'Type?', answer: 'List<A>' },
+      { question: 'Reference?', answer: 'std::vector<int>&items;' },
+      { question: 'Escaped?', answer: '<b> means bold & List<A> stays' },
       { question: 'Link?', answer: 'site' },
       { question: 'Ratio?', answer: '5\n10' },
       { question: 'Snippets?', answer: 'return x\nreturn y' },

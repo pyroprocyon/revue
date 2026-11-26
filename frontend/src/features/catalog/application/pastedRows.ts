@@ -1,4 +1,4 @@
-import { cardsFromFields, type ConvertedHtml } from './ankiFields';
+import { cardsFromFields, type ConvertedFields } from './ankiFields';
 import { readPastedBlocks } from './pastedBlocks';
 import type { PastedCard } from './pastedCards';
 
@@ -56,7 +56,7 @@ const SEPARATOR_NAMES: Record<string, string> = {
  * plain-text export with its header lines. The first column is the question, the second the answer and any others the
  * explanation. Returns null for text that isn't rows, which then reads as blank-line blocks.
  */
-export function readPastedRows(text: string, convertedHtml: ConvertedHtml): PastedCard[] | null {
+export function readPastedRows(text: string, converted: ConvertedFields): PastedCard[] | null {
   const layout = headerLayout(text) ?? tabLayout(text);
   if (!layout) return null;
   const records = readRecords(layout.body, layout.separator);
@@ -67,7 +67,7 @@ export function readPastedRows(text: string, convertedHtml: ConvertedHtml): Past
   return parts.flatMap((part) => {
     if (!('row' in part)) return readPastedBlocks(part.lines.join('\n'));
     const fields = part.row.filter((_, column) => !layout.skippedColumns.has(column));
-    return layout.source === 'revue' ? [cardAsTyped(fields)] : cardsFromFields(fields, layout.html, convertedHtml);
+    return layout.source === 'revue' ? [cardAsTyped(fields)] : cardsFromFields(fields, layout.html, converted);
   });
 }
 
@@ -226,8 +226,11 @@ export function writePastedRows(cards: PastedCard[]): string {
   return [WRITTEN_ROWS_HEADER, ...rows].join('\n');
 }
 
-/** A field that starts with "#" is quoted, so a question such as "#tags: …" can't be read as a header line. */
+/**
+ * Header lines are matched after trimming, so a field whose text starts with "#", such as "  #tags: …", is quoted and
+ * can't be read as one.
+ */
 function quotedWhenNeeded(field: string) {
-  const needsQuotes = /[\t\n\r]/.test(field) || field.startsWith('"') || field.startsWith('#');
+  const needsQuotes = /[\t\n\r]/.test(field) || field.startsWith('"') || field.trimStart().startsWith('#');
   return needsQuotes ? `"${field.replaceAll('"', '""')}"` : field;
 }

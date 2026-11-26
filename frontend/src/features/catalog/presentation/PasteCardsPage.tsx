@@ -1,7 +1,7 @@
 import { ChevronRight } from 'lucide-react';
 import { useContext, useEffect, useId, useMemo, useRef, useState, type SubmitEvent } from 'react';
 import { useOutletContext, useParams } from 'react-router';
-import type { ConvertedHtml } from '../application/ankiFields';
+import { noConvertedFields, type ConvertedFields } from '../application/ankiFields';
 import type { Deck } from '../application/decks';
 import {
   MAX_CARDS_PER_IMPORT,
@@ -41,7 +41,7 @@ function PasteCards({ username, deckId }: Readonly<{ username: string; deckId: s
   const [requestId] = useState(() => crypto.randomUUID());
   const [text, setText] = useState('');
   const [writtenCards, setWrittenCards] = useState<PastedCard[]>([]);
-  const [convertedHtml] = useState<ConvertedHtml>(() => new Map());
+  const [converted] = useState(noConvertedFields);
   const [previewCards, setPreviewCards] = useState<PastedCard[] | null>(null);
   const hasText = text.trim() !== '';
   const draft = useUnsavedDeckForm(hasText);
@@ -58,7 +58,7 @@ function PasteCards({ username, deckId }: Readonly<{ username: string; deckId: s
         deckTitle={deck?.title}
         text={text}
         writtenCards={writtenCards}
-        convertedHtml={convertedHtml}
+        converted={converted}
         onTextChange={setText}
         onPreview={setPreviewCards}
       />
@@ -113,7 +113,7 @@ type PasteStepProps = {
   deckTitle: string | undefined;
   text: string;
   writtenCards: PastedCard[];
-  convertedHtml: ConvertedHtml;
+  converted: ConvertedFields;
   onTextChange: (text: string) => void;
   onPreview: (cards: PastedCard[]) => void;
 };
@@ -123,7 +123,7 @@ function PasteStep({
   deckTitle,
   text,
   writtenCards,
-  convertedHtml,
+  converted,
   onTextChange,
   onPreview,
 }: Readonly<PasteStepProps>) {
@@ -131,8 +131,8 @@ function PasteStep({
   const firstInput = useFirstInput(gateway.prepareWrite);
   const requestFocus = useContext(FocusRequestContext);
   const cards = useMemo(
-    () => withRemovedMediaFrom(writtenCards, parsePastedCards(text, convertedHtml)),
-    [writtenCards, text, convertedHtml],
+    () => withRemovedMediaFrom(writtenCards, parsePastedCards(text, converted)),
+    [writtenCards, text, converted],
   );
   const [triedEmpty, setTriedEmpty] = useState(false);
   const field = useRef<HTMLTextAreaElement>(null);

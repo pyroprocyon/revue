@@ -155,7 +155,9 @@ export function useDeckWrite() {
       // Signing out still shows, because its problem sends the learner to sign in.
       const shown = failure.reason === 'signed-out' || formStillOpen();
       setState(
-        shown ? { status: 'failed', reason: failure.reason, availableCards: failure.availableCards } : { status: 'idle' },
+        shown
+          ? { status: 'failed', reason: failure.reason, availableCards: failure.availableCards }
+          : { status: 'idle' },
       );
     } finally {
       busy.current = false;
