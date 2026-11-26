@@ -94,6 +94,17 @@ class LibraryHttpTests {
     }
 
     @Test
+    void emptyLibraryHasZeroCountsAndNoCursor() throws Exception {
+        var learner = new Browser();
+        learner.register();
+        var page = body(learner.send(get("/api/v1/me/saved-sets")));
+        assertThat(page.get("items")).isEmpty();
+        assertThat(page.get("nextCursor").isNull()).isTrue();
+        assertThat(page.at("/counts/active").asLong()).isZero();
+        assertThat(page.at("/counts/paused").asLong()).isZero();
+    }
+
+    @Test
     void savedSetFiltersRunBeforePagingAndCountTheWholeLibrary() throws Exception {
         var learner = new Browser();
         var other = new Browser();
@@ -120,6 +131,10 @@ class LibraryHttpTests {
         var pausedPage = body(learner.send(get(sets + "?paused=true&limit=1")));
         assertThat(pausedPage.at("/items/0/id").asLong()).isEqualTo(paused);
         assertThat(pausedPage.get("counts")).isEqualTo(page.get("counts"));
+        var pastEnd = body(learner.send(get(sets + "?after=" + paused)));
+        assertThat(pastEnd.get("items")).isEmpty();
+        assertThat(pastEnd.get("nextCursor").isNull()).isTrue();
+        assertThat(pastEnd.get("counts")).isEqualTo(page.get("counts"));
         assertThat(body(learner.send(get(sets + "/" + paused))).get("reviewsPaused").asBoolean()).isTrue();
         assertThat(other.send(get(sets + "/" + paused)).getResponse().getStatus()).isEqualTo(404);
         var otherPage = body(other.send(get(sets + "?paused=true&limit=1")));

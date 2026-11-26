@@ -6,7 +6,6 @@ import java.time.Clock;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 /** Explicit membership changes and bounded reads of the current learner's shared sets. */
@@ -86,15 +85,14 @@ public class LibraryService {
     }
 
     /** Lists saved sets in stable ID order, without loading the entire library. */
-    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public Page list(long after, int limit, @Nullable Boolean paused) {
         if (after < 0 || limit < 1 || limit > 100) {
             throw new LibraryProblem(LibraryProblem.Kind.INVALID_PAGE);
         }
-        var learner = learners.current();
-        var rows = store.list(learner, after, limit + 1, paused);
+        var page = store.list(learners.current(), after, limit + 1, paused);
+        var rows = page.items();
         boolean more = rows.size() > limit;
         var items = List.copyOf(rows.subList(0, Math.min(rows.size(), limit)));
-        return new Page(items, more ? items.getLast().id() : null, store.reviewCounts(learner));
+        return new Page(items, more ? items.getLast().id() : null, page.counts());
     }
 }

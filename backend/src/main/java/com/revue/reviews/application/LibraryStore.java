@@ -26,6 +26,13 @@ public interface LibraryStore {
     record ReviewCounts(long active, long paused) {
     }
 
+    /** Page rows and whole-library counts from the same database snapshot. */
+    record SavedSetPage(List<SavedSet> items, ReviewCounts counts) {
+        public SavedSetPage {
+            items = List.copyOf(items);
+        }
+    }
+
     /** Saves an eligible active set and its initial schedules atomically, preserving existing progress. */
     SavedSet save(UUID learner, long setId, String schedulerId, String initialState, int limit);
 
@@ -35,9 +42,7 @@ public interface LibraryStore {
     void setReviewsPaused(UUID learner, long setId, boolean paused);
 
     /** Reads one learner's bounded page, including retired publications. */
-    List<SavedSet> list(UUID learner, long after, int limit, @Nullable Boolean paused);
-
-    ReviewCounts reviewCounts(UUID learner);
+    SavedSetPage list(UUID learner, long after, int limit, @Nullable Boolean paused);
 
     List<String> savedKeys(UUID learner);
 

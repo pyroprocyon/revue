@@ -89,14 +89,6 @@ class SharedSetRow {
         return setKey;
     }
 
-    String title() {
-        return title;
-    }
-
-    String publisherName() {
-        return publisherName;
-    }
-
     boolean saveAllowed() {
         return saveAllowed;
     }

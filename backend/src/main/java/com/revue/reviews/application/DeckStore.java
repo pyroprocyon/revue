@@ -39,6 +39,10 @@ public interface DeckStore {
 
     /** Deck metadata, review state and a bounded batch from the same read, with the batch's due cards. */
     record CardBatch(Deck deck, Progress progress, List<Card> items, Set<String> dueCardIds) {
+        public CardBatch {
+            items = List.copyOf(items);
+            dueCardIds = Set.copyOf(dueCardIds);
+        }
     }
 
     /** The result of one confirmed import, as first saved. A retry returns the same count. */

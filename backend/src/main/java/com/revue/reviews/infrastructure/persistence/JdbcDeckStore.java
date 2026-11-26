@@ -162,10 +162,9 @@ public class JdbcDeckStore implements DeckStore {
     @Override
     public List<Deck> decks(UUID owner) {
         return jdbc.query("""
-            select d.id, d.title, d.archived, count(c.id) as card_count
-            from decks d left join cards c on c.deck_id = d.id
+            select d.id, d.title, d.archived, (select count(*) from cards where deck_id = d.id) as card_count
+            from decks d
             where d.owner_id = ?
-            group by d.id
             order by d.id
             """, JdbcDeckStore::toDeck, owner);
     }
@@ -236,6 +235,8 @@ public class JdbcDeckStore implements DeckStore {
             .addValue("explanations", cards.stream().map(CardText::explanation).toArray(String[]::new))
             .addValue("memoryHooks", cards.stream().map(CardText::memoryHook).toArray(String[]::new))
             .addValue("sources", cards.stream().map(CardText::source).toArray(String[]::new))
+            .addValue("request", requestId)
+            .addValue("importFields", importFields(cards))
             .addValue("schedulerId", schedule.schedulerId())
             .addValue("initialState", schedule.state());
         DeckGrowth growth = named.queryForObject("""
@@ -259,13 +260,14 @@ public class JdbcDeckStore implements DeckStore {
                 insert into schedules(user_id, card_id, scheduler_id, scheduler_state)
                 select :owner, id, :schedulerId, cast(:initialState as jsonb) from added
                 returning card_id
+            ), receipt as (
+                insert into deck_import_requests(owner_id, request_id, deck_id, request_hash, imported_cards)
+                select :owner, :request, :deck, sha256(array_send(cast(:importFields as text[]))), count(*)
+                from scheduled
+                returning imported_cards
             )
-            select (select cards from deck_before) as cards_before, (select count(*) from scheduled) as imported
+            select (select cards from deck_before) as cards_before, imported_cards as imported from receipt
             """, parameters, (row, index) -> new DeckGrowth(row.getLong("cards_before"), row.getInt("imported")));
-        jdbc.update("""
-            insert into deck_import_requests(owner_id, request_id, deck_id, request_hash, imported_cards)
-            values (?, ?, ?, sha256(array_send(?::text[])), ?)
-            """, owner, requestId, deckId, importFields(cards), growth.imported());
         logAfterCommit(
             "deck.cards_imported",
             "deck",

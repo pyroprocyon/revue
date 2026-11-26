@@ -51,19 +51,27 @@ public record Account(
 
     public Access accessAt(Instant now) {
         Objects.requireNonNull(now);
-        if (deletion != null) {
-            return Access.DELETION_PENDING;
+        Access access = usernameAccess(deletion != null, suspendedAt != null, credentialResetRequired);
+        if (username != null || access == Access.DELETION_PENDING || access == Access.SUSPENDED) {
+            return access;
         }
-        if (suspendedAt != null) {
-            return Access.SUSPENDED;
-        }
-        if (username == null && emailVerifiedAt == null) {
+        if (emailVerifiedAt == null) {
             return registrationExpiredAt(now) ? Access.REGISTRATION_EXPIRED : Access.EMAIL_UNVERIFIED;
         }
-        if (username == null && (privacyAcceptedAt == null || adultConfirmedAt == null)) {
+        if (privacyAcceptedAt == null || adultConfirmedAt == null) {
             return Access.AGREEMENTS_REQUIRED;
         }
-        if (credentialResetRequired) {
+        return access;
+    }
+
+    public static Access usernameAccess(boolean deletionPending, boolean suspended, boolean resetRequired) {
+        if (deletionPending) {
+            return Access.DELETION_PENDING;
+        }
+        if (suspended) {
+            return Access.SUSPENDED;
+        }
+        if (resetRequired) {
             return Access.CREDENTIAL_RESET_REQUIRED;
         }
         return Access.ACTIVE;

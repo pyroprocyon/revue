@@ -190,12 +190,12 @@ class UsernameAccountHttpTests {
         var response = browser.send(get("/api/v1/me")).getResponse();
         assertThat(response.getStatus()).isEqualTo(200);
         assertThat(response.getContentAsString()).isEqualTo("{\"username\":\"" + name + "\"}");
-        verify(accounts, times(1)).byId(id);
+        verify(accounts, times(1)).sessionUsername(id, 0);
         jdbc.update("update users set credential_version = credential_version + 1 where id = ?", id);
         var stale = browser.send(get("/api/v1/me")).getResponse();
         assertThat(stale.getStatus()).isEqualTo(401);
         assertThat(stale.getContentAsString()).isEmpty();
-        verify(accounts, times(2)).byId(id);
+        verify(accounts, times(2)).sessionUsername(id, 0);
         var invalidation = StructuredEvents.named(output, "auth.session_invalidated");
         assertThat(invalidation).singleElement()
             .satisfies(event -> assertThat(event.at("/state/to").asString()).isEqualTo("invalidated"));
@@ -298,8 +298,11 @@ class UsernameAccountHttpTests {
     @Test
     void staleVersionsSuspendedAndDeletedAccountsLosePrivateAccess() throws Exception {
         for (String change : new String[] {"credential_version = credential_version + 1", "suspended_at = now()",
-            "credential_reset_required = true", "deletion_request_id = gen_random_uuid(), deletion_requested_at = "
-                + "now(), purge_after = now() + interval '7 days'"}) {
+            "credential_reset_required = true",
+            "deletion_request_id = gen_random_uuid(), deletion_requested_at = "
+                + "now(), purge_after = now() + interval '7 days'",
+            "email = username || '@example.org', username = null, email_verified_at = now(), "
+                + "privacy_accepted_at = now(), privacy_notice_version = 'pilot', adult_confirmed_at = now()"}) {
             String username = username();
             Browser browser = new Browser();
             browser.csrf();

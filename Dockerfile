@@ -49,7 +49,7 @@ RUN --mount=type=cache,target=/root/.m2,sharing=locked \
     mkdir -p /root/.m2/repository \
  && cp -a /maven-repository/. /root/.m2/repository/ \
  && /usr/share/maven/bin/mvn --settings .mvn/docker-settings.xml \
-      --batch-mode --no-transfer-progress -DskipTests package \
+      --batch-mode --no-transfer-progress --ignore-transitive-repositories -DskipTests package \
  && cp target/revue-*.jar /build/app.jar \
  && java -Djarmode=tools -jar /build/app.jar extract --destination /build/extracted
 
@@ -87,8 +87,9 @@ COPY --from=build /build/extracted/ ./
 # The heap decides how Java stores object references: above 32 GB, compressed references are off.
 # Without this flag, a build machine with 58 GB or more makes a cache the 512 MB instance rejects,
 # as Render's first deploy with the cache showed.
+# HotSpot warns about classes it deliberately excludes from the cache, such as generated proxies.
 # The last command checks that a 512 MB start can use the cache, and fails the build if not.
-RUN java -XX:AOTCacheOutput=app.aot -XX:MaxRAM=512m -Xms64m -XX:MaxRAMPercentage=45 -XX:+UseSerialGC \
+RUN java -Xlog:aot=error -XX:AOTCacheOutput=app.aot -XX:MaxRAM=512m -Xms64m -XX:MaxRAMPercentage=45 -XX:+UseSerialGC \
       -Dspring.context.exit=onRefresh \
       -Dspring.datasource.url=jdbc:postgresql://127.0.0.1:1/aot-training \
       -Dspring.datasource.hikari.initialization-fail-timeout=-1 \
