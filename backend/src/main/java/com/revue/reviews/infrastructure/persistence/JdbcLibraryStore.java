@@ -7,6 +7,7 @@ import com.revue.reviews.application.LibraryProblem;
 import com.revue.reviews.application.LibraryStore;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -33,16 +34,26 @@ public class JdbcLibraryStore implements LibraryStore {
         where saved.user_id = ? and s.id = ?
         """.formatted(SAVED_SET_FIELDS);
     private static final String SAVED_SET_PAGE = """
-        with page as (
+        with membership as (
             select set_id, saved_at, reviews_paused from saved_sets
-            where user_id = ? and set_id > ? and (cast(? as boolean) is null or reviews_paused = ?)
-            order by set_id limit ?
+            where user_id = ?
+        ), counts as (
+            select count(*) filter (where not reviews_paused) as active,
+                count(*) filter (where reviews_paused) as paused
+            from membership
+        ), page as (
+            select %s, count(c.id) as card_count
+            from (
+                select set_id, saved_at, reviews_paused from membership
+                where set_id > ? and (cast(? as boolean) is null or reviews_paused = ?)
+                order by set_id limit ?
+            ) saved join sets s on s.id = saved.set_id
+            left join cards c on c.set_id = s.id and c.retired_at is null
+            group by s.id, saved.saved_at, saved.reviews_paused
         )
-        select %s, count(c.id) as card_count
-        from page saved join sets s on s.id = saved.set_id
-        left join cards c on c.set_id = s.id and c.retired_at is null
-        group by s.id, saved.saved_at, saved.reviews_paused
-        order by s.id
+        select page.*, counts.active, counts.paused
+        from counts left join page on true
+        order by page.id
         """.formatted(SAVED_SET_FIELDS);
     private final JdbcTemplate jdbc;
     private final JdbcCardBrowser browser;
@@ -79,7 +90,7 @@ public class JdbcLibraryStore implements LibraryStore {
         if (inserted == 1) {
             AfterCommit.log(() -> logMembershipChange(learner, setId, true));
         }
-        return jdbc.queryForObject(SAVED_SET, JdbcLibraryStore::map, learner, setId);
+        return jdbc.queryForObject(SAVED_SET, (row, _) -> mapSavedSet(row), learner, setId);
     }
 
     @Override
@@ -111,17 +122,8 @@ public class JdbcLibraryStore implements LibraryStore {
     }
 
     @Override
-    public List<SavedSet> list(UUID learner, long after, int limit, @Nullable Boolean paused) {
-        return jdbc.query(SAVED_SET_PAGE, JdbcLibraryStore::map, learner, after, paused, paused, limit);
-    }
-
-    @Override
-    public ReviewCounts reviewCounts(UUID learner) {
-        return jdbc.queryForObject("""
-            select count(*) filter (where not reviews_paused) as active,
-                count(*) filter (where reviews_paused) as paused
-            from saved_sets where user_id = ?
-            """, (row, index) -> new ReviewCounts(row.getLong(ACTIVE), row.getLong(PAUSED)), learner);
+    public SavedSetPage list(UUID learner, long after, int limit, @Nullable Boolean paused) {
+        return jdbc.query(SAVED_SET_PAGE, JdbcLibraryStore::mapPage, learner, after, paused, paused, limit);
     }
 
     @Override
@@ -134,7 +136,7 @@ public class JdbcLibraryStore implements LibraryStore {
 
     @Override
     public Optional<SavedSet> find(UUID learner, long setId) {
-        return jdbc.query(SAVED_SET, JdbcLibraryStore::map, learner, setId).stream().findFirst();
+        return jdbc.query(SAVED_SET, (row, _) -> mapSavedSet(row), learner, setId).stream().findFirst();
     }
 
     @Override
@@ -178,7 +180,21 @@ public class JdbcLibraryStore implements LibraryStore {
             .log(message);
     }
 
-    private static SavedSet map(ResultSet row, int index) throws SQLException {
+    private static SavedSetPage mapPage(ResultSet rows) throws SQLException {
+        if (!rows.next()) {
+            throw new IllegalStateException("Library page omitted review counts");
+        }
+        var counts = new ReviewCounts(rows.getLong(ACTIVE), rows.getLong(PAUSED));
+        List<SavedSet> items = new ArrayList<>();
+        do {
+            if (rows.getString("id") != null) {
+                items.add(mapSavedSet(rows));
+            }
+        } while (rows.next());
+        return new SavedSetPage(items, counts);
+    }
+
+    private static SavedSet mapSavedSet(ResultSet row) throws SQLException {
         return new SavedSet(
             row.getString("id"),
             row.getString("set_key"),

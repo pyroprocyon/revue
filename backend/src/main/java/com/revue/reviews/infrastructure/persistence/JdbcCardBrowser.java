@@ -113,6 +113,6 @@ final class JdbcCardBrowser {
                 }
             }
         } while (rows.next());
-        return Optional.of(new CardBatch(deck, progress, cards, Set.copyOf(due)));
+        return Optional.of(new CardBatch(deck, progress, cards, due));
     }
 }

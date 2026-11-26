@@ -2,16 +2,18 @@ package com.revue.content.infrastructure.persistence;
 
 import com.revue.content.application.PublicSetQueries;
 import com.revue.content.application.TrialCards;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Types;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import org.jspecify.annotations.Nullable;
-import org.springframework.data.domain.Limit;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
 @Repository
-class JpaPublicSetQueries implements PublicSetQueries {
+class JdbcPublicSetQueries implements PublicSetQueries {
     private static final String OVERVIEW_FIELDS = """
         select s.id, s.set_key, s.title, s.description, s.publisher_name, s.subject, s.save_allowed,
             (select count(*) from cards c where c.set_id = s.id and c.retired_at is null) as card_count
@@ -30,14 +32,22 @@ class JpaPublicSetQueries implements PublicSetQueries {
     private static final String PAGE_ORDER = " order by s.title, s.id limit :limit";
     private static final String ONBOARDING_SCOPE = ACTIVE_SETS
         + " and not s.save_allowed and s.set_key in (:keys) order by s.title, s.id";
+    private static final String TRIAL = """
+        select s.title, s.publisher_name, trial.content_key, trial.question, trial.answer,
+            trial.explanation, trial.source
+        from sets s
+        left join lateral (
+            select c.content_key, c.question, c.answer, c.explanation, c.source, c.position, c.id
+            from cards c where c.set_id = s.id and c.retired_at is null
+            order by c.position, c.id limit :limit
+        ) trial on true
+        where s.set_key = :setKey and s.retired_at is null
+        order by trial.position, trial.id
+        """;
     private final JdbcClient jdbc;
-    private final JpaSharedSetRepository sets;
-    private final JpaCardRepository cards;
 
-    JpaPublicSetQueries(JdbcClient jdbc, JpaSharedSetRepository sets, JpaCardRepository cards) {
+    JdbcPublicSetQueries(JdbcClient jdbc) {
         this.jdbc = jdbc;
-        this.sets = sets;
-        this.cards = cards;
     }
 
     @Override
@@ -85,19 +95,28 @@ class JpaPublicSetQueries implements PublicSetQueries {
 
     @Override
     public Optional<TrialCards> trialCards(String setKey, int limit) {
-        return sets.findActiveBySetKey(setKey).map(set -> {
-            List<TrialCards.TrialCard> selected = cards.findActiveInSetOrdered(set, Limit.of(limit))
-                .stream()
-                .map(
-                    card -> new TrialCards.TrialCard(
-                        card.contentKey(),
-                        card.question(),
-                        card.answer(),
-                        card.explanation(),
-                        card.source()))
-                .toList();
-            return new TrialCards(set.title(), set.publisherName(), selected);
-        });
+        return jdbc.sql(TRIAL).param("setKey", setKey).param("limit", limit).query(JdbcPublicSetQueries::readTrial);
     }
 
+    private static Optional<TrialCards> readTrial(ResultSet rows) throws SQLException {
+        if (!rows.next()) {
+            return Optional.empty();
+        }
+        String title = rows.getString("title");
+        String publisher = rows.getString("publisher_name");
+        List<TrialCards.TrialCard> cards = new ArrayList<>();
+        do {
+            String key = rows.getString("content_key");
+            if (key != null) {
+                cards.add(
+                    new TrialCards.TrialCard(
+                        key,
+                        rows.getString("question"),
+                        rows.getString("answer"),
+                        rows.getString("explanation"),
+                        rows.getString("source")));
+            }
+        } while (rows.next());
+        return Optional.of(new TrialCards(title, publisher, cards));
+    }
 }

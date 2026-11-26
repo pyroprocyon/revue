@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /** A learner's private decks and cards. Each change runs under the learner's lock, like saving and reviewing. */
@@ -74,6 +75,7 @@ public class DeckService {
         return store.createDeck(learner, title, requestId);
     }
 
+    @Transactional(propagation = Propagation.SUPPORTS)
     public List<DeckStore.Deck> decks() {
         return store.decks(learners.current());
     }
@@ -95,6 +97,7 @@ public class DeckService {
     }
 
     /** Reads the deck and the cards that follow the given card, in the order they were added. */
+    @Transactional(propagation = Propagation.SUPPORTS)
     public CardPage cards(long deckId, long afterCardId, int limit, String search, boolean dueOnly) {
         String term = search.strip();
         if (!validCardPage(afterCardId, limit, term)) {

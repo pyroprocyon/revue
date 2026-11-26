@@ -5,6 +5,7 @@ import com.revue.reviews.domain.ReviewRating;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
@@ -123,7 +124,24 @@ public interface ReviewStore {
     }
 
     /** Replay and scheduling facts from the same snapshot under the learner lock. */
-    record RatingState(@Nullable Logged previous, @Nullable Schedule schedule, int newCardsLeft) {
+    sealed interface RatingState {
+        /** A committed rating takes precedence over current card availability. */
+        record Replay(Logged previous) implements RatingState {
+            public Replay {
+                Objects.requireNonNull(previous);
+            }
+        }
+
+        /** The schedule version and allowance used to validate a new rating. */
+        record Available(Schedule schedule, int newCardsLeft) implements RatingState {
+            public Available {
+                Objects.requireNonNull(schedule);
+            }
+        }
+
+        /** No schedule is available to the learner for the requested card. */
+        record Unavailable() implements RatingState {
+        }
     }
 
     /** Adds only missing initial schedules for cards in saved sets and in the learner's own decks. */
@@ -146,11 +164,8 @@ public interface ReviewStore {
     /** Reads the studied card and holds its text until the rating commits, so an edit lands before or after it. */
     Optional<Card> lockStudyCard(UUID learner, long cardId);
 
-    /** Inserts once without aborting a transaction on a duplicate request. */
-    boolean insert(UUID learner, Rating input, Result result, LocalDate day, String profile);
-
-    /** Changes exactly the expected schedule, returning false on a conflict. */
-    boolean advance(UUID learner, Rating input, Result result, String state);
+    /** Returns false on duplicate requests and rolls back when the expected schedule cannot advance. */
+    boolean saveRating(UUID learner, Rating input, Result result, LocalDate day, String profile, String state);
 
     /** Emits a new saved event only after the enclosing transaction commits. */
     void saved(UUID learner, Rating input, Result result);

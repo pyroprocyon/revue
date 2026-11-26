@@ -11,8 +11,8 @@ public interface AccountQueries {
     /** Finds the account and encoded credentials for a canonical username. */
     Optional<Credentials> byUsername(Username username);
 
-    /** Finds the account and encoded credentials for its stable identifier. */
-    Optional<Credentials> byId(UUID id);
+    /** Finds the username if the account still permits access at the session's credential version. */
+    Optional<Username> sessionUsername(UUID id, long credentialVersion);
 
     /** Locks and returns an account's current credentials within the caller's transaction. */
     Optional<Credentials> lock(UUID id);

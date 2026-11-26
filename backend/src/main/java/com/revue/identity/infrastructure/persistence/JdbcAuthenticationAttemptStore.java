@@ -24,23 +24,13 @@ public class JdbcAuthenticationAttemptStore implements AuthenticationAttemptStor
             return false;
         }
         jdbc.update("DELETE FROM authentication_attempts WHERE expires_at <= statement_timestamp()");
-        var previous = jdbc.queryForList(
-            "SELECT attempts FROM authentication_attempts WHERE identifier_hash = ?",
-            Integer.class,
-            identifierHash);
-        if (!previous.isEmpty()) {
-            return jdbc.update(
-                "UPDATE authentication_attempts SET attempts = attempts + 1 WHERE identifier_hash = ? AND"
-                    + " attempts < 10",
-                identifierHash) == 1;
-        }
-        if (jdbc.queryForObject("SELECT count(*) FROM authentication_attempts", Integer.class) >= 1024) {
-            return false;
-        }
-        jdbc.update(
-            "INSERT INTO authentication_attempts (identifier_hash, attempts, expires_at) VALUES (?, 1,"
-                + " statement_timestamp() + interval '1 minute')",
-            identifierHash);
-        return true;
+        return jdbc.update("""
+            INSERT INTO authentication_attempts (identifier_hash, attempts, expires_at)
+            SELECT ?, 1, statement_timestamp() + interval '1 minute'
+            WHERE CASE WHEN EXISTS (SELECT 1 FROM authentication_attempts WHERE identifier_hash = ?) THEN true
+                ELSE (SELECT count(*) FROM authentication_attempts) < 1024 END
+            ON CONFLICT (identifier_hash) DO UPDATE SET attempts = authentication_attempts.attempts + 1
+            WHERE authentication_attempts.attempts < 10
+            """, identifierHash, identifierHash) == 1;
     }
 }

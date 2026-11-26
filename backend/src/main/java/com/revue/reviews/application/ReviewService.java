@@ -1,10 +1,12 @@
 package com.revue.reviews.application;
 
+import com.revue.reviews.application.ReviewStore.RatingState;
 import com.revue.reviews.domain.AttemptMode;
 import com.revue.reviews.domain.DailyReviewScheduler;
-import com.revue.reviews.domain.MemoryModel;
 import com.revue.reviews.domain.ReviewRating;
 import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -14,14 +16,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 /** Daily reviews serialized per learner, with one atomic result and same-request replay. */
 @Service
-@Transactional
 public class ReviewService {
     private static final Pattern TOPIC_ID = Pattern.compile("(?:deck|set)-[1-9]\\d{0,18}");
     private final LearnerAccess learners;
     private final ReviewStore store;
     private final StudyDates studyDates;
     private final DailyReviewScheduler scheduler;
-    private final MemoryModel memory;
+    private final ScheduleRepair scheduleRepair;
     private final Clock clock;
 
     public ReviewService(
@@ -29,13 +30,13 @@ public class ReviewService {
         ReviewStore store,
         StudyDates studyDates,
         DailyReviewScheduler scheduler,
-        MemoryModel memory,
+        ScheduleRepair scheduleRepair,
         Clock clock) {
         this.learners = learners;
         this.store = store;
         this.studyDates = studyDates;
         this.scheduler = scheduler;
-        this.memory = memory;
+        this.scheduleRepair = scheduleRepair;
         this.clock = clock;
     }
 
@@ -44,6 +45,7 @@ public class ReviewService {
         return store.dailyNewCardLimit(learners.current());
     }
 
+    @Transactional
     public int setDailyNewCardLimit(int limit) {
         if (limit != ReviewStore.DEFAULT_DAILY_NEW_CARD_LIMIT && limit != ReviewStore.MAX_DAILY_NEW_CARD_LIMIT) {
             throw new ReviewProblem(ReviewProblem.Kind.INVALID_NEW_CARD_LIMIT);
@@ -75,26 +77,34 @@ public class ReviewService {
         var result = store
             .queue(learner, today, summaryOnly ? 0 : limit, topic, topic == null || includeNew, pausedTopic);
         if (result.missingSchedules()) {
-            store.initialize(learners.lockCurrent(), DailyReviewScheduler.PROFILE, memory.initialState(), topic);
+            scheduleRepair.initializeMissing(topic);
         }
         return result.queue();
     }
 
     /** Saves one rating, or returns its original result without advancing again. */
+    @Transactional
     public ReviewStore.Result rate(long cardId, ReviewStore.Rating input) {
         validate(cardId, input);
         UUID learner = learners.lockCurrent();
         // PostgreSQL stores microseconds; normalize before building the first and replayed bodies.
         var reviewedAt = clock.instant().truncatedTo(ChronoUnit.MICROS);
         var today = DailyReviewScheduler.studyDate(reviewedAt);
-        var facts = store.ratingState(learner, cardId, input.requestId(), today);
-        if (facts.previous() != null) {
-            return replay(cardId, input, facts.previous());
-        }
+        return switch (store.ratingState(learner, cardId, input.requestId(), today)) {
+            case RatingState.Replay(var previous) -> replay(cardId, input, previous);
+            case RatingState.Available facts -> saveNewRating(learner, cardId, input, reviewedAt, today, facts);
+            case RatingState.Unavailable() -> throw new ReviewProblem(ReviewProblem.Kind.UNAVAILABLE);
+        };
+    }
+
+    private ReviewStore.Result saveNewRating(
+        UUID learner,
+        long cardId,
+        ReviewStore.Rating input,
+        Instant reviewedAt,
+        LocalDate today,
+        RatingState.Available facts) {
         var state = facts.schedule();
-        if (state == null) {
-            throw new ReviewProblem(ReviewProblem.Kind.UNAVAILABLE);
-        }
         if (state.version() != input.expectedVersion()) {
             throw new ReviewProblem(ReviewProblem.Kind.STALE_SCHEDULE);
         }
@@ -121,11 +131,8 @@ public class ReviewService {
             prediction.reviewDate(),
             prediction.reviewDate(),
             state.version() + 1);
-        if (!store.insert(learner, input, result, today, state.schedulerId())) {
+        if (!store.saveRating(learner, input, result, today, state.schedulerId(), prediction.stateJson())) {
             return replay(cardId, input, store.logged(learner, input.requestId()).orElseThrow());
-        }
-        if (!store.advance(learner, input, result, prediction.stateJson())) {
-            throw new ReviewProblem(ReviewProblem.Kind.STALE_SCHEDULE);
         }
         studyDates.recordStudyDay(learner, today);
         store.saved(learner, input, result);

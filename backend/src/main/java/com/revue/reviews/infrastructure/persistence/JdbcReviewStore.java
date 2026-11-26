@@ -1,6 +1,7 @@
 package com.revue.reviews.infrastructure.persistence;
 
 import com.revue.AfterCommit;
+import com.revue.reviews.application.ReviewProblem;
 import com.revue.reviews.application.ReviewStore;
 import com.revue.reviews.domain.AttemptMode;
 import com.revue.reviews.domain.ReviewRating;
@@ -21,6 +22,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.json.JsonMapper;
 
 /** PostgreSQL queue projections and conditional writes within the learner's transaction. */
@@ -42,22 +45,28 @@ public class JdbcReviewStore implements ReviewStore {
             where user_id = :learner and local_review_date = :today and expected_schedule_version = 0
         )) as remaining
         """;
-    private static final String STUDY_CARDS = """
+    // The shared-card join states its subset explicitly so PostgreSQL can estimate its size in the mixed cards table.
+    private static final String STUDY_CARDS_START = """
         with study as (
         select c.id, c.retired_at, c.position, s.title as collection_title, s.publisher_name, s.created_at as collection_created,
             'set-' || s.id as topic_id
         from saved_sets saved join sets s on s.id = saved.set_id join cards c on c.set_id = s.id
-        where saved.user_id = :learner and not saved.reviews_paused
+        where saved.user_id = :learner and not saved.reviews_paused and c.set_id is not null
         union all
         select c.id, c.retired_at, c.position, d.title, null, d.created_at, 'deck-' || d.id
-        from decks d join cards c on c.deck_id = d.id
+        from decks d
+        """;
+    private static final String STUDY_CARDS_END = """
         where d.owner_id = :learner and not d.archived
         )
         """;
-    private static final String SCOPED_CARDS = STUDY_CARDS + """
+    private static final String STUDY_CARDS = STUDY_CARDS_START + """
+        join cards c on c.deck_id = d.id
+        """ + STUDY_CARDS_END;
+    private static final String SCOPE_BY_TOPIC = """
         , scoped as (select * from study where cast(:topic as text) is null or topic_id = :topic)
         """;
-    private static final String INITIALIZE = SCOPED_CARDS + """
+    private static final String INITIALIZE = STUDY_CARDS + SCOPE_BY_TOPIC + """
         insert into schedules(user_id, card_id, scheduler_id, scheduler_state)
         select :learner, study.id, :profile, cast(:initialState as jsonb)
         from scoped study
@@ -88,14 +97,19 @@ public class JdbcReviewStore implements ReviewStore {
         """;
     // The one queue order (plan section 9). Topics are listed by where their first due card sits in it.
     private static final String QUEUE_ORDER = "next_review_date nulls last, collection_created, position, id";
+    // OFFSET 0 keeps queue enumeration on the learner's decks when PostgreSQL would scan the entire cards table.
     // Stale statistics after schedule repair produced 12.5 million join comparisons for one 5,000-card deck.
-    private static final String QUEUE = SCOPED_CARDS + """
+    private static final String QUEUE = STUDY_CARDS_START + """
+        cross join lateral (
+            select id, retired_at, position from cards where deck_id = d.id offset 0
+        ) c
+        """ + STUDY_CARDS_END + SCOPE_BY_TOPIC + """
         , library as (
             select study.*, coalesce(sc.version, 0) as version, sc.next_review_date, sc.card_id is null as unscheduled
             from scoped study
             left join lateral (
                 select card_id, version, next_review_date from schedules
-                where user_id = :learner and card_id = study.id limit 1
+                where study.retired_at is null and user_id = :learner and card_id = study.id limit 1
             ) sc on true
         ), eligible as (
             select * from library where retired_at is null
@@ -187,6 +201,7 @@ public class JdbcReviewStore implements ReviewStore {
     }
 
     @Override
+    @Transactional(propagation = Propagation.MANDATORY)
     public void initialize(UUID learner, String profile, String initialState, @Nullable String topic) {
         named.update(
             INITIALIZE,
@@ -290,18 +305,23 @@ public class JdbcReviewStore implements ReviewStore {
                 today,
                 DEFAULT_LIMIT_PARAMETER,
                 DEFAULT_DAILY_NEW_CARD_LIMIT),
-            (row, _) -> {
-                Logged previous = row.getObject("request_id") == null ? null : logged(row, requestId);
-                String profile = row.getString("current_profile");
-                Schedule schedule = profile == null
-                    ? null
-                    : new Schedule(
-                        profile,
-                        row.getString("scheduler_state"),
-                        row.getLong("version"),
-                        row.getObject("due", LocalDate.class));
-                return new RatingState(previous, schedule, row.getInt("new_cards_left"));
-            });
+            (row, _) -> readRatingState(row, requestId));
+    }
+
+    private static RatingState readRatingState(ResultSet row, UUID requestId) throws SQLException {
+        if (row.getObject("request_id") != null) {
+            return new RatingState.Replay(logged(row, requestId));
+        }
+        String profile = row.getString("current_profile");
+        if (profile == null) {
+            return new RatingState.Unavailable();
+        }
+        var schedule = new Schedule(
+            profile,
+            row.getString("scheduler_state"),
+            row.getLong("version"),
+            row.getObject("due", LocalDate.class));
+        return new RatingState.Available(schedule, row.getInt("new_cards_left"));
     }
 
     @Override
@@ -312,15 +332,30 @@ public class JdbcReviewStore implements ReviewStore {
     }
 
     @Override
-    public boolean insert(UUID learner, Rating input, Result result, LocalDate day, String profile) {
-        return jdbc.update(
+    @Transactional(propagation = Propagation.MANDATORY)
+    public boolean saveRating(UUID learner, Rating input, Result result, LocalDate day, String profile, String state) {
+        return jdbc.queryForObject(
             """
-                insert into review_logs(user_id, card_id, request_id, review_contract, rating, attempt_mode,
-                    expected_schedule_version, reviewed_content_version, reviewed_at, local_review_date,
-                    scheduler_id, recommended_review_date, next_review_date, schedule_version_after)
-                values (?, ?, ?, 'mvp-1', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                on conflict (user_id, request_id) do nothing
+                with inserted as (
+                    insert into review_logs(user_id, card_id, request_id, review_contract, rating, attempt_mode,
+                        expected_schedule_version, reviewed_content_version, reviewed_at, local_review_date,
+                        scheduler_id, recommended_review_date, next_review_date, schedule_version_after)
+                    values (?, ?, ?, 'mvp-1', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    on conflict (user_id, request_id) do nothing
+                    returning user_id, card_id, expected_schedule_version, reviewed_content_version, reviewed_at,
+                        recommended_review_date, next_review_date, schedule_version_after
+                ), advanced as (
+                    update schedules s set scheduler_state = cast(? as jsonb), last_reviewed_at = i.reviewed_at,
+                        last_reviewed_content_version = i.reviewed_content_version,
+                        recommended_review_date = i.recommended_review_date, next_review_date = i.next_review_date,
+                        version = i.schedule_version_after
+                    from inserted i
+                    where s.user_id = i.user_id and s.card_id = i.card_id and s.version = i.expected_schedule_version
+                    returning 1
+                )
+                select exists (select 1 from inserted) as inserted, exists (select 1 from advanced) as advanced
                 """,
+            (row, _) -> ratingWasSaved(row),
             learner,
             Long.parseLong(result.cardId()),
             input.requestId(),
@@ -333,26 +368,18 @@ public class JdbcReviewStore implements ReviewStore {
             profile,
             result.recommendedReviewDate(),
             result.nextReviewDate(),
-            result.scheduleVersion()) == 1;
+            result.scheduleVersion(),
+            state);
     }
 
-    @Override
-    public boolean advance(UUID learner, Rating input, Result result, String state) {
-        return jdbc.update(
-            """
-                update schedules set scheduler_state = cast(? as jsonb), last_reviewed_at = ?,
-                    last_reviewed_content_version = ?, recommended_review_date = ?, next_review_date = ?, version = ?
-                where user_id = ? and card_id = ? and version = ?
-                """,
-            state,
-            Timestamp.from(result.reviewedAt()),
-            input.contentVersion(),
-            result.recommendedReviewDate(),
-            result.nextReviewDate(),
-            result.scheduleVersion(),
-            learner,
-            Long.parseLong(result.cardId()),
-            input.expectedVersion()) == 1;
+    private static boolean ratingWasSaved(ResultSet row) throws SQLException {
+        if (!row.getBoolean("inserted")) {
+            return false;
+        }
+        if (!row.getBoolean("advanced")) {
+            throw new ReviewProblem(ReviewProblem.Kind.STALE_SCHEDULE);
+        }
+        return true;
     }
 
     @Override

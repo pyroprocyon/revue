@@ -105,22 +105,4 @@ class CardRow {
     String contentKey() {
         return contentKey;
     }
-
-    String question() {
-        return question;
-    }
-
-    String answer() {
-        return answer;
-    }
-
-    @Nullable
-    String explanation() {
-        return explanation;
-    }
-
-    @Nullable
-    String source() {
-        return source;
-    }
 }

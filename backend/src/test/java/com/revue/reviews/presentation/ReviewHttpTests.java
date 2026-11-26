@@ -2,6 +2,7 @@ package com.revue.reviews.presentation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -11,6 +12,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import com.revue.StructuredEvents;
 import com.revue.TestcontainersConfiguration;
 import com.revue.reviews.application.ReviewStore;
+import com.revue.reviews.domain.DailyReviewScheduler;
 import jakarta.servlet.http.Cookie;
 import java.time.Clock;
 import java.time.Instant;
@@ -19,7 +21,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -32,10 +36,12 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -50,7 +56,7 @@ class ReviewHttpTests {
     MockMvc mvc;
     @Autowired
     JdbcTemplate jdbc;
-    @Autowired
+    @MockitoSpyBean
     ReviewStore store;
     @Autowired
     PlatformTransactionManager transactions;
@@ -219,7 +225,15 @@ class ReviewHttpTests {
     @Test
     void readyQueuesAndLibraryReadsDoNotWaitForAnotherStudyTransaction() throws Exception {
         var learner = new Browser();
-        learner.save(publication(2));
+        long set = publication(2);
+        learner.save(set);
+        long retiredCard = jdbc.queryForObject("select min(id) from cards where set_id = ?", Long.class, set);
+        jdbc.update("update cards set retired_at = now() where id = ?", retiredCard);
+        jdbc.update("delete from schedules where user_id = ? and card_id = ?", learner.id, retiredCard);
+        doAnswer(call -> {
+            assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+            return call.callRealMethod();
+        }).when(store).queue(learner.id, DailyReviewScheduler.studyDate(now.get()), 0, null, true, null);
         try (var workers = Executors.newVirtualThreadPerTaskExecutor()) {
             new TransactionTemplate(transactions).executeWithoutResult(_ -> {
                 jdbc.queryForObject("select id from users where id = ? for no key update", UUID.class, learner.id);
@@ -228,6 +242,9 @@ class ReviewHttpTests {
                     var library = learner.send(get("/api/v1/me/saved-sets"));
                     assertThat(List.of(queue.getResponse().getStatus(), library.getResponse().getStatus()))
                         .containsExactly(200, 200);
+                    var summary = body(queue);
+                    assertThat(summary.get("totalCards").asInt()).isEqualTo(2);
+                    assertThat(summary.get("availableCards").asInt()).isEqualTo(1);
                     return true;
                 });
                 org.assertj.core.api.Assertions
@@ -237,6 +254,34 @@ class ReviewHttpTests {
         }
         jdbc.update("update users set credential_version = credential_version + 1 where id = ?", learner.id);
         assertThat(learner.send(get("/api/v1/me/saved-sets")).getResponse().getStatus()).isEqualTo(401);
+    }
+
+    @Test
+    void scheduleRepairRechecksCredentialsAfterTheQueueRead() throws Exception {
+        var learner = new Browser();
+        long set = publication(1);
+        learner.save(set);
+        jdbc.update("delete from schedules where user_id = ?", learner.id);
+        var queueWasRead = new CountDownLatch(1);
+        var credentialsChanged = new CountDownLatch(1);
+        doAnswer(call -> {
+            Object result = call.callRealMethod();
+            queueWasRead.countDown();
+            assertThat(credentialsChanged.await(5, TimeUnit.SECONDS)).isTrue();
+            return result;
+        }).when(store).queue(learner.id, DailyReviewScheduler.studyDate(now.get()), 0, null, true, null);
+        try (var workers = Executors.newVirtualThreadPerTaskExecutor()) {
+            var pending = workers.submit(() -> learner.send(get("/api/v1/cards/due?summaryOnly=true")));
+            try {
+                assertThat(queueWasRead.await(5, TimeUnit.SECONDS)).isTrue();
+                jdbc.update("update users set credential_version = credential_version + 1 where id = ?", learner.id);
+            } finally {
+                credentialsChanged.countDown();
+            }
+            assertThat(pending.get(5, TimeUnit.SECONDS).getResponse().getStatus()).isEqualTo(401);
+        }
+        assertThat(jdbc.queryForObject("select count(*) from schedules where user_id = ?", Integer.class, learner.id))
+            .isZero();
     }
 
     @Test
@@ -628,7 +673,7 @@ class ReviewHttpTests {
     }
 
     @Test
-    void duplicateInsertLeavesTransactionUsableAndExistingResultUnchanged() throws Exception {
+    void duplicateWriteLeavesTransactionUsableAndReviewUnchanged() throws Exception {
         var learner = new Browser();
         long set = publication(1);
         learner.save(set);
@@ -637,15 +682,37 @@ class ReviewHttpTests {
         learner.rate(card, input);
         new TransactionTemplate(transactions).executeWithoutResult(_ -> {
             var original = store.logged(learner.id, input.requestId()).orElseThrow();
+            var saved = original.result();
+            var duplicate = new ReviewStore.Rating(
+                input.rating(),
+                input.attemptMode(),
+                input.requestId(),
+                saved.scheduleVersion(),
+                input.contentVersion());
+            var attempted = new ReviewStore.Result(
+                saved.cardId(),
+                saved.requestId(),
+                saved.reviewedAt(),
+                saved.recommendedReviewDate(),
+                saved.nextReviewDate(),
+                saved.scheduleVersion() + 1);
             assertThat(
-                store.insert(
+                store.saveRating(
                     learner.id,
-                    input,
-                    original.result(),
+                    duplicate,
+                    attempted,
                     LocalDate.of(2026, 11, 13),
-                    "fsrs6-java1.0.0-daily-v1"))
+                    DailyReviewScheduler.PROFILE,
+                    "{}"))
                 .isFalse();
             assertThat(store.logged(learner.id, input.requestId()).orElseThrow()).isEqualTo(original);
+            assertThat(
+                jdbc.queryForObject(
+                    "select version from schedules where user_id = ? and card_id = ?",
+                    Long.class,
+                    learner.id,
+                    card))
+                .isEqualTo(saved.scheduleVersion());
         });
     }
 

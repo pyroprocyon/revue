@@ -11,8 +11,9 @@ public class InvalidContentException extends RuntimeException {
     private final List<String> problems;
 
     public InvalidContentException(List<String> problems) {
-        super("Invalid content: " + String.join("; ", problems));
-        this.problems = List.copyOf(problems);
+        var snapshot = List.copyOf(problems);
+        super("Invalid content: " + String.join("; ", snapshot));
+        this.problems = snapshot;
     }
 
     public List<String> problems() {

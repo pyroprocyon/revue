@@ -55,6 +55,14 @@ class SharedAuthenticationAdmissionTests {
                 + " interval '1 minute' FROM generate_series(1, 1024) n");
         assertThat(store.tryAcquire("a".repeat(64))).isFalse();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM authentication_attempts", Integer.class)).isEqualTo(1024);
+        String existing = jdbc.queryForObject("SELECT min(identifier_hash) FROM authentication_attempts", String.class);
+        assertThat(store.tryAcquire(existing)).isTrue();
+        assertThat(
+            jdbc.queryForObject(
+                "SELECT attempts FROM authentication_attempts WHERE identifier_hash = ?",
+                Integer.class,
+                existing))
+            .isEqualTo(2);
         jdbc.update("UPDATE authentication_attempts SET expires_at = clock_timestamp() - interval '1 second'");
         assertThat(store.tryAcquire("a".repeat(64))).isTrue();
     }

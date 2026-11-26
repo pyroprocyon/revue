@@ -3,7 +3,6 @@ package com.revue.identity.application;
 import com.revue.identity.domain.Account;
 import com.revue.identity.domain.PasswordPolicy;
 import com.revue.identity.domain.Username;
-import java.time.Clock;
 import java.util.Optional;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
@@ -17,7 +16,6 @@ public class AccountService {
     private final PasswordHasher hasher;
     private final AuthenticationAdmission admission;
     private final AccountSession session;
-    private final Clock clock;
 
     public AccountService(
         AccountQueries accounts,
@@ -25,15 +23,13 @@ public class AccountService {
         LoginCommit login,
         PasswordHasher hasher,
         AuthenticationAdmission admission,
-        AccountSession session,
-        Clock clock) {
+        AccountSession session) {
         this.accounts = accounts;
         this.registration = registration;
         this.login = login;
         this.hasher = hasher;
         this.admission = admission;
         this.session = session;
-        this.clock = clock;
     }
 
     /** Validates signup, hashes the password and creates an account. */
@@ -96,14 +92,8 @@ public class AccountService {
     }
 
     private Optional<EligibleAccount> eligible(AccountSession.Identity identity) {
-        Account account = accounts.byId(identity.accountId()).map(AccountQueries.Credentials::account).orElse(null);
-        if (account == null
-            || account.credentialVersion() != identity.credentialVersion()
-            || account.accessAt(clock.instant()) != Account.Access.ACTIVE
-            || account.username() == null) {
-            return Optional.empty();
-        }
-        return Optional.of(new EligibleAccount(identity, new Profile(account.username().value())));
+        return accounts.sessionUsername(identity.accountId(), identity.credentialVersion())
+            .map(username -> new EligibleAccount(identity, new Profile(username.value())));
     }
 
     /**
