@@ -2,32 +2,35 @@ import { CircleAlert, RefreshCw } from 'lucide-react';
 import { Component, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { HOME_PATH, TODAY_PATH } from '../navigation/paths';
-import { recoverFromPagePreloadError, reloadPage } from '../navigation/pageLoads';
+import { canRecoverFromPagePreloadError, recoverFromPagePreloadError, reloadPage } from '../navigation/pageLoads';
 import { primaryButton, secondaryButton } from './buttonStyles';
 import { HomeLink } from './HeaderLinks';
+import { LoadingStatus } from './LoadingFeedback';
 import { PageLayout } from './PageLayout';
 import { useFocusOnMount } from './useFocusOnMount';
 
 type BoundaryProps = { resetKey: string; fallback: ReactNode; children: ReactNode };
-type BoundaryState = { failed: boolean; resetKey: string };
+type BoundaryState = { phase: 'ready' | 'reloading' | 'failed'; resetKey: string };
 
 export class RouteErrorBoundary extends Component<BoundaryProps, BoundaryState> {
-  state: BoundaryState = { failed: false, resetKey: this.props.resetKey };
+  state: BoundaryState = { phase: 'ready', resetKey: this.props.resetKey };
 
-  static getDerivedStateFromError(): Partial<BoundaryState> {
-    return { failed: true };
+  static getDerivedStateFromError(error: Error): Pick<BoundaryState, 'phase'> {
+    return { phase: canRecoverFromPagePreloadError(error) ? 'reloading' : 'failed' };
   }
 
   static getDerivedStateFromProps(props: BoundaryProps, state: BoundaryState): Partial<BoundaryState> | null {
-    return props.resetKey === state.resetKey ? null : { failed: false, resetKey: props.resetKey };
+    return props.resetKey === state.resetKey ? null : { phase: 'ready', resetKey: props.resetKey };
   }
 
   componentDidCatch(error: Error) {
-    recoverFromPagePreloadError(error);
+    if (this.state.phase === 'reloading' && !recoverFromPagePreloadError(error)) this.setState({ phase: 'failed' });
   }
 
   render() {
-    return this.state.failed ? this.props.fallback : this.props.children;
+    if (this.state.phase === 'reloading')
+      return <LoadingStatus className="mx-auto mt-8 w-fit">Reloading this page…</LoadingStatus>;
+    return this.state.phase === 'failed' ? this.props.fallback : this.props.children;
   }
 }
 
