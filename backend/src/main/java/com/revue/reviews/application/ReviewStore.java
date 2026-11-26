@@ -164,7 +164,12 @@ public interface ReviewStore {
     /** Reads the studied card and holds its text until the rating commits, so an edit lands before or after it. */
     Optional<Card> lockStudyCard(UUID learner, long cardId);
 
-    /** Returns false on duplicate requests and rolls back when the expected schedule cannot advance. */
+    /**
+     * Saves the rating and advances the schedule in the caller's transaction. Returns false on duplicate requests.
+     *
+     * @throws ReviewProblem with {@code STALE_SCHEDULE} if the schedule cannot advance. The caller's transaction rolls
+     *         back the new log.
+     */
     boolean saveRating(UUID learner, Rating input, Result result, LocalDate day, String profile, String state);
 
     /** Emits a new saved event only after the enclosing transaction commits. */

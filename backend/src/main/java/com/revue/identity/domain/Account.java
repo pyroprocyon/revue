@@ -51,9 +51,18 @@ public record Account(
 
     public Access accessAt(Instant now) {
         Objects.requireNonNull(now);
-        Access access = usernameAccess(deletion != null, suspendedAt != null, credentialResetRequired);
-        if (username != null || access == Access.DELETION_PENDING || access == Access.SUSPENDED) {
-            return access;
+        if (username != null) {
+            return usernameAccountAccess(deletion == null ? null : deletion.id(), suspendedAt, credentialResetRequired);
+        }
+        return emailAccountAccess(now);
+    }
+
+    private Access emailAccountAccess(Instant now) {
+        if (deletion != null) {
+            return Access.DELETION_PENDING;
+        }
+        if (suspendedAt != null) {
+            return Access.SUSPENDED;
         }
         if (emailVerifiedAt == null) {
             return registrationExpiredAt(now) ? Access.REGISTRATION_EXPIRED : Access.EMAIL_UNVERIFIED;
@@ -61,20 +70,20 @@ public record Account(
         if (privacyAcceptedAt == null || adultConfirmedAt == null) {
             return Access.AGREEMENTS_REQUIRED;
         }
-        return access;
+        return credentialResetRequired ? Access.CREDENTIAL_RESET_REQUIRED : Access.ACTIVE;
     }
 
-    public static Access usernameAccess(boolean deletionPending, boolean suspended, boolean resetRequired) {
-        if (deletionPending) {
+    public static Access usernameAccountAccess(
+        @Nullable UUID deletionRequestId,
+        @Nullable Instant suspendedAt,
+        boolean resetRequired) {
+        if (deletionRequestId != null) {
             return Access.DELETION_PENDING;
         }
-        if (suspended) {
+        if (suspendedAt != null) {
             return Access.SUSPENDED;
         }
-        if (resetRequired) {
-            return Access.CREDENTIAL_RESET_REQUIRED;
-        }
-        return Access.ACTIVE;
+        return resetRequired ? Access.CREDENTIAL_RESET_REQUIRED : Access.ACTIVE;
     }
 
     /** Returns this account with its existing or newly scheduled deletion request. */

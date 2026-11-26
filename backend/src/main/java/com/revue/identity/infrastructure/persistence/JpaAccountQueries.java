@@ -4,8 +4,10 @@ import com.revue.identity.application.AccountQueries;
 import com.revue.identity.domain.Account;
 import com.revue.identity.domain.Username;
 import jakarta.persistence.EntityManager;
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
+import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Repository;
 
 /** Reads and locks account credentials through the JPA persistence context. */
@@ -28,7 +30,7 @@ public class JpaAccountQueries implements AccountQueries {
     @Override
     public Optional<Username> sessionUsername(UUID id, long credentialVersion) {
         var row = entityManager.createQuery("""
-            select a.username, a.deletionId is not null, a.suspendedAt is not null, a.resetRequired
+            select a.username, a.deletionId, a.suspendedAt, a.resetRequired
             from Account a
             where a.id = :id and a.credentialVersion = :credentialVersion and a.username is not null
             """, SessionAccount.class)
@@ -36,8 +38,10 @@ public class JpaAccountQueries implements AccountQueries {
             .setParameter("credentialVersion", credentialVersion)
             .getSingleResultOrNull();
         if (row == null
-            || Account
-                .usernameAccess(row.deletionPending(), row.suspended(), row.resetRequired()) != Account.Access.ACTIVE) {
+            || Account.usernameAccountAccess(
+                row.deletionId(),
+                row.suspendedAt(),
+                row.resetRequired()) != Account.Access.ACTIVE) {
             return Optional.empty();
         }
         return Optional.of(new Username(row.username()));
@@ -52,6 +56,10 @@ public class JpaAccountQueries implements AccountQueries {
         return Optional.ofNullable(row).map(AccountRow::toCredentials);
     }
 
-    private record SessionAccount(String username, boolean deletionPending, boolean suspended, boolean resetRequired) {
+    private record SessionAccount(
+        String username,
+        @Nullable UUID deletionId,
+        @Nullable Instant suspendedAt,
+        boolean resetRequired) {
     }
 }
