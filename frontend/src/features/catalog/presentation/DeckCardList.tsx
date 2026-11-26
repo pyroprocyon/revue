@@ -1,7 +1,8 @@
 import { ChevronRight } from 'lucide-react';
-import { useId, type KeyboardEvent, type ReactNode, type Ref } from 'react';
+import { useId, type ReactNode, type Ref } from 'react';
 import type { DeckCard } from '../application/decks';
 import { cardExtras } from './CardPreview';
+import { ROW_SELECTION_HINT, moveRowSelection } from './rowSelection';
 
 type DeckCardListProps = {
   cards: DeckCard[];
@@ -13,27 +14,6 @@ type DeckCardListProps = {
   onOpen: (card: DeckCard) => void;
   resultsRef: Ref<HTMLElement>;
 };
-
-// On wide screens the list is one Tab stop, so Tab reaches the side pane next; arrow keys choose the card.
-const rowKeys: Record<string, (current: number, last: number) => number> = {
-  ArrowDown: (current, last) => Math.min(current + 1, last),
-  ArrowUp: (current) => Math.max(current - 1, 0),
-  Home: () => 0,
-  End: (_current, last) => last,
-};
-
-function moveSelection(event: KeyboardEvent<HTMLButtonElement>) {
-  const move = rowKeys[event.key];
-  const list = event.currentTarget.closest('ul');
-  if (!move || !list) return;
-  const rows = [...list.querySelectorAll<HTMLButtonElement>('[data-card-row]')];
-  const current = rows.indexOf(event.currentTarget);
-  event.preventDefault();
-  const next = rows[move(current, rows.length - 1)];
-  next.focus({ preventScroll: true });
-  next.scrollIntoView({ block: 'nearest' });
-  next.click();
-}
 
 export function DeckCardsHeader({ filter, pagination }: Readonly<{ filter: ReactNode; pagination: ReactNode }>) {
   if (!filter && !pagination) return null;
@@ -89,7 +69,7 @@ export function DeckCardList({
       )}
       {wide && (
         <p id={keysHintId} hidden>
-          Use the up and down arrow keys to choose another card.
+          {ROW_SELECTION_HINT}
         </p>
       )}
     </section>
@@ -119,7 +99,7 @@ function CardRow({ card, due, dotColumn, wide, selected, tabStop, keysHintId, on
       aria-describedby={wide && tabStop ? keysHintId : undefined}
       aria-haspopup={wide ? undefined : 'dialog'}
       onClick={() => onOpen(card)}
-      onKeyDown={wide ? moveSelection : undefined}
+      onKeyDown={wide ? moveRowSelection : undefined}
       className={`deck-card-row group pressable relative my-0.5 grid min-h-[48px] w-full scroll-mt-[calc(var(--deck-toolbar-bottom,0px)_+_0.5rem)] items-center gap-3 rounded-[calc(var(--radius-card)-0.25rem)] py-3 text-start aria-pressed:bg-accent-soft aria-pressed:before:absolute aria-pressed:before:inset-y-3 aria-pressed:before:left-0 aria-pressed:before:w-[3px] aria-pressed:before:rounded-full aria-pressed:before:bg-accent @max-[20rem]/cards:grid-cols-1 ${wide ? 'grid-cols-1' : 'grid-cols-[minmax(0,1fr)_auto]'}`}
     >
       <span

@@ -2,6 +2,7 @@ import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest';
 import { loadPage, reloadPage } from '../../../shared/navigation/pageLoads';
 import { jsonResponse, renderApp, requestBodyJson } from '../../../test/renderApp';
+import { wideLayout } from '../../../test/wideLayout';
 
 vi.mock(import('../../../shared/navigation/pageLoads'), async (importOriginal) => ({
   ...(await importOriginal()),
@@ -135,24 +136,6 @@ function api({
       leftToday = left;
     },
   };
-}
-
-/** jsdom has no layout. This reports a tablet-or-wider list, so the selected card shows in the side pane. */
-function wideLayout() {
-  vi.stubGlobal(
-    'ResizeObserver',
-    class {
-      readonly report: ResizeObserverCallback;
-      constructor(report: ResizeObserverCallback) {
-        this.report = report;
-      }
-      observe(target: Element) {
-        this.report([{ target, contentRect: { width: 1000 } } as unknown as ResizeObserverEntry], this as never);
-      }
-      unobserve() {}
-      disconnect() {}
-    },
-  );
 }
 
 /** jsdom has no layout. The list starts phone-sized and widen() reports a tablet-or-wider list, like a turned phone. */

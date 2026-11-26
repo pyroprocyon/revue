@@ -7,6 +7,7 @@ import {
   HELP_PATH,
   LIBRARY_PATH,
   NEW_DECK_PATH,
+  PASTE_CARDS_ROUTE,
   PUBLISHED_PATH,
   TODAY_PATH,
   savedSetListParams,
@@ -34,6 +35,12 @@ function navigationLink({ isActive }: Readonly<{ isActive: boolean }>) {
   return `workspace-link pressable ${isActive ? 'bg-accent-soft text-accent-strong' : 'text-muted'}`;
 }
 
+/** Paste keeps the brand header on tablets, like the deck page it opens from. */
+function compactHeader(onEveryScreen: boolean, onPhonesOnly: boolean) {
+  if (onEveryScreen) return true;
+  return onPhonesOnly ? 'phone' : undefined;
+}
+
 /** One set of destinations adapts from a phone tab bar to a desktop sidebar. */
 export function WorkspaceLayout({
   children,
@@ -43,6 +50,7 @@ export function WorkspaceLayout({
   const today = useMatch(TODAY_PATH);
   const deck = useMatch(DECK_ROUTE);
   const newDeck = useMatch(NEW_DECK_PATH);
+  const pasteCards = useMatch(PASTE_CARDS_ROUTE);
   const library = useMatch(LIBRARY_PATH);
   const account = useMatch(ACCOUNT_PATH);
   const published = useMatch(PUBLISHED_PATH);
@@ -77,7 +85,7 @@ export function WorkspaceLayout({
       <SkipToContent />
       <div
         className="workspace-layout"
-        data-compact={compact || undefined}
+        data-compact={compactHeader(compact, pasteCards !== null)}
         data-main-tab={mainTab || undefined}
         data-saved-set={savedSet || undefined}
         data-heading-help={Boolean(today || published) || undefined}

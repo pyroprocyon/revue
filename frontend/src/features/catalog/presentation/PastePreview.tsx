@@ -20,11 +20,15 @@ import {
   type PastedCard,
   type RemovedMedia,
 } from '../application/pastedCards';
+import { twoPanes } from './cardBrowserLayout';
 import { useDeckGateway } from './DeckProvider';
 import { DeckWriteProblem } from './DeckWriteProblem';
+import { PasteDock } from './PasteDock';
+import { ROW_SELECTION_HINT, moveRowSelection } from './rowSelection';
 import { TextField } from './TextField';
 import { DECKS_UNAVAILABLE_TEXT } from './decksUnavailable';
 import { useDeckWrite, type DeckWriteState } from './useDecks';
+import { useTwoPanes } from './useTwoPanes';
 import { deckKeys } from '../../../shared/cache/queryKeys';
 import { deckPath } from '../../../shared/navigation/paths';
 import { importedCardsState } from '../../../shared/navigation/routeState';
@@ -99,16 +103,20 @@ export function PastePreview({
   const [removed, setRemoved] = useState<RemovedRow | null>(null);
   const [announcement, setAnnouncement] = useState('');
   const [focusTarget, setFocusTarget] = useState<FocusTarget | null>(null);
-  const list = useRef<HTMLOListElement>(null);
+  const [panes, wide] = useTwoPanes();
+  const cardArea = useRef<HTMLFieldSetElement>(null);
   const undoButton = useRef<HTMLButtonElement>(null);
-  const importBar = useRef<HTMLDivElement>(null);
+  const dock = useRef<HTMLDivElement>(null);
+  const keysHintId = useId();
   const cardsToFix = rows.filter(needsFix).length;
+  const paneRow = wide ? rowInPane(rows, openKey) : undefined;
+  const listOpenKey = wide ? null : openKey;
 
   useEffect(() => {
     if (focusTarget === null) return;
-    const target = focusTarget.part === 'undo' ? undoButton.current : previewCardPart(list.current, focusTarget);
+    const target = focusTarget.part === 'undo' ? undoButton.current : previewCardPart(cardArea.current, focusTarget);
     requestFocus(target);
-    scrollBelowBar(labelOf(target) ?? target, importBar.current);
+    scrollClearOfDock(target, dock.current);
   }, [focusTarget, requestFocus]);
 
   function updateRow(key: number, change: Partial<PastedCard>) {
@@ -119,6 +127,11 @@ export function PastePreview({
   function toggle(key: number) {
     setOpenKey(openKey === key ? null : key);
     setFocusTarget({ part: 'header', key });
+  }
+
+  function openCard(key: number) {
+    if (wide) setOpenKey(key);
+    else toggle(key);
   }
 
   function remove(row: PreviewRow) {
@@ -167,16 +180,87 @@ export function PastePreview({
       title="Preview cards"
       aboveTitle={<EditTextButton onClick={() => onEditText(edited ? rows : null)} disabled={write.saving} />}
       subtitle={<PreviewSummary cardCount={rows.length} destination={destination} />}
-    >
-      <fieldset disabled={write.saving} aria-busy={write.saving} className="grid max-w-2xl min-w-0 gap-3">
-        <output className="sr-only">{announcement}</output>
-        {rows.length > 0 ? (
-          <ImportBar
-            barRef={importBar}
-            cardCount={rows.length}
+      status={
+        rows.length > 0 && (
+          <PreviewStatus
             cardsToFix={cardsToFix}
-            saving={write.saving}
             canImport={destination.status === 'found'}
+            onShowCardToFix={showFirstCardToFix}
+          />
+        )
+      }
+    >
+      <fieldset ref={cardArea} disabled={write.saving} aria-busy={write.saving} className="grid min-w-0 gap-3">
+        <output className="sr-only">{announcement}</output>
+        {rows.length === 0 && (
+          <p className="text-body text-muted">No cards left to import. Undo a removal or edit your text.</p>
+        )}
+        <div ref={panes} className={wide ? twoPanes : 'grid'}>
+          <ol aria-label="Cards to import" className="@container/preview grid">
+            {items.map((item, index) => {
+              const shape = RUN_SHAPE[runPosition(items, index, listOpenKey)];
+              if (item.kind === 'removed') {
+                return (
+                  <RemovedPlaceholder
+                    key="removed"
+                    shape={shape}
+                    removed={item.removed}
+                    undoRef={undoButton}
+                    onUndo={() => undoRemoval(item.removed)}
+                  />
+                );
+              }
+              if (item.row.key === listOpenKey) {
+                return (
+                  <li key={item.row.key} data-preview-card={item.row.key} className={openCardInList}>
+                    <CardEditor
+                      row={item.row}
+                      number={item.number}
+                      cardCount={rows.length}
+                      onClose={() => toggle(item.row.key)}
+                      onChange={(change) => updateRow(item.row.key, change)}
+                      onRemove={() => remove(item.row)}
+                    />
+                  </li>
+                );
+              }
+              return (
+                <CardRow
+                  key={item.row.key}
+                  shape={shape}
+                  row={item.row}
+                  number={item.number}
+                  selection={wide ? { selected: item.row.key === paneRow?.key, keysHintId } : undefined}
+                  onOpen={() => openCard(item.row.key)}
+                />
+              );
+            })}
+          </ol>
+          {paneRow && (
+            <section
+              key={paneRow.key}
+              aria-label="Selected card"
+              data-preview-card={paneRow.key}
+              className={openCardInPane}
+            >
+              <CardEditor
+                row={paneRow}
+                number={rows.indexOf(paneRow) + 1}
+                cardCount={rows.length}
+                onChange={(change) => updateRow(paneRow.key, change)}
+                onRemove={() => remove(paneRow)}
+              />
+            </section>
+          )}
+        </div>
+        {wide && (
+          <p id={keysHintId} hidden>
+            {ROW_SELECTION_HINT}
+          </p>
+        )}
+        {rows.length > 0 && (
+          <PasteDock
+            ref={dock}
             problem={
               destination.status === 'found' ? (
                 <ImportProblem state={write.state} cardCount={rows.length} deckId={deckId} />
@@ -184,50 +268,17 @@ export function PastePreview({
                 <DestinationProblem destination={destination} />
               )
             }
-            onShowCardToFix={showFirstCardToFix}
-            onImport={confirmImport}
-          />
-        ) : (
-          <p className="text-body text-muted">No cards left to import. Undo a removal or edit your text.</p>
+          >
+            <button
+              type="button"
+              onClick={confirmImport}
+              disabled={destination.status !== 'found'}
+              className={primaryButton}
+            >
+              {write.saving ? 'Importing…' : `Import ${cardCountLabel(rows.length)}`}
+            </button>
+          </PasteDock>
         )}
-        <ol ref={list} aria-label="Cards to import" className="@container/preview grid">
-          {items.map((item, index) => {
-            const shape = RUN_SHAPE[runPosition(items, index, openKey)];
-            if (item.kind === 'removed') {
-              return (
-                <RemovedPlaceholder
-                  key="removed"
-                  shape={shape}
-                  removed={item.removed}
-                  undoRef={undoButton}
-                  onUndo={() => undoRemoval(item.removed)}
-                />
-              );
-            }
-            if (item.row.key === openKey) {
-              return (
-                <CardEditor
-                  key={item.row.key}
-                  row={item.row}
-                  number={item.number}
-                  cardCount={rows.length}
-                  onClose={() => toggle(item.row.key)}
-                  onChange={(change) => updateRow(item.row.key, change)}
-                  onRemove={() => remove(item.row)}
-                />
-              );
-            }
-            return (
-              <CardRow
-                key={item.row.key}
-                shape={shape}
-                row={item.row}
-                number={item.number}
-                onOpen={() => toggle(item.row.key)}
-              />
-            );
-          })}
-        </ol>
       </fieldset>
     </WorkspacePage>
   );
@@ -235,6 +286,10 @@ export function PastePreview({
 
 function firstKeyNeedingFix(rows: PreviewRow[]) {
   return rows.find(needsFix)?.key ?? null;
+}
+
+function rowInPane(rows: PreviewRow[], openKey: number | null) {
+  return rows.find((row) => row.key === openKey) ?? rows.find(needsFix) ?? rows[0];
 }
 
 function cardToImport({ question, answer, explanation }: PreviewRow): CardToImport {
@@ -271,27 +326,32 @@ function runPosition(items: ListItem[], index: number, openKey: number | null): 
   return 'alone';
 }
 
-const GAP_BELOW_BAR = 8;
+const CLEARANCE = 8;
 
 /**
- * The browser's focus scroll ignores the sticky import bar, which grows when it shows a problem, and lines a tall field
- * up by its bottom edge, so the field's label can end up hidden.
+ * The browser's focus scroll ignores the floating dock, which grows when it shows a problem, and lines a tall field up
+ * by its bottom edge, so the field can end up under the dock or its label above the screen.
  */
-function scrollBelowBar(element: Element | null | undefined, bar: HTMLElement | null) {
+function scrollClearOfDock(element: HTMLElement | null, dock: HTMLElement | null) {
   if (!element) return;
-  const barBottom = bar && getComputedStyle(bar).position === 'sticky' ? bar.getBoundingClientRect().bottom : 0;
-  const hidden = barBottom + GAP_BELOW_BAR - element.getBoundingClientRect().top;
-  if (hidden > 0) window.scrollTo({ top: window.scrollY - hidden, behavior: 'instant' });
+  const labelTop = (labelOf(element) ?? element).getBoundingClientRect().top - CLEARANCE;
+  const visibleBottom = Math.min(dock?.getBoundingClientRect().top ?? window.innerHeight, window.innerHeight);
+  const hiddenBelow = element.getBoundingClientRect().bottom + CLEARANCE - visibleBottom;
+  if (labelTop < 0) scrollInstantly(labelTop);
+  else if (hiddenBelow > 0) scrollInstantly(Math.min(hiddenBelow, labelTop));
 }
 
-function labelOf(element: HTMLElement | null) {
+function scrollInstantly(distance: number) {
+  window.scrollTo({ top: window.scrollY + distance, behavior: 'instant' });
+}
+
+function labelOf(element: HTMLElement) {
   return element instanceof HTMLTextAreaElement ? element.labels?.[0] : undefined;
 }
 
-function previewCardPart(list: HTMLElement | null, target: { part: 'header' | 'problem'; key: number }) {
-  const card = list?.querySelector(`[data-preview-card="${target.key}"]`);
-  const selector = target.part === 'problem' ? '[aria-invalid="true"]' : 'button[aria-expanded]';
-  return card?.querySelector<HTMLElement>(selector) ?? null;
+function previewCardPart(cardArea: HTMLElement | null, { part, key }: { part: 'header' | 'problem'; key: number }) {
+  const control = part === 'problem' ? '[aria-invalid="true"]' : 'button:is([aria-expanded], [aria-pressed])';
+  return cardArea?.querySelector<HTMLElement>(`[data-preview-card="${key}"] ${control}`) ?? null;
 }
 
 function PreviewSummary({ cardCount, destination }: Readonly<{ cardCount: number; destination: ImportDestination }>) {
@@ -317,67 +377,33 @@ function EditTextButton({ onClick, disabled }: Readonly<{ onClick: () => void; d
   );
 }
 
-type ImportBarProps = {
-  barRef: Ref<HTMLDivElement>;
-  cardCount: number;
-  cardsToFix: number;
-  saving: boolean;
-  canImport: boolean;
-  problem: ReactNode;
-  onShowCardToFix: () => void;
-  onImport: () => void;
-};
+type PreviewStatusProps = { cardsToFix: number; canImport: boolean; onShowCardToFix: () => void };
 
-const fadeBelow =
-  'after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-3 after:bg-linear-to-b after:from-page after:to-transparent';
-
-function ImportBar({
-  barRef,
-  cardCount,
-  cardsToFix,
-  saving,
-  canImport,
-  problem,
-  onShowCardToFix,
-  onImport,
-}: Readonly<ImportBarProps>) {
+function PreviewStatus({ cardsToFix, canImport, onShowCardToFix }: Readonly<PreviewStatusProps>) {
+  if (cardsToFix > 0) {
+    return (
+      <button
+        type="button"
+        onClick={onShowCardToFix}
+        className="pressable -ml-1.5 inline-flex min-h-12 items-center rounded-control px-1.5 text-label"
+      >
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-highlight-soft py-1 pr-3 pl-2 font-semibold text-highlight-strong">
+          <CircleAlert aria-hidden="true" className="size-4 shrink-0" />
+          {cardCountLabel(cardsToFix)} to fix
+        </span>
+      </button>
+    );
+  }
+  if (!canImport) return null;
   return (
-    <div
-      ref={barRef}
-      className={`relative top-0 z-10 -mx-1 grid gap-2 bg-page px-1 py-2 @min-[20rem]/workspace:sticky ${fadeBelow}`}
-    >
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-        {cardsToFix > 0 && (
-          <button
-            type="button"
-            onClick={onShowCardToFix}
-            className="pressable -ml-1.5 inline-flex min-h-12 items-center rounded-control px-1.5 text-label"
-          >
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-highlight-soft py-1 pr-3 pl-2 font-semibold text-highlight-strong">
-              <CircleAlert aria-hidden="true" className="size-4 shrink-0" />
-              {cardsToFix} to fix
-            </span>
-          </button>
-        )}
-        {cardsToFix === 0 && canImport && (
-          <p className="inline-flex min-h-12 items-center gap-1.5 text-label font-semibold text-good">
-            <CircleCheck aria-hidden="true" className="size-4 shrink-0" />
-            Ready
-          </p>
-        )}
-        <button
-          type="button"
-          onClick={onImport}
-          disabled={!canImport}
-          className={`${primaryButton} ml-auto max-w-full`}
-        >
-          {saving ? 'Importing…' : `Import ${cardCountLabel(cardCount)}`}
-        </button>
-      </div>
-      {problem}
-    </div>
+    <p className="inline-flex items-center gap-1.5 text-label font-semibold text-good">
+      <CircleCheck aria-hidden="true" className="size-4 shrink-0" />
+      Ready to import
+    </p>
   );
 }
+
+const dockMessage = 'rounded-card border border-line bg-surface px-4 py-3 text-support shadow-control';
 
 function ImportProblem({
   state,
@@ -413,7 +439,7 @@ function ImportProblem({
 
 function DestinationProblem({ destination }: Readonly<{ destination: UnconfirmedDestination }>) {
   if (destination.status === 'loading') {
-    return <output className="block text-support text-muted">Loading the deck…</output>;
+    return <output className={`${dockMessage} block text-muted`}>Loading the deck…</output>;
   }
   if (destination.status === 'missing') {
     return (
@@ -441,8 +467,9 @@ function DestinationProblem({ destination }: Readonly<{ destination: Unconfirmed
 
 function ImportProblemMessage({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <div role="alert" className="grid justify-items-start rounded-inset bg-highlight-soft p-4 text-support text-ink">
-      {children}
+    <div role="alert" className={`${dockMessage} flex items-start gap-2.5 text-ink`}>
+      <CircleAlert aria-hidden="true" className="mt-[0.15em] size-[1.1em] shrink-0 text-highlight-strong" />
+      <div className="grid min-w-0 justify-items-start">{children}</div>
     </div>
   );
 }
@@ -468,23 +495,34 @@ function removedMediaText(media: RemovedMedia[]) {
   return image ? { chip: 'Had an image', note: 'Image removed.' } : { chip: 'Had audio', note: 'Audio removed.' };
 }
 
-type CardRowProps = { shape: string; row: PreviewRow; number: number; onOpen: () => void };
+type RowSelection = { selected: boolean; keysHintId: string };
+type CardRowProps = { shape: string; row: PreviewRow; number: number; selection?: RowSelection; onOpen: () => void };
 
-function CardRow({ shape, row, number, onOpen }: Readonly<CardRowProps>) {
+const rowForPane =
+  'grid-cols-1 aria-pressed:bg-accent-soft aria-pressed:before:absolute aria-pressed:before:inset-y-3 aria-pressed:before:left-0 aria-pressed:before:w-[3px] aria-pressed:before:rounded-full aria-pressed:before:bg-accent';
+const rowThatExpands = 'grid-cols-[minmax(0,1fr)_auto]';
+
+function CardRow({ shape, row, number, selection, onOpen }: Readonly<CardRowProps>) {
   const numberId = useId();
   const questionId = useId();
   const summaryId = useId();
   const mediaId = useId();
   const problem = firstProblem(cardProblems(row), ROW_PROBLEM_TEXT);
   const nameParts = [numberId, questionId, summaryId, ...(row.removedMedia ? [mediaId] : [])];
+  const selectsForPane = selection !== undefined;
   return (
     <li data-preview-card={row.key} className={`${closedRowSurface} ${shape}`}>
       <button
         type="button"
-        aria-expanded={false}
+        data-card-row={selectsForPane || undefined}
+        aria-expanded={selectsForPane ? undefined : false}
+        aria-pressed={selection?.selected}
+        tabIndex={selection && !selection.selected ? -1 : undefined}
+        aria-describedby={selection?.selected ? selection.keysHintId : undefined}
         aria-labelledby={nameParts.join(' ')}
         onClick={onOpen}
-        className="pressable my-1 grid min-h-12 w-full scroll-mt-32 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[calc(var(--radius-card)-0.25rem)] py-3 pr-2 pl-4 text-left @max-[16rem]/preview:grid-cols-1 @max-[16rem]/preview:pr-4"
+        onKeyDown={selectsForPane ? moveRowSelection : undefined}
+        className={`pressable my-1 grid min-h-12 w-full items-center gap-3 rounded-[calc(var(--radius-card)-0.25rem)] py-3 pr-2 pl-4 text-left @max-[16rem]/preview:grid-cols-1 @max-[16rem]/preview:pr-4 ${selectsForPane ? rowForPane : rowThatExpands}`}
       >
         <span className="min-w-0">
           <span id={numberId} className="sr-only">
@@ -499,7 +537,9 @@ function CardRow({ shape, row, number, onOpen }: Readonly<CardRowProps>) {
           <RowSummary id={summaryId} answer={row.answer} problem={problem} />
           {row.removedMedia && <RemovedMediaChip id={mediaId} media={row.removedMedia} />}
         </span>
-        <ChevronDown aria-hidden="true" className="size-5 shrink-0 text-muted @max-[16rem]/preview:hidden" />
+        {!selectsForPane && (
+          <ChevronDown aria-hidden="true" className="size-5 shrink-0 text-muted @max-[16rem]/preview:hidden" />
+        )}
       </button>
     </li>
   );
@@ -546,11 +586,17 @@ function RowSummary({ id, answer, problem }: Readonly<{ id: string; answer: stri
   );
 }
 
+const openCardInList =
+  'my-3 grid min-w-0 rounded-card bg-surface px-4 pt-2 pb-3 shadow-card ring-2 ring-accent/30 first:mt-0 last:mb-0 @max-[16rem]/preview:px-3';
+const openCardInPane =
+  'sticky top-4 grid max-h-[calc(100dvh_-_8rem)] min-w-0 overflow-y-auto rounded-card bg-surface px-5 pt-2 pb-4 shadow-card';
+
 type CardEditorProps = {
   row: PreviewRow;
   number: number;
   cardCount: number;
-  onClose: () => void;
+  /** Missing in the side pane, which always shows a card. */
+  onClose?: () => void;
   onChange: (change: Partial<PastedCard>) => void;
   onRemove: () => void;
 };
@@ -560,22 +606,24 @@ function CardEditor({ row, number, cardCount, onClose, onChange, onRemove }: Rea
   const problems = cardProblems(row);
   // Kept while the card is open, so the field stays put as text moves out of a long answer.
   const [explanationShown] = useState(() => row.explanation !== undefined || problems.answer === 'too-long');
+  const position = `Card ${number} of ${cardCount}`;
   return (
-    <li
-      data-preview-card={row.key}
-      className="my-3 grid min-w-0 rounded-card bg-surface px-4 pt-2 pb-3 shadow-card ring-2 ring-accent/30 first:mt-0 last:mb-0 @max-[16rem]/preview:px-3"
-    >
-      <button
-        type="button"
-        aria-expanded={true}
-        aria-controls={fieldsId}
-        onClick={onClose}
-        className="pressable -mx-2 flex min-h-12 scroll-mt-32 items-center justify-between gap-3 rounded-control px-2 text-left text-support font-bold text-muted"
-      >
-        Card {number} of {cardCount}
-        <ChevronUp aria-hidden="true" className="size-5 shrink-0" />
-      </button>
-      <div id={fieldsId} className="grid gap-3.5 [&_textarea]:scroll-mt-32">
+    <>
+      {onClose ? (
+        <button
+          type="button"
+          aria-expanded={true}
+          aria-controls={fieldsId}
+          onClick={onClose}
+          className="pressable -mx-2 flex min-h-12 items-center justify-between gap-3 rounded-control px-2 text-left text-support font-bold text-muted"
+        >
+          {position}
+          <ChevronUp aria-hidden="true" className="size-5 shrink-0" />
+        </button>
+      ) : (
+        <h2 className="flex min-h-12 items-center text-support font-bold text-muted">{position}</h2>
+      )}
+      <div id={fieldsId} className="grid gap-3.5">
         {row.removedMedia && (
           <p className="flex items-start gap-2 rounded-inset bg-subtle px-3 py-2.5 text-support text-ink">
             <RemovedMediaIcon media={row.removedMedia} />
@@ -624,16 +672,18 @@ function CardEditor({ row, number, cardCount, onClose, onChange, onRemove }: Rea
             <Trash2 aria-hidden="true" className="size-[1.125em] shrink-0" />
             Remove card
           </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className="pressable inline-flex min-h-12 items-center rounded-control bg-accent-soft px-6 text-body font-semibold text-accent-strong"
-          >
-            Done
-          </button>
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="pressable inline-flex min-h-12 items-center rounded-control bg-accent-soft px-6 text-body font-semibold text-accent-strong"
+            >
+              Done
+            </button>
+          )}
         </div>
       </div>
-    </li>
+    </>
   );
 }
 
