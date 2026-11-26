@@ -3,7 +3,11 @@ import { describe, expect, it, vi } from 'vitest';
 import { loadPage, reloadPage } from '../../../shared/navigation/pageLoads';
 import { jsonResponse, renderApp, requestBodyJson } from '../../../test/renderApp';
 
-vi.mock('../../../shared/navigation/pageLoads', () => ({ loadPage: vi.fn(), reloadPage: vi.fn() }));
+vi.mock(import('../../../shared/navigation/pageLoads'), async (importOriginal) => ({
+  ...(await importOriginal()),
+  loadPage: vi.fn(),
+  reloadPage: vi.fn(),
+}));
 
 type StoredCard = {
   id: string;

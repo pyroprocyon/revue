@@ -2,7 +2,7 @@ import { CircleAlert, RefreshCw } from 'lucide-react';
 import { Component, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { HOME_PATH, TODAY_PATH } from '../navigation/paths';
-import { reloadPage } from '../navigation/pageLoads';
+import { recoverFromPagePreloadError, reloadPage } from '../navigation/pageLoads';
 import { primaryButton, secondaryButton } from './buttonStyles';
 import { HomeLink } from './HeaderLinks';
 import { PageLayout } from './PageLayout';
@@ -20,6 +20,10 @@ export class RouteErrorBoundary extends Component<BoundaryProps, BoundaryState> 
 
   static getDerivedStateFromProps(props: BoundaryProps, state: BoundaryState): Partial<BoundaryState> | null {
     return props.resetKey === state.resetKey ? null : { failed: false, resetKey: props.resetKey };
+  }
+
+  componentDidCatch(error: Error) {
+    recoverFromPagePreloadError(error);
   }
 
   render() {

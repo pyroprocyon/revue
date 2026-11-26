@@ -7,6 +7,7 @@ import { preloadWorkspacePage } from './app/App';
 import { appRoutes } from './app/routes';
 import { watchPhoneInstall } from './features/account/presentation/homeScreenInstall';
 import { watchTouchFocus } from './app/touchFocus';
+import { watchPagePreloadErrors } from './shared/navigation/pageLoads';
 import { watchSolidControls } from './shared/ui/solidControls';
 import './index.css';
 
@@ -19,6 +20,7 @@ document.documentElement.toggleAttribute('data-android-phone', /Android.*Mobile/
 watchSolidControls();
 watchPhoneInstall();
 watchTouchFocus();
+watchPagePreloadErrors();
 preloadWorkspacePage(window.location);
 const queryClient = new QueryClient();
 const router = createBrowserRouter(appRoutes);

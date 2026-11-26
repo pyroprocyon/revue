@@ -165,7 +165,40 @@ test('a deck shows its cards before loading the editing and settings panels', as
   }
 });
 
-test('a slow account chunk keeps the workspace in place and a failure offers an explicit reload', async ({ page }) => {
+test('a stale Library chunk reloads an open workspace on the requested route', async ({ page }) => {
+  await page.route('**/api/v1/me', (route) => route.fulfill({ json: { username: 'startup_learner' } }));
+  await page.route('**/api/v1/cards/due*', (route) =>
+    route.fulfill({ json: { totalCards: 0, availableCards: 0, dueCards: 0, newCards: 0, cards: [] } }),
+  );
+  await page.route('**/api/v1/decks', (route) =>
+    route.fulfill({ json: { items: [{ id: '7', title: 'Cell Biology', cardCount: 1, archived: false }] } }),
+  );
+  await page.route('**/api/v1/me/saved-sets?*', (route) => route.fulfill({ json: { items: [], nextCursor: null } }));
+  await page.goto('/today');
+  await expect(page.getByRole('heading', { name: 'Your review', exact: true })).toBeVisible();
+
+  let reloadingLibrary = false;
+  page.on('request', (request) => {
+    if (request.isNavigationRequest() && new URL(request.url()).pathname === '/library') reloadingLibrary = true;
+  });
+  await page.route('**/assets/LibraryPage-*.js', (route) =>
+    reloadingLibrary ? route.continue() : route.fulfill({ status: 404 }),
+  );
+  const staleChunk = page.waitForResponse(
+    (response) => /\/assets\/LibraryPage-.*\.js$/.test(response.url()) && response.status() === 404,
+  );
+  await page.getByRole('navigation', { name: 'Your workspace' }).getByRole('link', { name: 'Library' }).click();
+  await staleChunk;
+  await expect(page).toHaveURL(/\/library$/);
+  await expect(page.getByRole('link', { name: /Cell Biology/ })).toBeVisible();
+  expect(
+    await page.evaluate(() => (performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming).type),
+  ).toBe('reload');
+});
+
+test('a slow account chunk keeps the workspace in place and a repeated failure offers manual retry', async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.route('**/api/v1/me', (route) => route.fulfill({ json: { username: 'startup_learner' } }));
@@ -176,6 +209,10 @@ test('a slow account chunk keeps the workspace in place and a failure offers an 
   await page.route('**/assets/AccountPage-*.js', async (route) => {
     await pending;
     await route.abort('failed');
+  });
+  let accountDocuments = 0;
+  page.on('request', (request) => {
+    if (request.isNavigationRequest() && new URL(request.url()).pathname === '/account') accountDocuments++;
   });
   const nav = page.getByRole('navigation', { name: 'Your workspace' });
   const heading = page.getByRole('heading', { name: 'Your account', exact: true });
@@ -189,6 +226,7 @@ test('a slow account chunk keeps the workspace in place and a failure offers an 
     failChunk();
   }
   await expect(page.getByRole('heading', { name: 'Something went wrong', exact: true })).toBeFocused();
+  expect(accountDocuments).toBe(2);
   await page.unroute('**/assets/AccountPage-*.js');
   await page.getByRole('button', { name: 'Try again', exact: true }).click();
   await expect(heading).toBeFocused();
