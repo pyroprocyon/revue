@@ -27,18 +27,21 @@ export class LibraryFailure extends Error {
 
 /** Only confirmed server state belongs in the saved library. null membership means signed out. */
 export interface LibraryGateway {
-  membership(id: string): Promise<boolean | null>;
-  save(id: string): Promise<SavedSet>;
-  remove(id: string): Promise<void>;
-  setReviewsPaused(id: string, paused: boolean): Promise<void>;
-  list(after?: string, group?: ReviewGroup, signal?: AbortSignal): Promise<LibraryPage>;
-  savedKeys(signal: AbortSignal): Promise<string[]>;
-  detail(id: string): Promise<SavedSet>;
-  cards(setId: string, query: DeckCardQuery, signal?: AbortSignal): Promise<DeckCardPage>;
+  membership: (id: string) => Promise<boolean | null>;
+  save: (id: string) => Promise<SavedSet>;
+  remove: (id: string) => Promise<void>;
+  setReviewsPaused: (id: string, paused: boolean) => Promise<void>;
+  list: (after?: string, group?: ReviewGroup, signal?: AbortSignal) => Promise<LibraryPage>;
+  savedKeys: (signal: AbortSignal) => Promise<string[]>;
+  detail: (id: string) => Promise<SavedSet>;
+  cards: (setId: string, query: DeckCardQuery, signal?: AbortSignal) => Promise<DeckCardPage>;
 }
 
 /** Share identifiers are base 36; BigInt preserves the database's full bigint identifier. */
 export function sharedSetId(code: string): string {
   if (!/^[1-9a-z][0-9a-z]*$/.test(code)) throw new Error('Invalid shared set identifier');
-  return [...code].reduce((value, digit) => value * 36n + BigInt(Number.parseInt(digit, 36)), 0n).toString();
+  return code
+    .split('')
+    .reduce((value, digit) => value * 36n + BigInt(Number.parseInt(digit, 36)), 0n)
+    .toString();
 }

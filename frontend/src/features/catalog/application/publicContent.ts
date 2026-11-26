@@ -39,10 +39,10 @@ export class PublicCatalogBusy extends Error {
 
 /** Application read port; App supplies its HTTP implementation to the screens. */
 export interface PublicContentReader {
-  onboarding(signal: AbortSignal): Promise<PublicSet[]>;
-  topics(subject: string, search: string, after: string | undefined, signal: AbortSignal): Promise<PublicSetPage>;
-  subjects(signal: AbortSignal): Promise<ReviewerSubject[]>;
-  sharedSummary(code: string): Promise<PublicSet | null>;
-  summary(setKey: string): Promise<PublicSet | null>;
-  trialCards(setKey: string): Promise<TrialCards | null>;
+  onboarding: (signal: AbortSignal) => Promise<PublicSet[]>;
+  topics: (subject: string, search: string, after: string | undefined, signal: AbortSignal) => Promise<PublicSetPage>;
+  subjects: (signal: AbortSignal) => Promise<ReviewerSubject[]>;
+  sharedSummary: (code: string) => Promise<PublicSet | null>;
+  summary: (setKey: string) => Promise<PublicSet | null>;
+  trialCards: (setKey: string) => Promise<TrialCards | null>;
 }

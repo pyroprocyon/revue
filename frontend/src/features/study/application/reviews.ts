@@ -43,8 +43,8 @@ export type ReviewResult = {
   scheduleVersion: number;
 };
 export interface ReviewGateway {
-  queue(selection?: ReviewSelection, summaryOnly?: boolean, pausedTopic?: string): Promise<StudyQueue>;
-  rate(cardId: string, input: RatingRequest): Promise<ReviewResult>;
+  queue: (selection?: ReviewSelection, summaryOnly?: boolean, pausedTopic?: string) => Promise<StudyQueue>;
+  rate: (cardId: string, input: RatingRequest) => Promise<ReviewResult>;
 }
 export class ReviewFailure extends Error {
   constructor(

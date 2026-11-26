@@ -199,13 +199,15 @@ describe('saved shared sets', () => {
     await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
     const visibleDuringRefresh = screen.getByRole(role, { name });
     if (!saved) expect(visibleDuringRefresh.getAttribute('aria-disabled')).toBe('true');
-    await act(() => finish(jsonResponse(200, { saved })));
+    await act(async () => {
+      finish(jsonResponse(200, { saved }));
+    });
     expect(screen.getByRole(role, { name })).toBe(visibleDuringRefresh);
 
     fetcher.mockImplementation((path, init) =>
       path === savePath ? Promise.resolve(jsonResponse(200, { saved: !saved })) : respond(path, init),
     );
-    await act(() => {
+    await act(async () => {
       localStorage.setItem(revisionKey, 'second-session');
       window.dispatchEvent(new StorageEvent('storage', { key: revisionKey, newValue: 'second-session' }));
     });

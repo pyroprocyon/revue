@@ -1,6 +1,6 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { jsonResponse, renderApp } from '../../../test/renderApp';
+import { jsonResponse, renderApp, requestBodyJson, requestBodyText } from '../../../test/renderApp';
 import type { RatingRequest, StudyQueue } from '../application/reviews';
 import { lastConfirmedProfile } from '../../account/presentation/confirmedProfile';
 import { focusManager } from '@tanstack/react-query';
@@ -55,7 +55,7 @@ function api(queue = empty, write?: (input: RatingRequest) => Promise<Response>)
     if (path === '/api/v1/auth/csrf')
       return jsonResponse(200, { token: 'form-token', headerName: 'X-XSRF-TOKEN', username: 'learner' });
     if (path === '/api/v1/reviews/23') {
-      const input = JSON.parse(String(init?.body)) as RatingRequest;
+      const input = requestBodyJson(init) as RatingRequest;
       const result = write
         ? await write(input)
         : jsonResponse(200, { cardId: '23', requestId: input.requestId, scheduleVersion: 1 });
@@ -101,8 +101,9 @@ async function refetchTodayOnFocus() {
   const todayReads = () =>
     vi
       .mocked(fetch)
-      .mock.calls.filter(([path]) => String(path).startsWith('/api/v1/cards/due') && !String(path).includes('topic='))
-      .length;
+      .mock.calls.filter(
+        ([path]) => typeof path === 'string' && path.startsWith('/api/v1/cards/due') && !path.includes('topic='),
+      ).length;
   const readsBefore = todayReads();
   try {
     await act(async () => {
@@ -523,7 +524,7 @@ describe('saved daily study', () => {
     fetcher.mockImplementation(async (path, init) => {
       if (path.startsWith('/api/v1/cards/due')) return jsonResponse(200, queue);
       if (path === '/api/v1/reviews/24') {
-        const input = JSON.parse(String(init?.body)) as RatingRequest;
+        const input = requestBodyJson(init) as RatingRequest;
         queue = done;
         return jsonResponse(200, { cardId: nextCard.id, requestId: input.requestId, scheduleVersion: 1 });
       }
@@ -596,9 +597,9 @@ describe('saved daily study', () => {
       expect(fetcher.mock.calls.filter(([path]) => path.includes('/reviews/'))).toHaveLength(0);
       fireEvent.click(ratingAction);
       await screen.findByText('1 card reviewed');
-      const input = fetcher.mock.calls.find(([path]) => path.includes('/reviews/'))?.[1]?.body;
-      expect(JSON.parse(String(input))).toMatchObject({ attemptMode: mode });
-      expect(String(input)).not.toContain('My first recall');
+      const ratingInit = fetcher.mock.calls.find(([path]) => path.includes('/reviews/'))?.[1];
+      expect(requestBodyJson(ratingInit)).toMatchObject({ attemptMode: mode });
+      expect(requestBodyText(ratingInit)).not.toContain('My first recall');
     },
   );
 
@@ -678,8 +679,8 @@ describe('saved daily study', () => {
     expect(fetcher.mock.calls.filter(([path]) => path.includes('/reviews/'))).toHaveLength(0);
     fireEvent.click(screen.getByRole('button', { name: 'Finish batch' }));
     await screen.findByText('1 card reviewed');
-    const input = fetcher.mock.calls.find(([path]) => path.includes('/reviews/'))?.[1]?.body;
-    expect(JSON.parse(String(input))).toMatchObject({ rating: 'AGAIN', attemptMode: 'SHOWN' });
+    const ratingInit = fetcher.mock.calls.find(([path]) => path.includes('/reviews/'))?.[1];
+    expect(requestBodyJson(ratingInit)).toMatchObject({ rating: 'AGAIN', attemptMode: 'SHOWN' });
   });
 
   it('leaves an unresolved rating and reloads from authoritative state without replay storage', async () => {

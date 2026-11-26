@@ -41,6 +41,15 @@ export function stubApi(bodiesByPath: Record<string, unknown>) {
   return fetchMock;
 }
 
+export function requestBodyText(init: RequestInit | undefined): string {
+  if (typeof init?.body !== 'string') throw new Error('Expected a text request body');
+  return init.body;
+}
+
+export function requestBodyJson(init: RequestInit | undefined): unknown {
+  return JSON.parse(requestBodyText(init));
+}
+
 export function jsonResponse(status: number, body?: unknown): Response {
   const text = body === undefined ? null : JSON.stringify(body);
   return new Response(text, { status, headers: { 'Content-Type': 'application/json' } });

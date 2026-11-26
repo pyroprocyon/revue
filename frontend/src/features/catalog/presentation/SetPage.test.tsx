@@ -233,7 +233,9 @@ describe('Set preview', () => {
       expect(screen.getByText('Link copied.').className).toBe('sr-only');
       expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/s/1`);
 
-      act(() => vi.advanceTimersByTime(2000));
+      act(() => {
+        vi.advanceTimersByTime(2000);
+      });
       expect(screen.getByRole('button', { name: 'Copy link' })).toBe(copy);
       expect(document.activeElement).toBe(copy);
     } finally {

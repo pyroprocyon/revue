@@ -16,14 +16,14 @@ export type Signup = { username: string; password: string };
 export type StudySettings = { dailyNewCardLimit: DailyNewCardLimit };
 
 export interface AccountGateway {
-  prepareWrite(): void;
-  signedIn(signal?: AbortSignal): Promise<boolean>;
-  current(signal?: AbortSignal): Promise<AccountProfile | null>;
-  studySettings(signal?: AbortSignal): Promise<StudySettings>;
-  saveStudySettings(settings: StudySettings): Promise<StudySettings>;
-  register(input: Signup): Promise<AccountProfile>;
-  signIn(username: string, password: string): Promise<AccountProfile>;
-  signOut(): Promise<void>;
+  prepareWrite: () => void;
+  signedIn: (signal?: AbortSignal) => Promise<boolean>;
+  current: (signal?: AbortSignal) => Promise<AccountProfile | null>;
+  studySettings: (signal?: AbortSignal) => Promise<StudySettings>;
+  saveStudySettings: (settings: StudySettings) => Promise<StudySettings>;
+  register: (input: Signup) => Promise<AccountProfile>;
+  signIn: (username: string, password: string) => Promise<AccountProfile>;
+  signOut: () => Promise<void>;
 }
 
 const PRIVATE_RETURN_PATHS: ReadonlySet<string> = new Set([
