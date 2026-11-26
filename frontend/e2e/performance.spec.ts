@@ -165,36 +165,92 @@ test('a deck shows its cards before loading the editing and settings panels', as
   }
 });
 
-test('a stale Library chunk reloads an open workspace on the requested route', async ({ page }) => {
-  await page.route('**/api/v1/me', (route) => route.fulfill({ json: { username: 'startup_learner' } }));
-  await page.route('**/api/v1/cards/due*', (route) =>
-    route.fulfill({ json: { totalCards: 0, availableCards: 0, dueCards: 0, newCards: 0, cards: [] } }),
-  );
-  await page.route('**/api/v1/decks', (route) =>
-    route.fulfill({ json: { items: [{ id: '7', title: 'Cell Biology', cardCount: 1, archived: false }] } }),
-  );
-  await page.route('**/api/v1/me/saved-sets?*', (route) => route.fulfill({ json: { items: [], nextCursor: null } }));
-  await page.goto('/today');
-  await expect(page.getByRole('heading', { name: 'Your review', exact: true })).toBeVisible();
+for (const viewport of [
+  { width: 320, height: 568 },
+  { width: 1440, height: 900 },
+]) {
+  test(`a stale Library chunk shows loading feedback during reload at ${viewport.width}px`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await page.route('**/api/v1/me', (route) => route.fulfill({ json: { username: 'startup_learner' } }));
+    await page.route('**/api/v1/cards/due*', (route) =>
+      route.fulfill({ json: { totalCards: 0, availableCards: 0, dueCards: 0, newCards: 0, cards: [] } }),
+    );
+    await page.route('**/api/v1/decks', (route) =>
+      route.fulfill({ json: { items: [{ id: '7', title: 'Cell Biology', cardCount: 1, archived: false }] } }),
+    );
+    await page.route('**/api/v1/me/saved-sets?*', (route) => route.fulfill({ json: { items: [], nextCursor: null } }));
+    await page.goto('/today');
+    await expect(page.getByRole('heading', { name: 'Your review', exact: true })).toBeVisible();
 
-  let reloadingLibrary = false;
-  page.on('request', (request) => {
-    if (request.isNavigationRequest() && new URL(request.url()).pathname === '/library') reloadingLibrary = true;
+    let reloadFeedback: unknown;
+    await page.exposeFunction('recordReloadFeedback', (feedback: unknown) => {
+      reloadFeedback = feedback;
+    });
+    await page.evaluate(() => {
+      const { recordReloadFeedback } = window as typeof window & {
+        recordReloadFeedback: (feedback: unknown) => Promise<void>;
+      };
+      // Playwright waits for the new document. Capture the committed UI before the old document unloads.
+      window.addEventListener(
+        'beforeunload',
+        () => {
+          const status = [...document.querySelectorAll('output')].find(
+            (output) => output.textContent === 'Reloading this page…',
+          );
+          const bounds = status?.getBoundingClientRect();
+          const text = document.body.innerText;
+          void recordReloadFeedback({
+            statusInViewport:
+              !!bounds &&
+              bounds.height > 0 &&
+              bounds.width > 0 &&
+              bounds.top >= 0 &&
+              bounds.bottom <= innerHeight &&
+              bounds.left >= 0 &&
+              bounds.right <= innerWidth,
+            showsError: text.includes('Something went wrong') || text.includes('Try again'),
+          });
+        },
+        { once: true },
+      );
+    });
+
+    let reloadingLibrary = false;
+    let releaseReload!: () => void;
+    const heldReload = new Promise<void>((resolve) => {
+      releaseReload = resolve;
+    });
+    await page.route('**/library', async (route) => {
+      reloadingLibrary = true;
+      await heldReload;
+      await route.continue();
+    });
+    await page.route('**/assets/LibraryPage-*.js', (route) =>
+      reloadingLibrary ? route.continue() : route.fulfill({ status: 404 }),
+    );
+    const staleChunk = page.waitForResponse(
+      (response) => /\/assets\/LibraryPage-.*\.js$/.test(response.url()) && response.status() === 404,
+    );
+    try {
+      const reload = page.waitForRequest(
+        (request) => request.isNavigationRequest() && request.url().endsWith('/library'),
+      );
+      await page
+        .getByRole('navigation', { name: 'Your workspace' })
+        .getByRole('link', { name: 'Library' })
+        .click({ noWaitAfter: true });
+      await Promise.all([staleChunk, reload]);
+      await expect.poll(() => reloadFeedback).toEqual({ statusInViewport: true, showsError: false });
+    } finally {
+      releaseReload();
+    }
+    await expect(page).toHaveURL(/\/library$/);
+    await expect(page.getByRole('link', { name: /Cell Biology/ })).toBeVisible();
+    expect(
+      await page.evaluate(() => (performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming).type),
+    ).toBe('reload');
   });
-  await page.route('**/assets/LibraryPage-*.js', (route) =>
-    reloadingLibrary ? route.continue() : route.fulfill({ status: 404 }),
-  );
-  const staleChunk = page.waitForResponse(
-    (response) => /\/assets\/LibraryPage-.*\.js$/.test(response.url()) && response.status() === 404,
-  );
-  await page.getByRole('navigation', { name: 'Your workspace' }).getByRole('link', { name: 'Library' }).click();
-  await staleChunk;
-  await expect(page).toHaveURL(/\/library$/);
-  await expect(page.getByRole('link', { name: /Cell Biology/ })).toBeVisible();
-  expect(
-    await page.evaluate(() => (performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming).type),
-  ).toBe('reload');
-});
+}
 
 test('a slow account chunk keeps the workspace in place and a repeated failure offers manual retry', async ({
   page,
