@@ -14,17 +14,14 @@ const helpLink = 'help-directory-row pressable';
 const helpIcon = 'size-9 shrink-0 rounded-xl bg-accent-soft p-2 text-accent @max-[16rem]/help:hidden';
 const linkArrow = 'size-4 shrink-0 text-muted';
 
-export function HelpPage() {
-  const session = usePublicSession();
-  const location = useLocation();
-  const openedFromWorkspace = routeState(location).fromWorkspace === true;
-  const useWorkspace = session === 'signed-in' || (session === 'checking' && openedFromWorkspace);
+function useFocusAcrossLayoutSwitch() {
   const focusedControlIndex = useRef(-1);
-  const helpSection = useCallback((section: HTMLElement | null) => {
+  return useCallback((section: HTMLElement | null) => {
     if (!section) return;
     const shell = section.closest('[data-help-layout]');
     const controls = [
-      ...(shell?.querySelectorAll<HTMLElement>('a[href="#main-content"], [data-home-link]') ?? []),
+      shell?.querySelector<HTMLElement>('a[href="#main-content"]'),
+      shell?.querySelector<HTMLElement>('[data-home-link]'),
       ...section.querySelectorAll<HTMLElement>('a[href], button, input'),
     ];
     const target = controls[focusedControlIndex.current];
@@ -35,10 +32,18 @@ export function HelpPage() {
       focusedControlIndex.current = activeControl instanceof HTMLElement ? controls.indexOf(activeControl) : -1;
     };
   }, []);
-  const content = <HelpContent sectionRef={helpSection} signedIn={useWorkspace} />;
+}
+
+export function HelpPage() {
+  const session = usePublicSession();
+  const location = useLocation();
+  const openedFromWorkspace = routeState(location).fromWorkspace === true;
+  const showWorkspace = session === 'signed-in' || (session === 'checking' && openedFromWorkspace);
+  const preserveFocus = useFocusAcrossLayoutSwitch();
+  const content = <HelpContent sectionRef={preserveFocus} signedIn={showWorkspace} />;
   return (
     <div className="contents" data-help-layout>
-      {useWorkspace ? (
+      {showWorkspace ? (
         <WorkspaceLayout>{content}</WorkspaceLayout>
       ) : (
         <PageLayout top={<HomeLink />}>{content}</PageLayout>
