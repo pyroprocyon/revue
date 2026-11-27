@@ -15,6 +15,12 @@ export type AccountProfile = { username: string };
 export type Signup = { username: string; password: string };
 export type StudySettings = { dailyNewCardLimit: DailyNewCardLimit };
 
+export class SignupRateLimitedError extends Error {
+  constructor(readonly retryDeadline: number | null) {
+    super('Signup is busy. Please try again.');
+  }
+}
+
 export interface AccountGateway {
   prepareWrite: (this: void) => void;
   signedIn: (signal?: AbortSignal) => Promise<boolean>;
