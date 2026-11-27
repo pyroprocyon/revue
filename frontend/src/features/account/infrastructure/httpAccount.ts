@@ -1,8 +1,9 @@
 import { announceSessionChange } from '../../../shared/navigation/sessionChanges';
 import {
-  SignupRateLimitedError,
+  AccountRateLimitedError,
   type AccountGateway,
   type AccountProfile,
+  type AccountRetryDeadline,
   type Signup,
   type StudySettings,
 } from '../application/account';
@@ -21,10 +22,15 @@ const REQUEST_UNCONFIRMED = 'We could not confirm the request. Check your connec
 const STUDY_SETTINGS_PATH = '/api/v1/me/study-settings';
 const REGISTER_PATH = '/api/v1/auth/register';
 
-function readSignupRetryDeadline(header: string | null): number | null {
+function readRetryDeadline(header: string | null): AccountRetryDeadline | null {
   if (!header) return null;
-  const delayMs = /^\d+$/.test(header) ? Number(header) * 1000 : Date.parse(header) - Date.now();
-  return delayMs > 0 ? Math.min(performance.now() + delayMs, Number.MAX_SAFE_INTEGER) : null;
+  const now = Date.now();
+  const delayMs = /^\d+$/.test(header) ? Number(header) * 1000 : Date.parse(header) - now;
+  if (Number.isNaN(delayMs) || delayMs <= 0) return null;
+  return {
+    elapsed: Math.min(performance.now() + delayMs, Number.MAX_SAFE_INTEGER),
+    wall: Math.min(now + delayMs, Number.MAX_SAFE_INTEGER),
+  };
 }
 
 async function readStudySettings(response: Response): Promise<StudySettings> {
@@ -48,8 +54,8 @@ async function post(path: string, values?: Record<string, string>): Promise<Resp
     throw new Error(REQUEST_UNCONFIRMED);
   }
   if (!response.ok) {
-    if (path === REGISTER_PATH && response.status === 429) {
-      throw new SignupRateLimitedError(readSignupRetryDeadline(response.headers.get('Retry-After')));
+    if (response.status === 429) {
+      throw new AccountRateLimitedError(readRetryDeadline(response.headers.get('Retry-After')));
     }
     if (response.status === 403) {
       forgetCsrfToken();

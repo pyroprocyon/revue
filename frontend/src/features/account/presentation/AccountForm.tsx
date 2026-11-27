@@ -6,7 +6,7 @@ import { saveSignedInHint } from '../../../shared/navigation/signedInHint';
 import { Eye, EyeOff } from 'lucide-react';
 import { useEffect, useRef, useState, type SubmitEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
-import { safeAccountReturnPath, SignupRateLimitedError } from '../application/account';
+import { AccountRateLimitedError, safeAccountReturnPath, type AccountRetryDeadline } from '../application/account';
 import { useAccountGateway } from './AccountProvider';
 import { forgetConfirmedProfile } from './confirmedProfile';
 import { PolicyLinks } from '../../../shared/ui/PolicyLinks';
@@ -28,16 +28,16 @@ const RETRY_SECOND = { name: 'second', milliseconds: 1000 };
 const inputStyle =
   'min-h-14 w-full rounded-control border border-field-edge bg-surface px-4 text-body text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent';
 
-function signupWaitUntil(deadline: number | null) {
+function signupWaitUntil(deadline: AccountRetryDeadline | null) {
   if (deadline === null) return null;
-  const remainingMs = deadline - performance.now();
+  const remainingMs = Math.min(deadline.elapsed - performance.now(), deadline.wall - Date.now());
   if (remainingMs <= 0) return null;
-  const unit = RETRY_UNITS.find(({ milliseconds }) => remainingMs > milliseconds) ?? RETRY_SECOND;
+  const unit = RETRY_UNITS.find(({ milliseconds }) => remainingMs > 2 * milliseconds) ?? RETRY_SECOND;
   const amount = Math.ceil(remainingMs / unit.milliseconds);
   return {
     deadline,
-    label: `${amount} ${unit.name}${amount === 1 ? '' : 's'}`,
-    nextUpdateAt: deadline - (amount - 1) * unit.milliseconds,
+    label: `${amount}\u00a0${unit.name}${amount === 1 ? '' : 's'}`,
+    updateAfterMs: Math.ceil(remainingMs - (amount - 1) * unit.milliseconds),
   };
 }
 
@@ -66,7 +66,7 @@ export function AccountForm({ register = false }: Readonly<{ register?: boolean 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | SignupRateLimitedError>('');
+  const [error, setError] = useState<string | AccountRateLimitedError>('');
   const [signupWait, setSignupWait] = useState<ReturnType<typeof signupWaitUntil>>(null);
   const retryDeadline = signupWait?.deadline ?? null;
   const errorRef = useRef<HTMLParagraphElement>(null);
@@ -77,15 +77,24 @@ export function AccountForm({ register = false }: Readonly<{ register?: boolean 
     if (retryDeadline === null) return;
     let timer: number | undefined;
     const updateCountdown = () => {
+      window.clearTimeout(timer);
       const wait = signupWaitUntil(retryDeadline);
       setSignupWait(wait);
-      if (wait) timer = window.setTimeout(updateCountdown, Math.ceil(wait.nextUpdateAt - performance.now()));
+      if (wait) timer = window.setTimeout(updateCountdown, wait.updateAfterMs);
     };
+    document.addEventListener('visibilitychange', updateCountdown);
+    window.addEventListener('focus', updateCountdown);
+    window.addEventListener('pageshow', updateCountdown);
     updateCountdown();
-    return () => window.clearTimeout(timer);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener('visibilitychange', updateCountdown);
+      window.removeEventListener('focus', updateCountdown);
+      window.removeEventListener('pageshow', updateCountdown);
+    };
   }, [retryDeadline]);
 
-  const retryingSignup = error instanceof SignupRateLimitedError;
+  const retryingSignup = error instanceof AccountRateLimitedError;
   const signupFeedback = signupWait
     ? 'Signup is busy. Your entries are still here.'
     : 'Signup was busy. You can try again now.';
@@ -120,7 +129,7 @@ export function AccountForm({ register = false }: Readonly<{ register?: boolean 
       saveSignedInHint(true);
       await navigate(returnPath ?? TODAY_PATH, { replace: true });
     } catch (error_) {
-      if (register && error_ instanceof SignupRateLimitedError) {
+      if (register && error_ instanceof AccountRateLimitedError) {
         setError(error_);
         setSignupWait(signupWaitUntil(error_.retryDeadline));
         return;

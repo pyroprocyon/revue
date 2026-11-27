@@ -17,6 +17,7 @@ public class AccountProblem extends RuntimeException {
     public enum Kind {
         INVALID_CREDENTIALS,
         UNAVAILABLE_USERNAME,
+        AUTHENTICATION_BUSY,
         OVERLOADED
     }
 }

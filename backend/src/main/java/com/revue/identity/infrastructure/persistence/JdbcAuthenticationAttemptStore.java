@@ -17,20 +17,21 @@ public class JdbcAuthenticationAttemptStore implements AuthenticationAttemptStor
 
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW, timeout = 2)
-    public boolean tryAcquire(String identifierHash) {
+    public Decision tryAcquire(String identifierHash) {
         // Separate namespace and key from other advisory locks. Losing contenders fail closed.
         if (!Boolean.TRUE
             .equals(jdbc.queryForObject("SELECT pg_try_advisory_xact_lock(1919252085, 1)", Boolean.class))) {
-            return false;
+            return Decision.CONTENDED;
         }
         jdbc.update("DELETE FROM authentication_attempts WHERE expires_at <= statement_timestamp()");
-        return jdbc.update("""
+        int updated = jdbc.update("""
             INSERT INTO authentication_attempts (identifier_hash, attempts, expires_at)
             SELECT ?, 1, statement_timestamp() + interval '1 minute'
             WHERE CASE WHEN EXISTS (SELECT 1 FROM authentication_attempts WHERE identifier_hash = ?) THEN true
                 ELSE (SELECT count(*) FROM authentication_attempts) < 1024 END
             ON CONFLICT (identifier_hash) DO UPDATE SET attempts = authentication_attempts.attempts + 1
             WHERE authentication_attempts.attempts < 10
-            """, identifierHash, identifierHash) == 1;
+            """, identifierHash, identifierHash);
+        return updated == 1 ? Decision.ADMITTED : Decision.EXHAUSTED;
     }
 }

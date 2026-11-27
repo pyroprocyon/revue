@@ -15,9 +15,11 @@ export type AccountProfile = { username: string };
 export type Signup = { username: string; password: string };
 export type StudySettings = { dailyNewCardLimit: DailyNewCardLimit };
 
-export class SignupRateLimitedError extends Error {
-  constructor(readonly retryDeadline: number | null) {
-    super('Signup is busy. Please try again.');
+export type AccountRetryDeadline = Readonly<{ elapsed: number; wall: number }>;
+
+export class AccountRateLimitedError extends Error {
+  constructor(readonly retryDeadline: AccountRetryDeadline | null) {
+    super('Please wait a moment and try again.');
   }
 }
 
