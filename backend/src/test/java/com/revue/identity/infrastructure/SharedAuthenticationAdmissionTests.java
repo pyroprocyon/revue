@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.revue.TestcontainersConfiguration;
 import com.revue.identity.application.AccountProblem;
 import com.revue.identity.application.AuthenticationAttemptStore;
+import com.revue.identity.application.AuthenticationAttemptStore.Decision;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -53,10 +54,10 @@ class SharedAuthenticationAdmissionTests {
         jdbc.update(
             "INSERT INTO authentication_attempts SELECT md5(n::text) || md5(n::text), 1, clock_timestamp() +"
                 + " interval '1 minute' FROM generate_series(1, 1024) n");
-        assertThat(store.tryAcquire("a".repeat(64))).isFalse();
+        assertThat(store.tryAcquire("a".repeat(64))).isEqualTo(Decision.EXHAUSTED);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM authentication_attempts", Integer.class)).isEqualTo(1024);
         String existing = jdbc.queryForObject("SELECT min(identifier_hash) FROM authentication_attempts", String.class);
-        assertThat(store.tryAcquire(existing)).isTrue();
+        assertThat(store.tryAcquire(existing)).isEqualTo(Decision.ADMITTED);
         assertThat(
             jdbc.queryForObject(
                 "SELECT attempts FROM authentication_attempts WHERE identifier_hash = ?",
@@ -64,7 +65,7 @@ class SharedAuthenticationAdmissionTests {
                 existing))
             .isEqualTo(2);
         jdbc.update("UPDATE authentication_attempts SET expires_at = clock_timestamp() - interval '1 second'");
-        assertThat(store.tryAcquire("a".repeat(64))).isTrue();
+        assertThat(store.tryAcquire("a".repeat(64))).isEqualTo(Decision.ADMITTED);
     }
 
     @Test
@@ -72,7 +73,7 @@ class SharedAuthenticationAdmissionTests {
         new TransactionTemplate(transactions).executeWithoutResult(status -> {
             jdbc.queryForObject("SELECT pg_try_advisory_xact_lock(1919252085, 1)", Boolean.class);
             long start = System.nanoTime();
-            assertThat(store.tryAcquire("b".repeat(64))).isFalse();
+            assertThat(store.tryAcquire("b".repeat(64))).isEqualTo(Decision.CONTENDED);
             assertThat((System.nanoTime() - start) / 1_000_000).isLessThan(1000);
         });
     }

@@ -385,14 +385,29 @@ class UsernameAccountHttpTests {
         Browser browser = new Browser();
         browser.csrf();
         String name = username();
-        assertThat(browser.send(signup(name, "kanjii")).getResponse().getStatus()).isEqualTo(200);
-        browser.csrf();
         try (var _ = admission.enter("other-operation")) {
-            var rejected = browser.send(login(name, "kanjii")).getResponse();
+            var rejected = browser.send(signup(name, "kanjii")).getResponse();
             assertThat(rejected.getStatus()).isEqualTo(429);
-            assertThat(rejected.getHeader("Retry-After")).isEqualTo("60");
+            assertThat(rejected.getHeader("Retry-After")).isEqualTo("1");
         }
-        assertThat(browser.send(login(name, "kanjii")).getResponse().getStatus()).isEqualTo(200);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM users WHERE username = ?", Long.class, name)).isZero();
+        assertThat(browser.send(signup(name, "kanjii")).getResponse().getStatus()).isEqualTo(200);
+    }
+
+    @Test
+    void anExhaustedSignupBudgetKeepsTheLongerRetryDelay() throws Exception {
+        Browser browser = new Browser();
+        browser.csrf();
+        String name = username();
+        for (int i = 0; i < 10; i++) {
+            admission.enter(name).close();
+        }
+
+        var rejected = browser.send(signup(name, "kanjii")).getResponse();
+
+        assertThat(rejected.getStatus()).isEqualTo(429);
+        assertThat(rejected.getHeader("Retry-After")).isEqualTo("60");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM users WHERE username = ?", Long.class, name)).isZero();
     }
 
     @Test

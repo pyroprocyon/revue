@@ -29,31 +29,36 @@ public class BoundedAuthenticationAdmission implements AuthenticationAdmission {
     @Override
     public AutoCloseablePermit enter(String key) {
         if (!operations.tryAcquire()) {
-            throw rejected("local_capacity");
+            throw rejected("local_capacity", AccountProblem.Kind.AUTHENTICATION_BUSY);
         }
         try {
-            if (!attempts.tryAcquire(digest(key))) {
-                throw rejected("shared_budget");
-            }
-            metrics.counter("revue.authentication.admission", "result", "accepted").increment();
-            var released = new AtomicBoolean();
-            return () -> {
-                if (released.compareAndSet(false, true)) {
-                    operations.release();
-                }
+            return switch (attempts.tryAcquire(digest(key))) {
+                case ADMITTED -> acceptedPermit();
+                case CONTENDED -> throw rejected("store_contention", AccountProblem.Kind.AUTHENTICATION_BUSY);
+                case EXHAUSTED -> throw rejected("shared_budget", AccountProblem.Kind.OVERLOADED);
             };
         } catch (DataAccessException | CannotCreateTransactionException _) {
             operations.release();
-            throw rejected("store_unavailable");
+            throw rejected("store_unavailable", AccountProblem.Kind.OVERLOADED);
         } catch (RuntimeException ex) {
             operations.release();
             throw ex;
         }
     }
 
-    private AccountProblem rejected(String reason) {
+    private AutoCloseablePermit acceptedPermit() {
+        metrics.counter("revue.authentication.admission", "result", "accepted").increment();
+        var released = new AtomicBoolean();
+        return () -> {
+            if (released.compareAndSet(false, true)) {
+                operations.release();
+            }
+        };
+    }
+
+    private AccountProblem rejected(String reason, AccountProblem.Kind kind) {
         metrics.counter("revue.authentication.admission", "result", reason).increment();
-        return new AccountProblem(AccountProblem.Kind.OVERLOADED, "Please wait a moment and try again");
+        return new AccountProblem(kind, "Please wait a moment and try again");
     }
 
     private static String digest(String key) {

@@ -37,6 +37,29 @@ function setup(register = true, entry = '/register') {
   return gateway;
 }
 
+async function submitRateLimitedSignup(retryAfter: string | null) {
+  const gateway = setup(true, '/register?returnTo=%2Fsets%2Fexample');
+  const headers = new Headers();
+  if (retryAfter !== null) headers.set('Retry-After', retryAfter);
+  const fetcher = vi
+    .fn()
+    .mockResolvedValueOnce(Response.json({ token: 'form-token', headerName: 'X-XSRF-TOKEN' }))
+    .mockResolvedValueOnce(new Response(null, { status: 429, headers }))
+    .mockResolvedValueOnce(Response.json({ username: 'student' }));
+  vi.stubGlobal('fetch', fetcher);
+  vi.mocked(gateway.register).mockImplementation(httpAccount.register);
+  const username = screen.getByLabelText('Username') as HTMLInputElement;
+  const password = screen.getByLabelText('Password') as HTMLInputElement;
+  const confirmation = screen.getByLabelText('Confirm password') as HTMLInputElement;
+  fireEvent.change(username, { target: { value: 'student' } });
+  fireEvent.change(password, { target: { value: testPassword } });
+  fireEvent.change(confirmation, { target: { value: testPassword } });
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
+  });
+  return { gateway, username, password, confirmation };
+}
+
 describe('pilot account forms', () => {
   it('registers with a six-character password and navigates on confirmation', async () => {
     const gateway = setup();
@@ -118,70 +141,106 @@ describe('pilot account forms', () => {
   });
 
   it.each([
-    ['a 60-second delay', 60, false, 0],
-    ['a 30-day delay', 2_592_000, false, 0],
-    ['an HTTP date', 60, true, 0],
-    ['a 60-second delay after the clock moves back an hour', 60, false, -3_600_000],
-    ['a 60-second delay after the clock moves forward an hour', 60, false, 3_600_000],
-    ['a 30-day delay after the clock moves forward a week', 2_592_000, false, 604_800_000],
-  ])('keeps signup entries and honors %s on a confirmed 429', async (_, seconds, useHttpDate, clockShiftMs) => {
-    vi.useFakeTimers({ now: new Date(2026, 10, 27, 9) });
+    { description: 'a one-second delay', seconds: 1, label: '1 second' },
+    { description: 'a 60-second delay', seconds: 60, label: '60 seconds' },
+    { description: 'a delay just over a minute', seconds: 61, label: '61 seconds' },
+    { description: 'a delay just over a day', seconds: 86_401, label: '25 hours' },
+    { description: 'a 30-day delay', seconds: 2_592_000, label: '30 days' },
+    { description: 'an HTTP date', seconds: 60, label: '60 seconds', useHttpDate: true },
+    { description: 'a backward clock correction', seconds: 60, label: '60 seconds', clockShiftMs: -3_600_000 },
+  ])(
+    'keeps signup entries and honors $description on a confirmed 429',
+    async ({ seconds, label, useHttpDate, clockShiftMs }) => {
+      vi.useFakeTimers({ now: new Date(2026, 10, 27, 9) });
+      try {
+        const retryAt = new Date(Date.now() + seconds * 1000);
+        const retryAfter = useHttpDate ? retryAt.toUTCString() : String(seconds);
+        const { gateway, username, password, confirmation } = await submitRateLimitedSignup(retryAfter);
+        const alert = screen.getByRole('alert');
+        expect(alert.textContent).toBe('Signup is busy. Your entries are still here.');
+        expect(username.value).toBe('student');
+        expect(password.value).toBe(testPassword);
+        expect(confirmation.value).toBe(testPassword);
+        const submit = screen.getByRole('button', { name: /^Try again in / }) as HTMLButtonElement;
+        expect(submit.textContent).toBe(`Try again in ${label.replace(' ', '\u00a0')}`);
+        expect(submit.disabled).toBe(true);
+        fireEvent.submit(submit.form as HTMLFormElement);
+        if (clockShiftMs) vi.setSystemTime(Date.now() + clockShiftMs);
+        const sampleMs = seconds === 60 ? 55_000 : 0;
+        await act(() => vi.advanceTimersByTimeAsync(sampleMs));
+        if (seconds === 60) expect(submit.textContent).toBe('Try again in 5\u00a0seconds');
+        expect(alert.textContent).toBe('Signup is busy. Your entries are still here.');
+        expect(submit.disabled).toBe(true);
+        await act(() => vi.advanceTimersByTimeAsync(seconds * 1000 - sampleMs - 1));
+        expect(submit.disabled).toBe(true);
+        expect(submit.textContent).toBe('Try again in 1\u00a0second');
+        expect(gateway.register).toHaveBeenCalledTimes(1);
+
+        username.focus();
+        await act(() => vi.advanceTimersByTimeAsync(1));
+        expect(screen.getByRole('alert').textContent).toContain('You can try again now');
+        expect(document.activeElement).toBe(username);
+        expect(submit.disabled).toBe(false);
+        expect(gateway.register).toHaveBeenCalledTimes(1);
+        await act(async () => {
+          fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+        });
+        expect(screen.getByText('Original set')).toBeTruthy();
+        expect(gateway.register).toHaveBeenNthCalledWith(2, { username: 'student', password: testPassword });
+      } finally {
+        vi.useRealTimers();
+      }
+    },
+  );
+
+  it('offers a manual retry on wake after the server wait elapsed during sleep', async () => {
+    vi.useFakeTimers();
     try {
-      const gateway = setup(true, '/register?returnTo=%2Fsets%2Fexample');
-      const retryAt = new Date(Date.now() + seconds * 1000);
-      const retryAfter = useHttpDate ? retryAt.toUTCString() : String(seconds);
-      const fetcher = vi
-        .fn()
-        .mockResolvedValueOnce(Response.json({ token: 'form-token', headerName: 'X-XSRF-TOKEN' }))
-        .mockResolvedValueOnce(new Response(null, { status: 429, headers: { 'Retry-After': retryAfter } }))
-        .mockResolvedValueOnce(Response.json({ username: 'student' }));
-      vi.stubGlobal('fetch', fetcher);
-      vi.mocked(gateway.register).mockImplementation(httpAccount.register);
-      const username = screen.getByLabelText('Username') as HTMLInputElement;
-      const password = screen.getByLabelText('Password') as HTMLInputElement;
-      const confirmation = screen.getByLabelText('Confirm password') as HTMLInputElement;
-      fireEvent.change(username, { target: { value: 'student' } });
-      fireEvent.change(password, { target: { value: testPassword } });
-      fireEvent.change(confirmation, { target: { value: testPassword } });
+      const { gateway, password, confirmation } = await submitRateLimitedSignup('60');
+      const elapsedBeforeSleep = performance.now();
+      vi.setSystemTime(Date.now() + 70_000);
+      expect(performance.now()).toBe(elapsedBeforeSleep);
 
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
+        fireEvent(document, new Event('visibilitychange'));
       });
 
-      const alert = screen.getByRole('alert');
-      expect(alert.textContent).toBe('Signup is busy. Your entries are still here.');
-      expect(username.value).toBe('student');
+      expect((screen.getByRole('button', { name: 'Try again' }) as HTMLButtonElement).disabled).toBe(false);
       expect(password.value).toBe(testPassword);
       expect(confirmation.value).toBe(testPassword);
-      const initialWait = seconds === 60 ? '60 seconds' : '30 days';
-      const submit = screen.getByRole('button', { name: `Try again in ${initialWait}` }) as HTMLButtonElement;
-      expect(submit.disabled).toBe(true);
-      fireEvent.submit(submit.form as HTMLFormElement);
-      if (clockShiftMs !== 0) vi.setSystemTime(Date.now() + clockShiftMs);
-      await act(() => vi.advanceTimersByTimeAsync(55_000));
-      const remainingWait = seconds === 60 ? '5 seconds' : '30 days';
-      expect(submit.textContent).toBe(`Try again in ${remainingWait}`);
-      expect(alert.textContent).toBe('Signup is busy. Your entries are still here.');
-      expect(submit.disabled).toBe(true);
-      await act(() => vi.advanceTimersByTimeAsync(seconds * 1000 - 55_001));
-      expect(submit.disabled).toBe(true);
-      expect(submit.textContent).toBe('Try again in 1 second');
       expect(gateway.register).toHaveBeenCalledTimes(1);
-
-      username.focus();
-      await act(() => vi.advanceTimersByTimeAsync(1));
-      expect(screen.getByRole('alert').textContent).toContain('You can try again now');
-      expect(document.activeElement).toBe(username);
-      expect(submit.disabled).toBe(false);
-      expect(gateway.register).toHaveBeenCalledTimes(1);
-      await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
-      });
-      expect(screen.getByText('Original set')).toBeTruthy();
-      expect(gateway.register).toHaveBeenNthCalledWith(2, { username: 'student', password: testPassword });
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it.each([null, '0', 'invalid-date'])('offers an immediate manual retry for Retry-After %s', async (header) => {
+    const { gateway, password, confirmation } = await submitRateLimitedSignup(header);
+    expect(screen.getByRole('alert').textContent).toBe('Signup was busy. You can try again now.');
+    expect((screen.getByRole('button', { name: 'Try again' }) as HTMLButtonElement).disabled).toBe(false);
+    expect(password.value).toBe(testPassword);
+    expect(confirmation.value).toBe(testPassword);
+    expect(gateway.register).toHaveBeenCalledTimes(1);
+  });
+
+  it('clears the password after a sign-in 429 and shows the generic message', async () => {
+    const gateway = setup(false);
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(Response.json({ token: 'form-token', headerName: 'X-XSRF-TOKEN' }))
+        .mockResolvedValueOnce(new Response(null, { status: 429, headers: { 'Retry-After': '1' } })),
+    );
+    vi.mocked(gateway.signIn).mockImplementation(httpAccount.signIn);
+    const password = screen.getByLabelText('Password') as HTMLInputElement;
+    fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'student' } });
+    fireEvent.change(password, { target: { value: testPassword } });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toBe('Please wait a moment and try again.');
+    expect(password.value).toBe('');
+    expect((screen.getByRole('button', { name: 'Sign in' }) as HTMLButtonElement).disabled).toBe(false);
   });
 
   it('uses a current-password field and clears it after a rejected sign-in', async () => {
