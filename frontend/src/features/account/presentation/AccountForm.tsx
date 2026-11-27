@@ -41,6 +41,16 @@ function signupWaitUntil(deadline: number | null) {
   };
 }
 
+function submitButtonLabel(
+  readyAction: string,
+  { busy, checking, waitLabel }: { busy: boolean; checking: boolean; waitLabel: string | undefined },
+) {
+  if (busy) return 'Please wait…';
+  if (waitLabel) return `Try again in ${waitLabel}`;
+  if (checking) return 'Checking your session…';
+  return readyAction;
+}
+
 export function AccountForm({ register = false }: Readonly<{ register?: boolean }>) {
   const gateway = useAccountGateway();
   const checking = usePublicSession() === 'checking';
@@ -80,8 +90,8 @@ export function AccountForm({ register = false }: Readonly<{ register?: boolean 
     ? 'Signup is busy. Your entries are still here.'
     : 'Signup was busy. You can try again now.';
   const idleAction = register ? 'Create account' : 'Sign in';
-  const readyAction = checking ? 'Checking your session…' : retryingSignup ? 'Try again' : idleAction;
-  const actionLabel = busy ? 'Please wait…' : signupWait ? `Try again in ${signupWait.label}` : readyAction;
+  const readyAction = retryingSignup ? 'Try again' : idleAction;
+  const actionLabel = submitButtonLabel(readyAction, { busy, checking, waitLabel: signupWait?.label });
   const submitDisabled = busy || checking || signupWait !== null;
 
   async function submit(event: SubmitEvent<HTMLFormElement>) {
