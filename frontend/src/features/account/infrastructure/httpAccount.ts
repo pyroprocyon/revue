@@ -1,5 +1,11 @@
 import { announceSessionChange } from '../../../shared/navigation/sessionChanges';
-import type { AccountGateway, AccountProfile, Signup, StudySettings } from '../application/account';
+import {
+  SignupRateLimitedError,
+  type AccountGateway,
+  type AccountProfile,
+  type Signup,
+  type StudySettings,
+} from '../application/account';
 import { DAILY_NEW_CARD_LIMITS } from '../../../shared/product/studyRules';
 import {
   csrfToken,
@@ -13,6 +19,13 @@ const SESSION_CHECK_FAILED = 'We could not check your session. Please try again.
 const ACCOUNT_LOAD_FAILED = 'We could not load your account. Please try again.';
 const REQUEST_UNCONFIRMED = 'We could not confirm the request. Check your connection, then try signing in.';
 const STUDY_SETTINGS_PATH = '/api/v1/me/study-settings';
+const REGISTER_PATH = '/api/v1/auth/register';
+
+function readSignupRetryDeadline(header: string | null): number | null {
+  if (!header) return null;
+  const delayMs = /^\d+$/.test(header) ? Number(header) * 1000 : Date.parse(header) - Date.now();
+  return delayMs > 0 ? Math.min(performance.now() + delayMs, Number.MAX_SAFE_INTEGER) : null;
+}
 
 async function readStudySettings(response: Response): Promise<StudySettings> {
   if (!response.ok) throw new Error('Study settings request failed');
@@ -35,6 +48,9 @@ async function post(path: string, values?: Record<string, string>): Promise<Resp
     throw new Error(REQUEST_UNCONFIRMED);
   }
   if (!response.ok) {
+    if (path === REGISTER_PATH && response.status === 429) {
+      throw new SignupRateLimitedError(readSignupRetryDeadline(response.headers.get('Retry-After')));
+    }
     if (response.status === 403) {
       forgetCsrfToken();
       throw new Error('Your form expired. Please try again.');
@@ -88,7 +104,7 @@ export const httpAccount: AccountGateway = {
     );
   },
   async register(input: Signup) {
-    return postForProfile('/api/v1/auth/register', input);
+    return postForProfile(REGISTER_PATH, input);
   },
   async signIn(username, password) {
     return postForProfile('/api/v1/auth/login', { username, password });
